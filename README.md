@@ -11,10 +11,10 @@ browser.
 
 ## Install
 
-**The Mac app** (Apple Silicon, macOS 13 or later): download
-`overtime-<version>-arm64.dmg` from
-[Releases](https://github.com/ayush-905/overtime/releases), open it and drag Overtime to
-Applications.
+**The Mac app** (Apple Silicon, macOS 13 or later):
+**[download Overtime 0.4.0](https://github.com/ayush-905/Overtime/releases/download/v0.4.0/overtime-0.4.0-arm64.dmg)**
+(or see [all releases](https://github.com/ayush-905/Overtime/releases)), open the DMG and
+drag Overtime to Applications.
 
 The app isn't notarized by Apple, so the first time you open it macOS says it can't check
 it for malware. Try to open it once, then go to **System Settings → Privacy & Security**,
@@ -30,8 +30,8 @@ After that it opens normally, and it updates itself.
 nothing to install):
 
 ```bash
-git clone https://github.com/ayush-905/overtime.git
-cd overtime
+git clone https://github.com/ayush-905/Overtime.git
+cd Overtime
 node server.js
 ```
 
@@ -341,7 +341,8 @@ London's clock whatever yours is. After a deliberate change, record new ones wit
 Raise `version` in `package.json`, then run
 `GH_TOKEN=$(gh auth token) npm run app:release`. It builds the app and uploads the `.dmg`,
 the `.zip` and `latest-mac.yml` (what the app checks) to a draft release tagged `v` and the
-version; publishing the draft on GitHub lets every copy find it. The repo has to be public,
+version; publishing the draft on GitHub lets every copy find it. Then point the download
+link under [Install](#install) at the new DMG. The repo has to be public,
 since the app downloads updates without a login.
 
 The build is signed ad hoc. Opening it without the step under [Install](#install) needs an
