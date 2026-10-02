@@ -1,0 +1,103 @@
+{
+  "name": "overtime",
+  "productName": "Overtime",
+  "version": "0.4.0",
+  "description": "A dashboard for your Claude Code and Codex limits, spend and agents, plus a pixel-art office to watch them work",
+  "author": "Ayush Tripathi",
+  "license": "MIT",
+  "type": "module",
+  "private": true,
+  "main": "desktop/main.js",
+  "scripts": {
+    "start": "node server.js",
+    "test": "node --test \"test/*.test.js\"",
+    "build:ui": "vite build --config ui/vite.config.ts",
+    "dev:ui": "vite --config ui/vite.config.ts",
+    "test:ui": "vitest run --config ui/vite.config.ts",
+    "check:ui": "tsc -p ui/tsconfig.json",
+    "app": "electron .",
+    "app:build": "npm run build:ui && electron-builder --mac --publish never && rm -rf dist/mac-arm64",
+    "app:icons": "node desktop/make-icons.js",
+    "app:release": "npm run build:ui && electron-builder --mac --publish always && rm -rf dist/mac-arm64"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "devDependencies": {
+    "@dnd-kit/core": "^6.3.1",
+    "@dnd-kit/sortable": "^10.0.0",
+    "@dnd-kit/utilities": "^3.2.2",
+    "@tailwindcss/vite": "^4.3.3",
+    "@tanstack/react-query": "^5.104.0",
+    "@types/node": "^26.6.3",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.1.1",
+    "electron": "44.4.5",
+    "electron-builder": "26.15.3",
+    "jsdom": "^30.1.1",
+    "lucide-react": "^1.48.0",
+    "radix-ui": "^1.6.7",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
+    "tailwindcss": "^4.3.3",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.1",
+    "vitest": "^5.0.2",
+    "zustand": "^5.0.15"
+  },
+  "build": {
+    "appId": "dev.overtime.app",
+    "productName": "Overtime",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "package.json",
+      "server.js",
+      "lib/**",
+      "web/**",
+      "desktop/**",
+      "!desktop/make-icons.js",
+      "!desktop/icons/icon.png",
+      "!desktop/icons/icon.icns"
+    ],
+    "mac": {
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "arm64"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "arm64"
+          ]
+        }
+      ],
+      "category": "public.app-category.developer-tools",
+      "icon": "desktop/icons/icon.icns",
+      "identity": "-",
+      "hardenedRuntime": false,
+      "darkModeSupport": true,
+      "artifactName": "overtime-${version}-${arch}.${ext}"
+    },
+    "dmg": {
+      "title": "Overtime"
+    },
+    "electronLanguages": [
+      "en",
+      "en_GB"
+    ],
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "ayush-905",
+        "repo": "overtime",
+        "releaseType": "draft"
+      }
+    ]
+  }
+}

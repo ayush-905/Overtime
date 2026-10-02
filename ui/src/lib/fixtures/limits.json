@@ -1,0 +1,121 @@
+{
+ "now": 1790707454928,
+ "limits": {
+  "source": "estimate",
+  "session": {
+   "active": true,
+   "start": 1790699400000,
+   "resetsAt": 1790717400000,
+   "limited": false,
+   "used": 32.1829158,
+   "pct": 14,
+   "capacity": 226.83424820000047,
+   "calibration": {
+    "lastHitAt": 1790426280259,
+    "samples": 1
+   }
+  },
+  "weekly": {
+   "resetsAt": null,
+   "rolling": true,
+   "limited": false,
+   "used": 1223.4351388499917,
+   "pct": null,
+   "capacity": null,
+   "calibration": null
+  },
+  "rates": {
+   "cost30m": 5.594501200000001,
+   "cost24h": 113.07034820000005,
+   "cost7d": 1223.4351388499917
+  },
+  "spend": {
+   "today": {
+    "cost": 2.1914372,
+    "tokens": 8479392,
+    "unpricedTokens": 0,
+    "partial": false,
+    "costKnown": true
+   },
+   "yesterday": {
+    "cost": 110.87891100000006,
+    "tokens": 320775504,
+    "unpricedTokens": 0,
+    "partial": false,
+    "costKnown": true
+   },
+   "yesterdayByNow": {
+    "cost": 0,
+    "tokens": 0,
+    "unpricedTokens": 0,
+    "partial": false,
+    "costKnown": true
+   },
+   "last7": {
+    "cost": 1171.8628980499943,
+    "tokens": 3647380109,
+    "unpricedTokens": 0,
+    "partial": false,
+    "costKnown": true
+   },
+   "last30": {
+    "cost": 1976.4729214499994,
+    "tokens": 4913830515,
+    "unpricedTokens": 0,
+    "partial": false,
+    "costKnown": true
+   },
+   "month": {
+    "cost": 1976.4729214499994,
+    "tokens": 4913830515,
+    "unpricedTokens": 0,
+    "partial": false,
+    "costKnown": true,
+    "from": 1788201000000
+   }
+  },
+  "computedAt": 1790707443022
+ },
+ "codexRecorded": {
+  "provider": "codex",
+  "accountId": "local",
+  "status": "ok",
+  "source": "recorded",
+  "observedAt": 1790620840911,
+  "windows": [
+   {
+    "provider": "codex",
+    "accountId": "local",
+    "bucketId": "codex",
+    "kind": "primary",
+    "id": "local:codex:primary",
+    "bucketName": "codex",
+    "durationMs": 18000000,
+    "usedPercent": 13,
+    "resetsAt": 1790633631000,
+    "plan": "plus",
+    "pace": {
+     "rate": 0,
+     "basis": "over the last hour"
+    }
+   },
+   {
+    "provider": "codex",
+    "accountId": "local",
+    "bucketId": "codex",
+    "kind": "secondary",
+    "id": "local:codex:secondary",
+    "bucketName": "codex",
+    "durationMs": 604800000,
+    "usedPercent": 22,
+    "resetsAt": 1791120778000,
+    "plan": "plus",
+    "pace": {
+     "rate": 0,
+     "basis": "over the last day"
+    }
+   }
+  ],
+  "message": null
+ }
+}

@@ -1,0 +1,156 @@
+/*
+ * The design's tokens, from the approved mockup: surfaces, ink, lines, status,
+ * the two providers, corners, depth, and the type scale. Light by default; dark
+ * with the Mac's setting, or when chosen (data-theme). A colour theme (see
+ * lib/appearance.ts) sets --p-* for the accent and the sidebar's tint. Density
+ * and text size (data-density, data-text) scale spacing and type.
+ */
+
+:root {
+  --bg: #f4f1ea;
+  --side: var(--p-side, #ece7de);
+  --card: #ffffff;
+  --raised: #ffffff;
+  --sunken: #efebe3;
+  --line: #e6e0d5;
+  --line-strong: #d6cebf;
+  --ink: #1c1e22;
+  --muted: #62666d;
+  --faint: #8c9097;
+  /* Classic's accent is the ink: plain buttons and links, and colour themes bring colour. */
+  --accent: var(--p-accent, #1c1e22);
+  --on-accent: var(--p-on-accent, #ffffff);
+
+  --ok: #257a4c;
+  --ok-fill: #3aa56b;
+  --ok-soft: #e2f2e8;
+  --warn: #97590a;
+  --warn-fill: #e09b2d;
+  --warn-soft: #fbf0dc;
+  --warn-line: #ebc98c;
+  --bad: #b93a28;
+  --bad-fill: #d2503c;
+  --bad-soft: #fbe3df;
+
+  --claude: #d97757;
+  --codex: #4466dc;
+  --you: #595d64;
+  --usual: #e4ded2;
+  /* Chart series, for charts that aren't split by provider: teal, ochre, violet, green. */
+  --s1: #3d7f8f;
+  --s2: #c0892b;
+  --s3: #7b61aa;
+  --s4: #5a8f4d;
+
+  --elev-card: 0 1px 2px rgb(28 30 34 / 0.05);
+  --elev-raised: 0 12px 32px rgb(28 30 34 / 0.14), 0 2px 6px rgb(28 30 34 / 0.06);
+  --scrim: rgb(24 20 16 / 0.32);
+
+  /* Density: comfortable, unless data-density="compact". */
+  --card-px: 24px;
+  --card-py: 20px;
+  --row-py: 11px;
+  --page-gap: 20px;
+
+  --side-w: 236px;
+  --rail-w: 60px;
+  --tabbar-h: calc(64px + env(safe-area-inset-bottom, 0px));
+  --overview-columns: minmax(0, 7fr) minmax(0, 5fr);
+  --text-scale: 1;
+
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --bg: #131518;
+    --side: var(--p-side-d, #16181c);
+    --card: #1b1e23;
+    --raised: #22262c;
+    --sunken: #24282e;
+    --line: #2b3037;
+    --line-strong: #3a4048;
+    --ink: #eceae5;
+    --muted: #a0a5ac;
+    --faint: #767b83;
+    --accent: var(--p-accent-d, #eceae5);
+    --on-accent: var(--p-on-accent-d, #141414);
+    --ok: #5fcf97;
+    --ok-fill: #3fb57b;
+    --ok-soft: #1a3326;
+    --warn: #f0b35a;
+    --warn-fill: #e8a33b;
+    --warn-soft: #33280f;
+    --warn-line: #6a5220;
+    --bad: #f28472;
+    --bad-fill: #e0604d;
+    --bad-soft: #3a1f1a;
+    --claude: #e3876a;
+    --codex: #7b93f2;
+    --you: #b7bbc1;
+    --usual: #2a2e35;
+    --s1: #5fb1c2;
+    --s2: #e0b058;
+    --s3: #a790d6;
+    --s4: #86bf77;
+    --elev-card: 0 1px 2px rgb(0 0 0 / 0.3);
+    --elev-raised: 0 16px 40px rgb(0 0 0 / 0.5), 0 2px 6px rgb(0 0 0 / 0.3);
+    --scrim: rgb(0 0 0 / 0.5);
+    color-scheme: dark;
+  }
+}
+
+:root[data-theme='dark'] {
+  --bg: #131518;
+  --side: var(--p-side-d, #16181c);
+  --card: #1b1e23;
+  --raised: #22262c;
+  --sunken: #24282e;
+  --line: #2b3037;
+  --line-strong: #3a4048;
+  --ink: #eceae5;
+  --muted: #a0a5ac;
+  --faint: #767b83;
+  --accent: var(--p-accent-d, #eceae5);
+  --on-accent: var(--p-on-accent-d, #141414);
+  --ok: #5fcf97;
+  --ok-fill: #3fb57b;
+  --ok-soft: #1a3326;
+  --warn: #f0b35a;
+  --warn-fill: #e8a33b;
+  --warn-soft: #33280f;
+  --warn-line: #6a5220;
+  --bad: #f28472;
+  --bad-fill: #e0604d;
+  --bad-soft: #3a1f1a;
+  --claude: #e3876a;
+  --codex: #7b93f2;
+  --you: #b7bbc1;
+  --usual: #2a2e35;
+  --s1: #5fb1c2;
+  --s2: #e0b058;
+  --s3: #a790d6;
+  --s4: #86bf77;
+  --elev-card: 0 1px 2px rgb(0 0 0 / 0.3);
+  --elev-raised: 0 16px 40px rgb(0 0 0 / 0.5), 0 2px 6px rgb(0 0 0 / 0.3);
+  --scrim: rgb(0 0 0 / 0.5);
+  color-scheme: dark;
+}
+
+:root[data-density='compact'] {
+  --card-px: 18px;
+  --card-py: 14px;
+  --row-py: 7px;
+  --page-gap: 14px;
+}
+
+/* The compact layout (a phone, the popover, /mini) packs cards like the mockup's popover. */
+:root.compact {
+  --card-px: 14px;
+  --card-py: 12px;
+  --page-gap: 12px;
+}
+
+:root[data-text='small'] { --text-scale: 0.93; }
+:root[data-text='large'] { --text-scale: 1.07; }
+:root[data-text='larger'] { --text-scale: 1.14; }

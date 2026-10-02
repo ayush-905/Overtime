@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<meta
+			name="viewport"
+			content="width=device-width, initial-scale=1, viewport-fit=cover"
+		/>
+		<title>Overtime</title>
+		<link rel="icon" href="/shared/favicon.svg" type="image/svg+xml" />
+		<!-- settings -->
+		<script>
+			// Your saved look, before the first paint, so the page never flashes: light or
+			// dark, the colour theme, text size and density, the sidebar folded or its
+			// width, and the compact layout (a phone, the menu bar's popover, /mini).
+			try {
+				const root = document.documentElement;
+				const t = localStorage.getItem('overtime-theme');
+				if (t === 'light' || t === 'dark') root.dataset.theme = t;
+				for (const [what, key] of [
+					['text', 'overtime-text'],
+					['density', 'overtime-density'],
+				]) {
+					const v = localStorage.getItem(key);
+					if (v) root.dataset[what] = v;
+				}
+				const palette = JSON.parse(
+					localStorage.getItem('overtime-palette') || 'null',
+				);
+				if (palette?.theme && palette.vars) {
+					root.dataset.palette = palette.theme;
+					for (const [k, v] of Object.entries(palette.vars))
+						if (/^--p-[a-z-]+$/.test(k)) root.style.setProperty(k, String(v));
+				}
+				if (
+					localStorage.getItem('overtime-sidebar') === 'collapsed' ||
+					matchMedia('(max-width: 1100px)').matches
+				)
+					root.classList.add('rail');
+				const sideW = Number(
+					localStorage.getItem('overtime-sidebar-width'),
+				);
+				if (sideW >= 208 && sideW <= 400)
+					root.style.setProperty('--side-w', `${sideW}px`);
+				const mini = /\/mini\/?$/.test(location.pathname);
+				const popover = window.overtimeDesktop?.window === 'popover';
+				if (mini) root.classList.add('mini');
+				if (popover) root.classList.add('in-popover');
+				if (mini || popover || matchMedia('(max-width: 720px)').matches)
+					root.classList.add('compact');
+			} catch {}
+		</script>
+		<script type="module" crossorigin src="./assets/index-C3wqie3K.js"></script>
+		<link rel="modulepreload" crossorigin href="./assets/toasts--NrfYS5r.js">
+		<link rel="modulepreload" crossorigin href="./assets/live-CPulyErC.js">
+		<link rel="modulepreload" crossorigin href="./assets/es2015-D2eRVA7h.js">
+		<link rel="stylesheet" crossorigin href="./assets/index-DL0X_84A.css">
+	</head>
+	<body>
+		<div id="root"></div>
+	</body>
+</html>
