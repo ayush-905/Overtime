@@ -9,6 +9,8 @@ with it.
 It runs as a Mac app with a menu bar item, or as a small local server you open in any
 browser.
 
+![Overtime's Overview, with demo data: each plan's limits, today's cost, and the sessions that need you or are working](.github/screenshot.png)
+
 ## Install
 
 **The Mac app** (Apple Silicon, macOS 13 or later):
