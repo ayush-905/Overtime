@@ -210,8 +210,9 @@ reads and writes, Claude's fast mode and OpenAI's long-context rate. On a subscr
 you're billed differently, so take them as a sense of scale. When Claude Code records its
 own total for a session, that's used instead.
 
-One price table, in `lib/pricing.js`, covers Claude and OpenAI models, checked on
-2026-09-30 against [OpenAI's](https://developers.openai.com/api/docs/pricing) and
+One model catalog, in `lib/models.js`, covers Claude and OpenAI models (however Claude
+Code, Codex, Bedrock, Vertex, OpenRouter or Copilot spell their ids) with their names and
+prices, checked on 2026-09-30 against [OpenAI's](https://developers.openai.com/api/docs/pricing) and
 [Anthropic's](https://platform.claude.com/docs/en/about-claude/pricing) price pages. A model
 with no known price still counts toward tokens and time; its cost is left out, and the
 figure gets a **+**. Restart the server after changing the table.
@@ -350,13 +351,34 @@ London's clock whatever yours is. After a deliberate change, record new ones wit
 | Where | What's there |
 | --- | --- |
 | `server.js` | The server: the live feed (`/events`), the API and the pages |
-| `lib/` | Following the transcripts (`watcher.js`, `claude.js`, `codex.js`, `pi.js`), the 31-day usage index and what's worked out from it (`usage-index.js`, `insights.js`), prices, plan limits, session titles, skills, prompts you repeat, open sessions, resuming, and Overtime's own files (`store.js`) |
+| `lib/` | Following the transcripts (`watcher.js`), the 31-day usage index and what's worked out from it (`usage-index.js`, `insights.js`), the model catalog and prices (`models.js`, `pricing.js`), plan limits, session titles, skills, prompts you repeat, open sessions, resuming, and Overtime's own files (`store.js`) |
+| `lib/harnesses/` | One module per harness (Claude Code, Codex, Pi) and the list of them, each with its readers beside it in `lib/` (`claude.js` and `claude-usage.js`, and so on) |
 | `ui/` | The dashboard, in React and TypeScript with Tailwind, built with Vite: the sections (`src/pages`), the Overview's cards (`src/cards`), the building blocks (`src/components`), the shell (`src/app`), the logic without React (`src/lib`), and the live feed and queries (`src/data`) |
 | `web/app/` | The dashboard, built |
 | `web/office/` | The pixel office |
 | `web/shared/` | What the dashboard and the office share (settings sync, the live-update merger, the demo) and the office's state, theme and tooltips |
 | `desktop/` | The Mac app: Electron's main process, the server beside it, the updater and the icons |
 | `test/` | The server's and the Mac app's tests |
+
+### Adding a harness or a model
+
+**A harness** (another agent tool) is one module in `lib/harnesses/`, listed in
+`lib/harnesses/index.js`, whose comment says what a module provides: where its transcripts
+are and how to read them (live, and into the history), how to resume a session, how to
+spot its process, where its slash commands go, and which of its tools read and write files
+and run commands. Its readers sit in `lib/` (Pi's are `pi.js` and `pi-usage.js`, about 300
+lines between them, a good model). On the dashboard, give it an entry in
+`ui/src/lib/sources.ts` (its name, colour and mark, and its slash commands) and a colour in
+`ui/src/styles/tokens.css`. The watcher, the index, the API and the pages take it from there;
+`test/harnesses.test.js` checks a module has everything and the two lists agree. Plan
+limits are separate: only Claude Code's and Codex's plans have them.
+
+**A model** is a row in `lib/models.js`: its name and its API list prices. A provider whose
+ids or prices work differently is a family there: how to read its ids, and which pricing
+rule in `lib/pricing.js` its prices follow (or a new one). A harness that records each
+request's cost, as Pi does, needs neither. Context windows aren't kept by hand: Codex
+records its own, Pi's come from Pi's own model lists, and only Claude Code's come from the
+catalog.
 
 ### Releasing
 

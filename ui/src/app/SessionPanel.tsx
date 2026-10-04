@@ -58,7 +58,8 @@ type Detail = {
   messages: { count: number; interrupts: number; list: { t: number; text: string; cost: number; partial: boolean; ms: number }[] };
   subagents: { count: number; list: { title: string; firstAt: number | null; calls: number; cost: number; partial: boolean }[] };
   timeline: { from: number; step: number; costs: number[] } | null;
-  resume?: { terminal?: boolean; app?: { name: string; url: string } | null; appMissing?: string | null };
+  // What picks it back up, as its harness says: the command for Terminal, and its app's link.
+  resume?: { terminal?: boolean; command?: string; app?: { name: string; url: string } | null; appMissing?: string | null };
 };
 
 type Turn = {
@@ -83,7 +84,7 @@ type Turn = {
   cwd: string | null;
 };
 
-type Live = LiveAgent & { cwd?: string; nativeId?: string; branch?: string | null; model?: string | null; entrypoint?: string | null; startedAt?: number; cost?: number; tokens?: { total: number }; lines?: { added: number; removed: number }; turns?: number; files?: { path: string; name: string; added: number; removed: number }[] };
+type Live = LiveAgent & { cwd?: string; nativeId?: string; branch?: string | null; model?: string | null; modelName?: string | null; entrypoint?: string | null; startedAt?: number; cost?: number; tokens?: { total: number }; lines?: { added: number; removed: number }; turns?: number; files?: { path: string; name: string; added: number; removed: number }[] };
 type Proc = { id?: string; source: Source; title?: string; project?: string; lastActive?: number; openedAt: number; memBytes: number; toolsMemBytes: number; tools: number; cpuPct?: number | null; runtimeShared?: boolean };
 
 // ── Small pieces ─────────────────────────────────────────────────────────────
@@ -551,11 +552,8 @@ function Actions({ id, live, d, proc }: { id: string; live: Live | null; d: Deta
   // The folder it was started in, where Claude Code can find it to resume (the history knows it best).
   const cwd = d?.cwd || live?.cwd || null;
   const source = live?.source || d?.source || proc?.source || 'claude';
-  const nativeId = live?.nativeId || d?.nativeId || id.replace(/^(?:codex|pi)-/, '');
-  // pi lets you name a session's id yourself; the others are always uuids.
-  const resumable = source === 'pi' ? /^[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?$/ : /^[0-9a-f-]{36}$/;
-  const resume = resumable.test(nativeId) ? `${cwd ? `cd ${shellQuote(cwd)} && ` : ''}${sourceInfo(source).resume} ${nativeId}` : null;
   const r = d?.resume;
+  const resume = r?.command ? `${cwd ? `cd ${shellQuote(cwd)} && ` : ''}${r.command}` : null;
   const appName = source === 'codex' ? 'Codex' : 'Claude';
   const resumeInTerminal = async () => {
     try {
@@ -567,7 +565,7 @@ function Actions({ id, live, d, proc }: { id: string; live: Live | null; d: Deta
   };
   const items = [
     r?.terminal && (
-      <Button key="terminal" size="sm" variant="primary" icon={<Play size={13} strokeWidth={2.2} aria-hidden />} data-tip={`Opens a new Terminal window in its folder and runs ${sourceInfo(source).resume}`} onClick={resumeInTerminal}>
+      <Button key="terminal" size="sm" variant="primary" icon={<Play size={13} strokeWidth={2.2} aria-hidden />} data-tip={`Opens a new Terminal window in its folder and runs ${r.command || 'its resume command'}`} onClick={resumeInTerminal}>
         Resume in Terminal
       </Button>
     ),
@@ -787,7 +785,7 @@ export function SessionPanel() {
       </span>
     ) : null,
     live?.branch || null,
-    live?.model ? live.model.replace(/^claude-/, '') : null,
+    live?.modelName || live?.model || null,
     live?.entrypoint && live.entrypoint !== live.source ? ENTRY[live.entrypoint] || live.entrypoint : null,
     started || null,
   ].filter(Boolean);

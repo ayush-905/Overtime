@@ -47,15 +47,6 @@ function portraitUrl(a) {
   return url;
 }
 
-function prettyModel(model) {
-  if (!model) return '';
-  const m = model.replace(/^claude-/, '').replace(/-\d{8}$/, '').replace(/\[1m\]$/i, '');
-  const match = m.match(/^([a-z]+)-(\d+)(?:-(\d+))?/);
-  if (!match) return m;
-  const name = match[1][0].toUpperCase() + match[1].slice(1);
-  return match[3] ? `${name} ${match[2]}.${match[3]}` : `${name} ${match[2]}`;
-}
-
 function statusText(a) {
   const tool = a.tool;
   const action = tool ? (tool.category === 'other' ? `Using ${tool.name}${tool.detail && tool.detail !== tool.name ? ` · ${tool.detail}` : ''}` : `${tool.verb} ${tool.detail || ''}`.trim()) : '';
@@ -150,7 +141,7 @@ function detailsHtml(a) {
 }
 
 function cardHtml(a, subs) {
-  const meta = [a.project && projectName(a.project), a.branch, prettyModel(a.model)].filter(Boolean).map(esc).join(' · ');
+  const meta = [a.project && projectName(a.project), a.branch, a.modelName || a.model].filter(Boolean).map(esc).join(' · ');
   const entry = ENTRY[a.entrypoint] || (a.background ? 'Background' : a.entrypoint?.startsWith('sdk') ? 'SDK' : '');
   const selected = a.id === state.selectedId;
   const age = waitLevel(a);

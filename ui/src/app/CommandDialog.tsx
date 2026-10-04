@@ -14,21 +14,13 @@ import { Button } from '@/components/Button';
 import { Seg } from '@/components/Seg';
 import { cx } from '@/components/cx';
 import { changed } from '@/lib/bus';
-import { SOURCE, type Source } from '@/lib/sources';
+import { SOURCE, commandUse, isSource, type Source } from '@/lib/sources';
 import { useSources } from '@/data/scope';
 import { note } from './toasts';
 import type { Repeat } from '@/pages/You';
 
 const MADE_KEY = 'overtime-commands-made';
 const NAME = /^[a-z0-9][a-z0-9_-]{0,39}$/;
-const WHERE: Record<Source, string> = { claude: '~/.claude/commands', codex: '~/.codex/prompts', pi: '~/.pi/agent/prompts' };
-// When the agent picks a new command up.
-const WHEN: Record<Source, [string, string]> = {
-  claude: [' in sessions you start after this', 'New Claude Code sessions have it'],
-  codex: [' when it starts', 'Codex has it from its next start'],
-  pi: [' when it starts, or after /reload', 'New Pi sessions have it, and open ones after /reload'],
-};
-const usage = (target: string, name: string) => (target === 'codex' ? `/prompts:${name}` : `/${name}`);
 const slug = (v: string) => v.toLowerCase().replace(/^\/+/, '').replace(/[^a-z0-9_-]+/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '').slice(0, 40);
 
 export const useCommand = create<{ group: Repeat | null; open: (g: Repeat) => void; close: () => void }>((set) => ({
@@ -49,7 +41,7 @@ export function CommandDialog() {
   const [busy, setBusy] = useState(false);
   useEffect(() => {
     if (!g) return;
-    setTarget(g.source in WHERE ? g.source : 'claude');
+    setTarget(isSource(g.source) ? g.source : 'claude');
     setName(g.name);
     setDescription(g.description);
     setBody(g.body);
@@ -57,11 +49,11 @@ export function CommandDialog() {
     setBusy(false);
   }, [g]);
   const agent = SOURCE[target].name;
-  const dir = WHERE[target];
+  const { dir, prefix, reads, ready } = SOURCE[target].commands;
   const valid = NAME.test(name);
   const exists = !!g?.exists?.[target] && name === g?.name;
   const hasArg = body.includes('$ARGUMENTS');
-  const shown = usage(target, valid ? name : 'its-name');
+  const shown = commandUse(target, valid ? name : 'its-name');
   const make = async () => {
     if (!g || !valid || exists || demo || !body.trim()) return;
     setBusy(true);
@@ -82,7 +74,7 @@ export function CommandDialog() {
     } catch {}
     changed('labels');
     close();
-    note(`Made ${res.use || usage(target, name)}. ${WHEN[target][1]}`);
+    note(`Made ${res.use || commandUse(target, name)}. ${ready}`);
   };
   const field = 'rounded-control border border-line bg-card px-3 text-body outline-none focus:border-accent';
   return (
@@ -110,7 +102,7 @@ export function CommandDialog() {
         <label className="flex flex-col gap-1.5">
           <span className="text-detail font-semibold">Name</span>
           <span className={cx('flex h-9 items-center', field, 'px-0')}>
-            <b className="pl-3 text-muted">{target === 'codex' ? '/prompts:' : '/'}</b>
+            <b className="pl-3 text-muted">{prefix}</b>
             <input
               value={name}
               onChange={(e) => setName(e.target.value.trim().toLowerCase())}
@@ -148,7 +140,7 @@ export function CommandDialog() {
         <p className="flex items-start gap-2 rounded-row bg-sunken px-3 py-2.5 text-detail text-muted">
           <Folder size={15} strokeWidth={1.8} className="mt-0.5 shrink-0" aria-hidden />
           <span>
-            Saved as <code>{dir}/{valid ? name : 'its-name'}.md</code>, which {agent} reads{WHEN[target][0]}. Overtime writes it only when you press Create, and never over a file that's there.
+            Saved as <code>{dir}/{valid ? name : 'its-name'}.md</code>, which {agent} reads{reads}. Overtime writes it only when you press Create, and never over a file that's there.
           </span>
         </p>
         {error && (

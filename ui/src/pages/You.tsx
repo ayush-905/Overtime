@@ -31,7 +31,7 @@ import { useUi } from '@/app/ui';
 import { useCommand } from '@/app/CommandDialog';
 import { ExpandButton, ExpandDialog } from '@/cards/Expand';
 import { Hero } from './Agents';
-import type { Source } from '@/lib/sources';
+import { commandUse, type Source } from '@/lib/sources';
 
 function Loading({ title }: { title: string }) {
   return (
@@ -447,7 +447,6 @@ type Repeats = { groups: Repeat[]; prompts: number };
 const HIDDEN_KEY = 'overtime-repeats-hidden';
 export const MADE_KEY = 'overtime-commands-made';
 const SHOWN = 5;
-export const usage = (target: string, name: string) => (target === 'codex' ? `/prompts:${name}` : `/${name}`);
 const readJson = <T,>(key: string, fallback: T): T => {
   try {
     return JSON.parse(localStorage.getItem(key) || 'null') ?? fallback;
@@ -496,7 +495,7 @@ export function RepeatsCard() {
   const shown = expanded ? groups : groups.slice(0, SHOWN);
   const open = groups.filter((g) => !made[g.key]);
   const words = Math.round(open.reduce((n, g) => n + g.words, 0) / Math.max(1, open.length));
-  const tip = open.length ? `${open.length === 1 ? 'It’s' : 'They’re'} about ${plural(words, 'word')} you type again each time. As a command it’s ${usage(open[0].source, open[0].name)}, with whatever changes that time after it.` : 'You made every one of these into a command.';
+  const tip = open.length ? `${open.length === 1 ? 'It’s' : 'They’re'} about ${plural(words, 'word')} you type again each time. As a command it’s ${commandUse(open[0].source, open[0].name)}, with whatever changes that time after it.` : 'You made every one of these into a command.';
   return (
     <Card className="flex flex-col gap-3">
       {head}
@@ -518,15 +517,15 @@ export function RepeatsCard() {
                   {meta}
                   {!done && (
                     <>
-                      {' '}· as <code className="rounded-sm bg-sunken px-1 text-label">{usage(g.source, g.name)}</code>
+                      {' '}· as <code className="rounded-sm bg-sunken px-1 text-label">{commandUse(g.source, g.name)}</code>
                     </>
                   )}
                 </p>
               </div>
               {done ? (
-                <span className="inline-flex shrink-0 items-center gap-1 text-detail font-semibold text-ok" data-tip={`Made as ${usage(done.target, done.name)}`}>
+                <span className="inline-flex shrink-0 items-center gap-1 text-detail font-semibold text-ok" data-tip={`Made as ${commandUse(done.target, done.name)}`}>
                   <Check size={14} strokeWidth={2.2} aria-hidden />
-                  <code>{usage(done.target, done.name)}</code>
+                  <code>{commandUse(done.target, done.name)}</code>
                 </span>
               ) : (
                 <Button size="sm" icon={<Wand2 size={13} strokeWidth={2} aria-hidden />} onClick={() => make(g)}>

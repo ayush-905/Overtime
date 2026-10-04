@@ -9,7 +9,7 @@ import { createFeed, newAgent, view } from '../lib/agents.js';
 import { createUsageIndex } from '../lib/usage-index.js';
 import { sessionDetail, turnDetail } from '../lib/insights.js';
 import { resumeOptions } from '../lib/resume.js';
-import { SESSION_ID, nativeIdOf } from '../lib/sources.js';
+import { isSessionId, nativeIdOf } from '../lib/harnesses/index.js';
 
 const id = '0199b1c2-3d4e-7f60-8a9b-0c1d2e3f4a5b';
 const now = Date.now();
@@ -169,12 +169,12 @@ test('the index finds pi sessions, by project folder or all in one, and keeps th
 test('pi ids, where pi keeps sessions, and resuming one', async () => {
   assert.equal(piFileId(`2026-10-04T04-50-12-345Z_${id}.jsonl`), id);
   assert.equal(piFileId('2026-10-04T04-50-12-345Z_my_named.jsonl'), 'my_named');
-  assert.ok(SESSION_ID.test(`pi-${id}`) && SESSION_ID.test('pi-my-named-session') && !SESSION_ID.test('pi-a;b') && !SESSION_ID.test('pi-'));
+  assert.ok(isSessionId(`pi-${id}`) && isSessionId('pi-my-named-session') && !isSessionId('pi-a;b') && !isSessionId('pi-'));
   assert.equal(nativeIdOf(`pi-${id}`), id);
   assert.equal(piSessionsDir({}, '/Users/me'), '/Users/me/.pi/agent/sessions');
   assert.equal(piSessionsDir({ PI_CODING_AGENT_DIR: '~/pi' }, '/Users/me'), '/Users/me/pi/sessions');
   assert.equal(piSessionsDir({ PI_CODING_AGENT_SESSION_DIR: '/s', PI_CODING_AGENT_DIR: '/x' }, '/Users/me'), '/s');
-  assert.deepEqual(await resumeOptions({ source: 'pi', nativeId: id }), { terminal: true, app: null });
+  assert.deepEqual(await resumeOptions({ source: 'pi', nativeId: id }), { terminal: true, command: `pi --session ${id}`, app: null });
   assert.deepEqual(await resumeOptions({ source: 'pi', nativeId: 'x; rm -rf' }), { terminal: false, app: null });
 });
 

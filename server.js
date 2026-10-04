@@ -19,22 +19,20 @@ import { createSessionMonitor } from './lib/open-sessions.js';
 import { createStore, cleanPrefs, mergeHistory, historyDays, applySettings, settingsScript, DEFAULT_PREFS } from './lib/store.js';
 import { resumeOptions, resumeInTerminal } from './lib/resume.js';
 import { writeCommand } from './lib/prompts.js';
-import { piSessionsDir } from './lib/pi-usage.js';
-import { SESSION_ID, nativeIdOf } from './lib/sources.js';
+import { isSessionId, nativeIdOf, openHarnesses } from './lib/harnesses/index.js';
 
 // PORT=0 takes any free port, as the desktop app does when 4777 is taken by something else.
 const PORT = /^\d{1,5}$/.test(process.env.PORT || '') ? Number(process.env.PORT) : 4777;
 const HOST = '127.0.0.1';
-const CLAUDE_DIR = process.env.CLAUDE_PROJECTS_DIR || path.join(os.homedir(), '.claude', 'projects');
-const CODEX_DIR = process.env.CODEX_SESSIONS_DIR || path.join(os.homedir(), '.codex', 'sessions');
-const PI_DIR = process.env.PI_SESSIONS_DIR || piSessionsDir();
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
 const WEB_DIR = path.join(ROOT, 'web');
 const VERSION = JSON.parse(await fsp.readFile(path.join(ROOT, 'package.json'), 'utf8').catch(() => '{}')).version || '';
 
 const feed = createFeed();
-const watcher = createWatcher({ claudeDir: CLAUDE_DIR, codexDir: CODEX_DIR, piDir: PI_DIR, feed });
-const usageIndex = createUsageIndex({ claudeDir: CLAUDE_DIR, codexDir: CODEX_DIR, piDir: PI_DIR });
+// Every harness, with its transcripts' folder from the environment (CLAUDE_PROJECTS_DIR and so on).
+const harnesses = openHarnesses();
+const watcher = createWatcher({ harnesses, feed });
+const usageIndex = createUsageIndex({ harnesses });
 const claudeIndex = usageIndex.scope('claude');
 const openSessions = createSessionMonitor({
   sessions: () => usageIndex.sessions(),
@@ -249,7 +247,7 @@ const server = http.createServer(async (req, res) => {
   // loading its history. Read-only.
   if (url.pathname === '/api/session-target') {
     const id = url.searchParams.get('id') || '';
-    const known = SESSION_ID.test(id)
+    const known = isSessionId(id)
       ? watcher.agents.get(id) || usageIndex.sessionRecord(id) : null;
     const target = known ? await resumeOptions({ source: known.source, nativeId: known.nativeId || nativeIdOf(id) }) : null;
     res.writeHead(target ? 200 : 404, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }).end(JSON.stringify(target));
@@ -258,7 +256,7 @@ const server = http.createServer(async (req, res) => {
   // One session in full, for the dashboard's session panel. Read-only.
   if (url.pathname === '/api/session') {
     const id = url.searchParams.get('id') || '';
-    const detail = SESSION_ID.test(id) ? sessionDetail(usageIndex, id) : null;
+    const detail = isSessionId(id) ? sessionDetail(usageIndex, id) : null;
     // Where it can be picked up again: Terminal, and the app it belongs to.
     if (detail) detail.resume = await resumeOptions({ source: detail.source, nativeId: detail.nativeId });
     res.writeHead(detail ? 200 : 404, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }).end(JSON.stringify(detail));
@@ -268,7 +266,7 @@ const server = http.createServer(async (req, res) => {
   if (url.pathname === '/api/turn') {
     const id = url.searchParams.get('id') || '';
     const at = Number(url.searchParams.get('t'));
-    const body = SESSION_ID.test(id) && Number.isFinite(at) ? turnDetail(usageIndex, id, at) : null;
+    const body = isSessionId(id) && Number.isFinite(at) ? turnDetail(usageIndex, id, at) : null;
     res.writeHead(body ? 200 : 404, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }).end(JSON.stringify(body));
     return;
   }
@@ -378,7 +376,7 @@ const server = http.createServer(async (req, res) => {
   // the command and the folder are the session's own, from its transcript.
   if (url.pathname === '/api/resume') {
     const id = url.searchParams.get('id') || '';
-    const d = SESSION_ID.test(id) ? sessionDetail(usageIndex, id) : null;
+    const d = isSessionId(id) ? sessionDetail(usageIndex, id) : null;
     const live = watcher.agents.get(id);
     const session = d ? { source: d.source, nativeId: d.nativeId, cwd: d.cwd } : live ? { source: live.source, nativeId: live.nativeId || nativeIdOf(id), cwd: live.cwd } : null;
     try {
@@ -473,8 +471,7 @@ setInterval(() => {
 }, 250);
 
 const started = Date.now();
-watching = await watcher.sources();
-present = await watcher.present();
+({ folders: watching, sources: present } = await watcher.onThisMac());
 await watcher.discover();
 setInterval(() => watcher.tick(), 1000);
 setInterval(() => watcher.discover(), 4000);
@@ -484,7 +481,7 @@ usageIndex.scan().then(() => { limitsComputedAt = 0; insightsComputedAt = 0; });
 setInterval(async () => {
   await usageIndex.scan();
   // A tool installed since: its folder appears, and with it its own view.
-  [watching, present] = await Promise.all([watcher.sources(), watcher.present()]);
+  ({ folders: watching, sources: present } = await watcher.onThisMac());
 }, 15_000);
 
 // Started by the desktop app, the server tells it how it went; from a terminal, it says so.

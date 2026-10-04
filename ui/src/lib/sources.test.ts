@@ -27,7 +27,7 @@ describe('sources', () => {
     expect(andList(['Pi'])).toBe('Pi');
     expect(providerName('pi')).toBe('Pi');
     expect(providerName('all')).toBe('All providers');
-    expect(sourceInfo('pi').resume).toBe('pi --session');
+    expect(sourceInfo('pi').name).toBe('Pi');
     expect(sourceInfo(undefined).name).toBe('Claude Code');
   });
 
