@@ -14,6 +14,7 @@ import { compact, projectName } from '@/lib/format';
 import { useUi } from '@/app/ui';
 import { Avatar, ProjectDot, TagCount } from './Bits';
 import { cx } from './cx';
+import type { Source } from '@/lib/sources';
 
 type Context = { used: number; window: number; pct?: number } | null | undefined;
 
@@ -34,7 +35,7 @@ export function ContextMark({ context, live }: { context: Context; live?: boolea
 
 export type SessionRowProps = {
   id: string | null;
-  source: 'claude' | 'codex';
+  source: Source;
   title: string | null | undefined;
   /** What it's doing now, shown first in its state's colour. */
   now?: string;

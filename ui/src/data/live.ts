@@ -42,7 +42,9 @@ function apply(snap: Snapshot) {
   // Settings the server works with, like the hour your working day starts.
   const prefs = JSON.stringify(snap.prefs || null);
   if (snap.prefs) env.workdayHour = snap.prefs.workdayHour ?? 4;
-  useLive.setState({ snap });
+  // A provider with no folder on this Mac (any more) has nothing to show: show them all, without forgetting the choice.
+  const { provider } = useLive.getState();
+  useLive.setState(snap.analytics && provider !== 'all' && !snap.analytics[provider] ? { snap, provider: 'all' } : { snap });
   if (prefs !== lastPrefs) {
     lastPrefs = prefs;
     changed('prefs');

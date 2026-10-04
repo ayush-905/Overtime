@@ -9,12 +9,19 @@ import { env, serverNow } from '@/lib/env';
 import { quotaItems, type LimitsInput, type QuotaItem } from '@/lib/limits';
 import { readAlertPrefs } from '@/lib/alertPrefs';
 import type { LiveAgent } from '@/lib/agents';
+import { sourcesIn, type Source } from '@/lib/sources';
 
 /** The analytics, agents and open sessions for the provider in view. */
 export function useScope() {
   const snap = useLive((s) => s.snap);
   const provider = useLive((s) => s.provider);
   return { snap, provider, scope: scopeOf(snap, provider) };
+}
+
+/** The sources on this Mac, in order: each one a view of its own. */
+export function useSources(): Source[] {
+  const key = useLive((s) => sourcesIn(s.snap?.analytics).join(' '));
+  return useMemo(() => key.split(' ') as Source[], [key]);
 }
 
 /** Every live agent, and the ones in view, as the agent helpers read them. */

@@ -28,6 +28,7 @@ import { cx } from '@/components/cx';
 import { note, offerUndo } from './toasts';
 import { DRAWER, useUi } from './ui';
 import { useCompare } from './CompareDialog';
+import { sourceInfo, type Source } from '@/lib/sources';
 
 const ENTRY: Record<string, string> = { 'claude-desktop': 'Desktop app', 'claude-vscode': 'VS Code', cli: 'Terminal', codex: 'Codex' };
 
@@ -36,7 +37,7 @@ const ENTRY: Record<string, string> = { 'claude-desktop': 'Desktop app', 'claude
 type Detail = {
   id: string;
   nativeId: string;
-  source: 'claude' | 'codex';
+  source: Source;
   title: string | null;
   project: string | null;
   cwd: string | null;
@@ -83,7 +84,7 @@ type Turn = {
 };
 
 type Live = LiveAgent & { cwd?: string; nativeId?: string; branch?: string | null; model?: string | null; entrypoint?: string | null; startedAt?: number; cost?: number; tokens?: { total: number }; lines?: { added: number; removed: number }; turns?: number; files?: { path: string; name: string; added: number; removed: number }[] };
-type Proc = { id?: string; source: 'claude' | 'codex'; title?: string; project?: string; lastActive?: number; openedAt: number; memBytes: number; toolsMemBytes: number; tools: number; cpuPct?: number | null; runtimeShared?: boolean };
+type Proc = { id?: string; source: Source; title?: string; project?: string; lastActive?: number; openedAt: number; memBytes: number; toolsMemBytes: number; tools: number; cpuPct?: number | null; runtimeShared?: boolean };
 
 // ── Small pieces ─────────────────────────────────────────────────────────────
 
@@ -421,7 +422,7 @@ function CostOverTime({ d }: { d: Detail }) {
       <div className="flex h-20 items-end gap-[2px]" role="img" aria-label={`Cost per ${stepText}`}>
         {tl.costs.map((c, i) => (
           <span key={i} data-tip={`${label(tl.from + i * tl.step)} · ≈ ${money(c)}`} className="flex h-full min-w-[2px] grow flex-col justify-end">
-            <span className={cx('block rounded-t-[2px]', d.source === 'codex' ? 'bg-codex' : 'bg-claude', c <= 0 && 'opacity-0')} style={{ height: `${Math.max(c > 0 ? 3 : 0, (c / max) * 100)}%` }} />
+            <span className={cx('block rounded-t-[2px]', sourceInfo(d.source).bg, c <= 0 && 'opacity-0')} style={{ height: `${Math.max(c > 0 ? 3 : 0, (c / max) * 100)}%` }} />
           </span>
         ))}
       </div>
@@ -550,8 +551,10 @@ function Actions({ id, live, d, proc }: { id: string; live: Live | null; d: Deta
   // The folder it was started in, where Claude Code can find it to resume (the history knows it best).
   const cwd = d?.cwd || live?.cwd || null;
   const source = live?.source || d?.source || proc?.source || 'claude';
-  const nativeId = live?.nativeId || d?.nativeId || id.replace(/^codex-/, '');
-  const resume = /^[0-9a-f-]{36}$/.test(nativeId) ? `${cwd ? `cd ${shellQuote(cwd)} && ` : ''}${source === 'codex' ? 'codex resume' : 'claude --resume'} ${nativeId}` : null;
+  const nativeId = live?.nativeId || d?.nativeId || id.replace(/^(?:codex|pi)-/, '');
+  // pi lets you name a session's id yourself; the others are always uuids.
+  const resumable = source === 'pi' ? /^[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?$/ : /^[0-9a-f-]{36}$/;
+  const resume = resumable.test(nativeId) ? `${cwd ? `cd ${shellQuote(cwd)} && ` : ''}${sourceInfo(source).resume} ${nativeId}` : null;
   const r = d?.resume;
   const appName = source === 'codex' ? 'Codex' : 'Claude';
   const resumeInTerminal = async () => {
@@ -564,7 +567,7 @@ function Actions({ id, live, d, proc }: { id: string; live: Live | null; d: Deta
   };
   const items = [
     r?.terminal && (
-      <Button key="terminal" size="sm" variant="primary" icon={<Play size={13} strokeWidth={2.2} aria-hidden />} data-tip={`Opens a new Terminal window in its folder and runs ${source === 'codex' ? 'codex resume' : 'claude --resume'}`} onClick={resumeInTerminal}>
+      <Button key="terminal" size="sm" variant="primary" icon={<Play size={13} strokeWidth={2.2} aria-hidden />} data-tip={`Opens a new Terminal window in its folder and runs ${sourceInfo(source).resume}`} onClick={resumeInTerminal}>
         Resume in Terminal
       </Button>
     ),
@@ -776,7 +779,7 @@ export function SessionPanel() {
   const project = live?.project || d?.project || proc?.project;
   const started = d?.firstAt ? `Started ${whenText(d.firstAt)}` : live?.startedAt ? `Started ${whenText(live.startedAt)}` : '';
   const meta = [
-    (live?.source || d?.source || proc?.source) === 'codex' ? 'Codex' : 'Claude Code',
+    sourceInfo(live?.source || d?.source || proc?.source).name,
     project ? (
       <span key="p" className="inline-flex items-center gap-1">
         <ProjectDot name={project} />
@@ -785,7 +788,7 @@ export function SessionPanel() {
     ) : null,
     live?.branch || null,
     live?.model ? live.model.replace(/^claude-/, '') : null,
-    live?.entrypoint && live.entrypoint !== 'codex' ? ENTRY[live.entrypoint] || live.entrypoint : null,
+    live?.entrypoint && live.entrypoint !== live.source ? ENTRY[live.entrypoint] || live.entrypoint : null,
     started || null,
   ].filter(Boolean);
   const metaLine = meta.map((bit, i) => (

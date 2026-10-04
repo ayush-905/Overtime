@@ -6,7 +6,7 @@
 
 import { ChevronRight, Inbox, RefreshCw } from 'lucide-react';
 import type { ReactNode } from 'react';
-import { useAgents, useAlertPrefs, useQuota } from '@/data/scope';
+import { useAgents, useAlertPrefs, useQuota, useSources } from '@/data/scope';
 import { useNow } from '@/data/hooks';
 import { refreshCodex, refreshLimits, useLimits } from '@/data/limits';
 import { useLive } from '@/data/live';
@@ -25,6 +25,7 @@ import { Button, TextLink } from '@/components/Button';
 import { cx } from '@/components/cx';
 import { useUi } from '@/app/ui';
 import { titleFor } from '@/lib/labels';
+import { SOURCE, plansIn, type PlanSource, type Source } from '@/lib/sources';
 
 // ── The attention inbox ──────────────────────────────────────────────────────
 
@@ -132,7 +133,7 @@ export function AttentionInbox({ compact = false }: { compact?: boolean }) {
         </div>
         <TextLink href={pageLink('agents')}>All agents →</TextLink>
       </header>
-      {shown.length ? <div className="attention-list">{shown.map((item) => <AttentionLine key={item.agent.id} item={item} now={now} compact={compact} />)}</div> : <p className="mt-2 text-detail text-muted">{working.length ? 'Nothing needs your attention.' : mains.length ? 'No session needs your attention right now.' : 'Start a Claude Code or Codex session to see it here.'}</p>}
+      {shown.length ? <div className="attention-list">{shown.map((item) => <AttentionLine key={item.agent.id} item={item} now={now} compact={compact} />)}</div> : <p className="mt-2 text-detail text-muted">{working.length ? 'Nothing needs your attention.' : mains.length ? 'No session needs your attention right now.' : 'Start a Claude Code, Codex or Pi session to see it here.'}</p>}
       {items.length > limit && <TextLink href={pageLink('agents')} className="mt-3 block">{items.length - limit === 1 ? '1 more session needs' : `${items.length - limit} more sessions need`} attention →</TextLink>}
       {working.length > 0 && (compact ? <WorkingSummary items={working} /> : <WorkingGroup items={working} now={now} />)}
     </div>
@@ -182,7 +183,20 @@ function OtherWindow({ w, now }: { w: QuotaItem; now: number }) {
   );
 }
 
-export function ProviderLimits({ provider, compact = false }: { provider: 'claude' | 'codex'; compact?: boolean }) {
+/** A provider in view with no plan of its own, in place of its limits. */
+export function NoPlan({ source, compact = false }: { source: Source; compact?: boolean }) {
+  return (
+    <div className="flex flex-col gap-3">
+      <div className="flex items-center gap-2">
+        <ProviderMark source={source} size={compact ? 16 : 18} />
+        <h2 className={cx('shrink-0 whitespace-nowrap', compact ? 'text-detail font-semibold' : 'text-[15px] font-semibold')}>{SOURCE[source].name}</h2>
+      </div>
+      <Empty>{SOURCE[source].name} has no plan limits of its own. It uses the provider you sign it in to, with that account's limits.</Empty>
+    </div>
+  );
+}
+
+export function ProviderLimits({ provider, compact = false }: { provider: PlanSource; compact?: boolean }) {
   const { items, input } = useQuota(provider);
   const codexRefreshing = useLimits((s) => s.codexRefreshing);
   const refreshing = useLimits((s) => s.refreshing);
@@ -250,11 +264,14 @@ export function ProviderLimits({ provider, compact = false }: { provider: 'claud
 
 export function Band({ today }: { today?: ReactNode }) {
   const provider = useLive((s) => s.provider);
-  const providers = (provider === 'all' ? ['claude', 'codex'] : [provider]) as ('claude' | 'codex')[];
+  const providers = plansIn(provider, useSources());
+  // A provider with no plan still gets its place, saying so.
+  const noPlan = provider !== 'all' && !providers.length ? provider : null;
   return (
     <>
-      <div className={cx('overview-glance', `overview-glance-${providers.length + (today ? 1 : 0)}`)}>
+      <div className={cx('overview-glance', `overview-glance-${providers.length + (noPlan ? 1 : 0) + (today ? 1 : 0)}`)}>
         {providers.map((p) => <Card key={p} aria-label={`${providerName(p)} plan limits`}><ProviderLimits provider={p} /></Card>)}
+        {noPlan && <Card aria-label={`${providerName(noPlan)} plan limits`}><NoPlan source={noPlan} /></Card>}
         {today && <div className="overview-glance-today min-w-0">{today}</div>}
       </div>
       <Card aria-label="Attention inbox"><AttentionInbox /></Card>

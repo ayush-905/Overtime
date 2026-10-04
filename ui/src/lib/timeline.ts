@@ -8,6 +8,7 @@
 import { clock, duration, HOUR, plural, workdayHour, clip } from './format';
 import { titleFor } from './labels';
 import { WORKING, sinceFor, type LiveAgent } from './agents';
+import type { Source } from '@/lib/sources';
 
 const SLOT_MS = 15 * 60_000;
 
@@ -15,7 +16,7 @@ type Span = [number, number];
 
 export type Lane = {
   id: string;
-  source: 'claude' | 'codex';
+  source: Source;
   title: string;
   project: string | null;
   work: Span[];

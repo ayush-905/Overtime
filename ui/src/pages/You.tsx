@@ -31,6 +31,7 @@ import { useUi } from '@/app/ui';
 import { useCommand } from '@/app/CommandDialog';
 import { ExpandButton, ExpandDialog } from '@/cards/Expand';
 import { Hero } from './Agents';
+import type { Source } from '@/lib/sources';
 
 function Loading({ title }: { title: string }) {
   return (
@@ -440,7 +441,7 @@ export function MessagesCard() {
 
 // ── Prompts you repeat ───────────────────────────────────────────────────────
 
-export type Repeat = { key: string; count: number; sessions: number; lastAt: number; projects?: string[]; exact: boolean; examples: string[]; source: 'claude' | 'codex'; sources?: Record<string, number>; name: string; description: string; body: string; words: number; exists?: Record<string, boolean> };
+export type Repeat = { key: string; count: number; sessions: number; lastAt: number; projects?: string[]; exact: boolean; examples: string[]; source: Source; sources?: Record<string, number>; name: string; description: string; body: string; words: number; exists?: Record<string, boolean> };
 type Repeats = { groups: Repeat[]; prompts: number };
 
 const HIDDEN_KEY = 'overtime-repeats-hidden';
@@ -508,7 +509,7 @@ export function RepeatsCard() {
             <li key={g.key} className="flex items-center gap-3 border-b border-line py-2.5 last:border-b-0">
               <span className="flex shrink-0 -space-x-1.5">
                 {Object.keys(g.sources || { [g.source]: 1 }).map((src) => (
-                  <Avatar key={src} source={src as 'claude' | 'codex'} size={18} />
+                  <Avatar key={src} source={src as Source} size={18} />
                 ))}
               </span>
               <div className="flex min-w-0 grow flex-col" data-tip={tipText}>
@@ -551,7 +552,7 @@ export function RepeatsCard() {
 
 // ── Waiting ──────────────────────────────────────────────────────────────────
 
-type Waiting = { replies: number; ms: number; medianMs: number; today: { ms: number }; days: { start: number; ms: number; replies: number }[]; projects?: { name: string; ms: number; replies: number }[]; longest?: { session: string; source: 'claude' | 'codex'; title: string; project: string; t: number; ms: number }[] };
+type Waiting = { replies: number; ms: number; medianMs: number; today: { ms: number }; days: { start: number; ms: number; replies: number }[]; projects?: { name: string; ms: number; replies: number }[]; longest?: { session: string; source: Source; title: string; project: string; t: number; ms: number }[] };
 const WAIT_NOTE = "From an agent's last reply to your next message in that session: time it sat done and waiting. A wait over 30 minutes counts as you stepping away, not the agent waiting, so it's left out. A message you sent while the agent was still busy kept nobody waiting.";
 
 export function WaitingCard() {

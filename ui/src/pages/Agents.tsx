@@ -23,6 +23,7 @@ import { PageHeader } from '@/app/PageHeader';
 import { TimelineCard } from '@/cards/Timeline';
 import { OpenSessionsCard } from '@/cards/Sessions';
 import { ExpandButton, ExpandDialog } from '@/cards/Expand';
+import { sourceInfo, type Source } from '@/lib/sources';
 
 /** A card's big figure and the line under it. */
 export function Hero({ value, sub, tone }: { value: ReactNode; sub?: ReactNode; tone?: 'ok' }) {
@@ -380,7 +381,7 @@ export function ToolsCard() {
 
 // ── Skills ───────────────────────────────────────────────────────────────────
 
-type Skill = { name: string; about?: string; kind: 'personal' | 'project' | 'plugin' | 'app' | 'builtin'; source: 'claude' | 'codex'; project?: string; plugin?: string; uses: number; you: number; agent: number; days: number; sessions: number; projects?: string[]; lastAt: number };
+type Skill = { name: string; about?: string; kind: 'personal' | 'project' | 'plugin' | 'app' | 'builtin'; source: Source; project?: string; plugin?: string; uses: number; you: number; agent: number; days: number; sessions: number; projects?: string[]; lastAt: number };
 type Skills = { offered: number; usedCount: number; uses: number; used: Skill[]; unused: Skill[] };
 
 const KINDS: Record<Skill['kind'], [string, string]> = {
@@ -470,7 +471,7 @@ export function SkillsCard() {
             tip={(v) => skillTip(v.s as Skill)}
             labels={[]}
             height={230}
-            table={{ head: ['Skill', 'Provider', 'Where from', 'Uses', 'You ran it', 'Agent chose it', 'Sessions', 'Last used'], row: (v) => { const s = v.s as Skill; return [s.name, s.source === 'codex' ? 'Codex' : 'Claude Code', s.kind === 'project' && s.project ? `Project: ${s.project}` : s.kind === 'plugin' && s.plugin ? `Plugin: ${s.plugin}` : KINDS[s.kind]?.[0], s.uses, s.you, s.agent, s.sessions, `${ago(now - s.lastAt)} ago`]; } }}
+            table={{ head: ['Skill', 'Provider', 'Where from', 'Uses', 'You ran it', 'Agent chose it', 'Sessions', 'Last used'], row: (v) => { const s = v.s as Skill; return [s.name, sourceInfo(s.source).name, s.kind === 'project' && s.project ? `Project: ${s.project}` : s.kind === 'plugin' && s.plugin ? `Plugin: ${s.plugin}` : KINDS[s.kind]?.[0], s.uses, s.you, s.agent, s.sessions, `${ago(now - s.lastAt)} ago`]; } }}
           />
         ) : (
           <>

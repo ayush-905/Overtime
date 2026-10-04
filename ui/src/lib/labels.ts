@@ -38,7 +38,7 @@ function save(key: string, value: unknown, empty = false) {
 
 // A title made from your first message reads better without the greeting.
 // A greeting only counts when it's clearly one: followed by a comma, a name, or the request itself.
-const GREETING = /^(?:hi+|hey+|hello|yo|hiya)(?:\s*[,!.]+|\s+(?:bro|there|claude|codex|buddy|man|team)\b[\s,!.]*|(?=\s+(?:i|i'm|im|so|can|could|would|please|kindly|pls|we|need|let's|lets)\b))\s*/i;
+const GREETING = /^(?:hi+|hey+|hello|yo|hiya)(?:\s*[,!.]+|\s+(?:bro|there|claude|codex|pi|buddy|man|team)\b[\s,!.]*|(?=\s+(?:i|i'm|im|so|can|could|would|please|kindly|pls|we|need|let's|lets)\b))\s*/i;
 const ASKING = /^(?:(?:can|could|would|will) you\s+(?:please\s+|kindly\s+|pls\s+)?|(?:please|kindly|pls)\s+)/i;
 
 /** A title without "hi bro", "can you please" and the like in front, when enough is left. */

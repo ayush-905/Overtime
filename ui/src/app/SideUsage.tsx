@@ -3,6 +3,8 @@
 // Either way it opens Usage.
 
 import { useQuota } from '@/data/scope';
+import { useLive } from '@/data/live';
+import { hasPlan } from '@/lib/sources';
 import { useNow } from '@/data/hooks';
 import { whenText } from '@/lib/format';
 import { providerName, type QuotaItem } from '@/lib/limits';
@@ -37,7 +39,10 @@ function groups(items: QuotaItem[]) {
 export function SideUsage({ folded }: { folded: boolean }) {
   useNow();
   const { items } = useQuota();
+  const provider = useLive((s) => s.provider);
   const list = groups(items);
+  // A provider without a plan of its own (Pi) has no usage left to show.
+  if (provider !== 'all' && !hasPlan(provider)) return null;
 
   if (!items.length) {
     return <a href={pageLink('usage')} aria-label="Usage left, open Usage" className="shrink-0 rounded-row px-2.5 py-2 text-label text-muted no-underline hover:bg-sunken">{folded ? '—' : 'Usage left · no reading yet'}</a>;

@@ -716,19 +716,22 @@ const SKIN = ['#f5d0b0', '#eab98f', '#d39a6a', '#b97a4a', '#8d5a36', '#6a4127'];
 const HAIR = ['#2b1b10', '#4a2f1d', '#7a4a26', '#c7852f', '#e2c16e', '#1d1d24', '#9aa0a8', '#a83f3f', '#5b3d8f'];
 const PANTS = ['#2f3b55', '#3b3b3b', '#4a3b2b', '#2e4a3b', '#5a5f6b'];
 
-export function lookFor(seed, intern = false, capHue = null, codex = false) {
-  // Codex agents all wear the same dark hoodie so they stand apart from Claude's.
+// Codex agents all wear the same dark hoodie, and Pi's a plum one, so they stand apart from Claude's.
+const HOODIES = { codex: ['#2f3a44', '#1fae8a'], pi: ['#5c2a4d', '#e58bc4'] };
+
+export function lookFor(seed, intern = false, capHue = null, source = 'claude') {
   const hue = seed % 360;
+  const hoodie = HOODIES[source];
   return {
-    key: `${seed}:${intern ? capHue : ''}:${codex ? 'x' : ''}`,
+    key: `${seed}:${intern ? capHue : ''}:${hoodie ? source : ''}`,
     hue,
     intern,
     colors: {
       h: HAIR[(seed >>> 3) % HAIR.length],
       s: SKIN[(seed >>> 7) % SKIN.length],
       e: '#1d1d24',
-      c: codex ? '#2f3a44' : `hsl(${hue} 55% 55%)`,
-      d: codex ? '#1fae8a' : `hsl(${hue} 50% 42%)`,
+      c: hoodie ? hoodie[0] : `hsl(${hue} 55% 55%)`,
+      d: hoodie ? hoodie[1] : `hsl(${hue} 50% 42%)`,
       p: PANTS[(seed >>> 11) % PANTS.length],
       k: '#2b2b33',
       y: '#f7d046',

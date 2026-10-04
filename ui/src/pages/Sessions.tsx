@@ -38,6 +38,7 @@ import { PageHeader } from '@/app/PageHeader';
 import { useRoute } from '@/app/router';
 import { useCompact } from '@/app/layout';
 import { offerUndo } from '@/app/toasts';
+import { SOURCE } from '@/lib/sources';
 
 // ── The view ─────────────────────────────────────────────────────────────────
 
@@ -458,7 +459,7 @@ function List({ ranged, rows, live, inside, freshness }: { ranged: SessionInRang
   const shown = useSessionsView((s) => s.shown);
   const { set, fold, more } = useSessionsView.getState();
   const provider = useLive((s) => s.provider);
-  const scopeWord = { all: '', claude: 'Claude Code ', codex: 'Codex ' }[provider] || '';
+  const scopeWord = provider === 'all' ? '' : `${SOURCE[provider].name} `;
   const when = whenText(view);
   const q = view.query.trim();
   const title = rows.length === ranged.length ? plural(rows.length, `${scopeWord}session`) : `${rows.length} of ${plural(ranged.length, `${scopeWord}session`)}`;

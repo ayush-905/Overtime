@@ -4,6 +4,7 @@
 // (limits.test.ts) hold every figure and sentence.
 
 import { ago, duration, HOUR, MINUTE, DAY, whenText } from './format';
+import { SOURCE, isSource } from './sources';
 
 // ── What the server and the checks send ─────────────────────────────────────
 
@@ -105,7 +106,7 @@ export function limitInfo(inp: LimitsInput, kind: 'session' | 'weekly'): LimitIn
   };
 }
 
-export const providerName = (source: string) => (source === 'codex' ? 'Codex' : source === 'claude' ? 'Claude Code' : 'All providers');
+export const providerName = (source: string) => (isSource(source) ? SOURCE[source].name : 'All providers');
 
 /** Codex's plan windows: the live check when it's on and newer, else what Codex last recorded here. */
 export function codexQuota(inp: LimitsInput): CodexQuota | null {
@@ -159,7 +160,8 @@ export type QuotaItem = {
  */
 export function quotaItems(inp: LimitsInput, provider = 'all'): QuotaItem[] {
   const items: QuotaItem[] = [];
-  if (provider !== 'codex') {
+  // Pi has no plan of its own, so its view has no windows.
+  if (provider === 'all' || provider === 'claude') {
     const exact = inp.exactOn && inp.exact?.status === 'ok';
     const stale = exact && quotaFreshness({ source: 'exact', observedAt: inp.exact!.fetchedAt, stale: inp.exact!.stale }, inp.now).stale;
     for (const kind of ['session', 'weekly'] as const) {
@@ -183,7 +185,7 @@ export function quotaItems(inp: LimitsInput, provider = 'all'): QuotaItem[] {
       });
     }
   }
-  if (provider !== 'claude') {
+  if (provider === 'all' || provider === 'codex') {
     const q = codexQuota(inp);
     const stale = quotaFreshness({ source: q?.source, observedAt: q?.observedAt, stale: q?.stale }, inp.now).stale;
     for (const w of q?.windows || []) {

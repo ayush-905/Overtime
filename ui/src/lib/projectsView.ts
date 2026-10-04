@@ -5,6 +5,7 @@
 import { measureOf } from './measure';
 import type { Range } from './sessionsView';
 import type { SessionInRange } from './sessions';
+import { bySourceOf, type Source } from './sources';
 
 export const PROJECTS_VIEW_KEY = 'overtime-projects-view';
 /** 'cost' sorts by what you compare by, cost or tokens. */
@@ -25,7 +26,7 @@ export type Project = {
   tools: number;
   failed: number;
   lastAt: number;
-  bySource: { claude: { cost: number; tokens: number }; codex: { cost: number; tokens: number } };
+  bySource: Record<Source, { cost: number; tokens: number }>;
 };
 
 const SUMS = ['cost', 'tokens', 'messages', 'agentMs', 'waitMs', 'added', 'removed', 'tools', 'failed'] as const;
@@ -52,12 +53,12 @@ export function projectsOf(sessions: SessionInRange[], sort: ProjectSort): Proje
   for (const s of sessions) {
     const name = s.project || 'Unknown';
     let p = map.get(name);
-    if (!p) map.set(name, (p = { name, sessions: [], cost: 0, tokens: 0, partial: false, messages: 0, agentMs: 0, waitMs: 0, added: 0, removed: 0, tools: 0, failed: 0, lastAt: 0, bySource: { claude: { cost: 0, tokens: 0 }, codex: { cost: 0, tokens: 0 } } }));
+    if (!p) map.set(name, (p = { name, sessions: [], cost: 0, tokens: 0, partial: false, messages: 0, agentMs: 0, waitMs: 0, added: 0, removed: 0, tools: 0, failed: 0, lastAt: 0, bySource: bySourceOf(() => ({ cost: 0, tokens: 0 })) }));
     p.sessions.push(s);
     for (const k of SUMS) p[k] += s[k];
     p.partial ||= s.partial;
     p.lastAt = Math.max(p.lastAt, s.lastAt);
-    const by = p.bySource[s.source === 'codex' ? 'codex' : 'claude'];
+    const by = p.bySource[s.source] || p.bySource.claude;
     by.cost += s.cost;
     by.tokens += s.tokens;
   }

@@ -2,7 +2,7 @@
 // the mockup's popover. What needs you, each provider's plan with both its
 // windows, and today in three figures.
 
-import { useScope } from '@/data/scope';
+import { useScope, useSources } from '@/data/scope';
 import { useChanged, useNow } from '@/data/hooks';
 import { activeBetween, calendarDay, compact, costText, duration } from '@/lib/format';
 import { serverNow } from '@/lib/env';
@@ -10,7 +10,8 @@ import { byTokens } from '@/lib/measure';
 import { Card } from '@/components/Card';
 import { Skeleton } from '@/components/Bits';
 import { Stat, StatRow } from '@/components/Stat';
-import { AttentionInbox, ProviderLimits } from './Band';
+import { AttentionInbox, NoPlan, ProviderLimits } from './Band';
+import { plansIn } from '@/lib/sources';
 
 function TodayStrip() {
   useChanged();
@@ -35,7 +36,7 @@ function TodayStrip() {
 /** `today`: with today's three figures (the popover and /mini, where there's no Today card under it). */
 export function Summary({ today = true }: { today?: boolean }) {
   const { provider } = useScope();
-  const providers = (provider === 'all' ? ['claude', 'codex'] : [provider]) as ('claude' | 'codex')[];
+  const providers = plansIn(provider, useSources());
   return (
     <div className="flex flex-col gap-[var(--page-gap)]">
       <Card aria-label="Attention inbox">
@@ -48,6 +49,7 @@ export function Summary({ today = true }: { today?: boolean }) {
             <ProviderLimits provider={p} compact />
           </div>
         ))}
+        {provider !== 'all' && !providers.length && <NoPlan source={provider} compact />}
       </Card>
       {today && (
         <Card aria-label="Today">

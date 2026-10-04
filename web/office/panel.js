@@ -18,7 +18,7 @@ export const ACTIVITY = [
   ['wait', 'Waiting for you', 'lounge'],
 ];
 const ACTIVITY_LABEL = Object.fromEntries(ACTIVITY.map(([k, label]) => [k, label]));
-const ENTRY = { 'claude-desktop': 'Desktop', 'claude-vscode': 'VS Code', cli: 'CLI', codex: 'Codex' };
+const ENTRY = { 'claude-desktop': 'Desktop', 'claude-vscode': 'VS Code', cli: 'CLI', codex: 'Codex', pi: 'Pi' };
 const COUNT_ICONS = [['edit', '⌨️', 'edits'], ['read', '📖', 'reads'], ['search', '🔎', 'searches'], ['bash', '💻', 'commands'], ['web', '🌐', 'web'], ['delegate', '📞', 'subagents']];
 
 let els;
@@ -38,7 +38,7 @@ function setHtml(el, key, html) {
 
 function portraitUrl(a) {
   const parent = a.parentId && state.agents.get(a.parentId);
-  const look = lookFor(a.seed, a.kind === 'sub', parent ? parent.seed % 360 : null, a.source === 'codex');
+  const look = lookFor(a.seed, a.kind === 'sub', parent ? parent.seed % 360 : null, a.source);
   let url = portraits.get(look.key);
   if (!url) {
     url = portrait(look).toDataURL();

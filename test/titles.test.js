@@ -22,6 +22,11 @@ test('a session is named by its first message that says something', () => {
   assert.equal(named('hi'), 'hi');
   assert.equal(named('Fix the login redirect', 'hi', 'Now the tests'), 'Fix the login redirect');
   assert.equal(named('hi there, fix the login'), 'hi there, fix the login');
+  // Punctuation alone never names one; quitting does only if nothing else was said.
+  assert.equal(named('.', 'hi', 'Review my current changes'), 'Review my current changes');
+  assert.equal(named('...', '?'), undefined);
+  assert.equal(named('exit', '/exit'), 'exit');
+  assert.equal(named('exit', 'Add a CSV export'), 'Add a CSV export');
 });
 
 test("Claude Code's own title names a session, and one you gave it wins", async (t) => {

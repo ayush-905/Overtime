@@ -6,7 +6,7 @@
 
 import { useState } from 'react';
 import { Info } from 'lucide-react';
-import { useScope, useAgents } from '@/data/scope';
+import { useScope, useAgents, useSources } from '@/data/scope';
 import { useChanged, useNow } from '@/data/hooks';
 import { clip, clock, duration, hourLabel, money, plural, projectName } from '@/lib/format';
 import { serverNow } from '@/lib/env';
@@ -20,21 +20,23 @@ import { useUi } from '@/app/ui';
 import { useCompact } from '@/app/layout';
 import { cx } from '@/components/cx';
 import { ExpandButton } from './Expand';
+import { SOURCE, sourceInfo } from '@/lib/sources';
 
 const SHOWN = 8;
 const NOTE = "Each session that did something today. Its bar is its agent working, from each message until its last reply, in its provider's colour; the thin one under it is its subagents. A tick is a message you sent, and amber is the agent done and waiting for your reply (waits over 30 minutes count as you stepping away, so they're left out). Your own active time runs along the foot. Click a session for the details.";
 
 function Legend() {
+  const sources = useSources();
+  const { provider } = useScope();
   const chip = (cls: string, text: string) => (
-    <span className="inline-flex items-center gap-1.5">
+    <span key={text} className="inline-flex items-center gap-1.5">
       <span className={cx('h-2 w-3.5 rounded-[3px]', cls)} />
       {text}
     </span>
   );
   return (
     <p className="flex flex-wrap gap-x-3.5 gap-y-1 text-label text-muted" aria-hidden>
-      {chip('bg-claude', 'Claude Code')}
-      {chip('bg-codex', 'Codex')}
+      {(provider === 'all' ? sources : [provider]).map((s) => chip(SOURCE[s].bg, SOURCE[s].name))}
       {chip('border border-warn-line bg-warn-soft', 'Waiting for you')}
       <span className="inline-flex items-center gap-1.5">
         <span className="h-3 w-0.5 rounded-full bg-ink" />
@@ -139,10 +141,10 @@ export function TimelineCard({ expanded = false }: { expanded?: boolean }) {
                   <span key={`w${i}`} data-tip={`Waited for you ${m.spanText(a, b)} (${duration(b - a)})`} className="absolute inset-y-0 box-border rounded-[4px] border border-warn-line bg-warn-soft" style={{ left: pos(a), width: wid(a, b) }} />
                 ))}
                 {l.work.map(([a, b], i) => (
-                  <span key={`k${i}`} data-tip={`Working ${m.spanText(a, b)} (${duration(b - a)})`} className={cx('absolute inset-y-0 min-w-[3px] rounded-[4px]', l.source === 'codex' ? 'bg-codex' : 'bg-claude')} style={{ left: pos(a), width: wid(a, b) }} />
+                  <span key={`k${i}`} data-tip={`Working ${m.spanText(a, b)} (${duration(b - a)})`} className={cx('absolute inset-y-0 min-w-[3px] rounded-[4px]', sourceInfo(l.source).bg)} style={{ left: pos(a), width: wid(a, b) }} />
                 ))}
                 {l.sub.map(([a, b], i) => (
-                  <span key={`s${i}`} data-tip={`Subagents working ${m.spanText(a, b)} (${duration(b - a)})`} className={cx('absolute -bottom-1 h-[3px] min-w-[3px] rounded-full opacity-60', l.source === 'codex' ? 'bg-codex' : 'bg-claude')} style={{ left: pos(a), width: wid(a, b) }} />
+                  <span key={`s${i}`} data-tip={`Subagents working ${m.spanText(a, b)} (${duration(b - a)})`} className={cx('absolute -bottom-1 h-[3px] min-w-[3px] rounded-full opacity-60', sourceInfo(l.source).bg)} style={{ left: pos(a), width: wid(a, b) }} />
                 ))}
                 <span className="absolute -inset-y-1 w-0.5 -translate-x-1/2 rounded-full bg-ink/70" style={{ left: pos(now) }} aria-hidden />
                 {l.messages.map((t) => (

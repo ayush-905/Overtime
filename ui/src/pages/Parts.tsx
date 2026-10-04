@@ -13,7 +13,7 @@ import { Dialog } from '@/components/Dialog';
 import { offerUndo, note } from '@/app/toasts';
 import { PageHeader } from '@/app/PageHeader';
 
-const SWATCHES = ['page', 'side', 'card', 'sunken', 'line', 'line-strong', 'ink', 'muted', 'faint', 'accent', 'ok', 'ok-fill', 'ok-soft', 'warn', 'warn-fill', 'warn-soft', 'bad', 'bad-fill', 'bad-soft', 'claude', 'codex', 'you'];
+const SWATCHES = ['page', 'side', 'card', 'sunken', 'line', 'line-strong', 'ink', 'muted', 'faint', 'accent', 'ok', 'ok-fill', 'ok-soft', 'warn', 'warn-fill', 'warn-soft', 'bad', 'bad-fill', 'bad-soft', 'claude', 'codex', 'pi', 'you'];
 const VARS: Record<string, string> = { page: '--bg', 'line-strong': '--line-strong' };
 
 export function Parts() {

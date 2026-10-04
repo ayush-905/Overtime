@@ -6,6 +6,7 @@
 import { QueryClient, useQuery } from '@tanstack/react-query';
 import { getJson, demo } from './api';
 import type { Session } from '@/lib/sessions';
+import type { Source } from '@/lib/sources';
 
 export const queryClient = new QueryClient({
   defaultOptions: {
@@ -87,7 +88,7 @@ export function useTurn(id: string | null, at: number | null) {
   });
 }
 
-export type SearchResult = { session: string; source: 'claude' | 'codex'; title: string | null; project: string | null; count: number; lastAt: number; hits: { t: number; who: 'you' | 'agent'; text: string }[] };
+export type SearchResult = { session: string; source: Source; title: string | null; project: string | null; count: number; lastAt: number; hits: { t: number; who: 'you' | 'agent'; text: string }[] };
 
 /** Sessions whose conversations have every word of `q`. Off (null) while search is off, or for fewer than two letters. */
 export function useSearch(q: string, { on = true, scope = 'all', limit = 40 }: { on?: boolean; scope?: string; limit?: number } = {}) {

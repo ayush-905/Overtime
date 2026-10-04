@@ -9,6 +9,7 @@ import { env, type Currency, type ProjectPref } from './env';
 import { changed } from './bus';
 import { readMeasure } from './measure';
 import { loadLabels, LABEL_KEYS } from './labels';
+import { SOURCES } from './sources';
 
 const get = (key: string) => {
   try { return localStorage.getItem(key); } catch { return null; }
@@ -136,7 +137,7 @@ export const toggleTheme = () => setTheme(shownTheme() === 'dark' ? 'light' : 'd
 // ── The provider filter ──────────────────────────────────────────────────────
 
 const PROVIDER_KEY = 'overtime-provider';
-export const PROVIDERS = ['all', 'claude', 'codex'] as const;
+export const PROVIDERS = ['all', ...SOURCES] as const;
 export type Provider = (typeof PROVIDERS)[number];
 
 export function readProvider(): Provider {
