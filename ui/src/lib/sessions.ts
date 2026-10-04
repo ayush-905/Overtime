@@ -1,6 +1,8 @@
 // The last 30 days of sessions, as /api/sessions sends them: each session's
 // numbers kept per day, so any range adds up exactly.
 
+import type { Source } from '@/lib/sources';
+
 export const TOTAL_KEYS = ['cost', 'subCost', 'tokens', 'messages', 'agentMs', 'waitMs', 'waits', 'added', 'removed', 'tools', 'failed'] as const;
 export type TotalKey = (typeof TOTAL_KEYS)[number];
 export type Totals = Record<TotalKey, number> & { partial: boolean };
@@ -9,7 +11,7 @@ export type SessionDay = Partial<Record<TotalKey, number>> & { day: number; part
 
 export type Session = {
   id: string;
-  source: 'claude' | 'codex';
+  source: Source;
   title: string | null;
   project: string | null;
   model: string | null;

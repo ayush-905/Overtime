@@ -47,7 +47,7 @@ function fit() {
 
 function lookOf(a) {
   const parent = a.parentId && state.agents.get(a.parentId);
-  return lookFor(a.seed, a.kind === 'sub', parent ? parent.seed % 360 : null, a.source === 'codex');
+  return lookFor(a.seed, a.kind === 'sub', parent ? parent.seed % 360 : null, a.source);
 }
 
 function makeChar(a, walkIn) {
@@ -428,7 +428,7 @@ function syncLabels(now) {
       el._parts.bubble.className = `bubble ${b.cls}`;
       el._bubble = key;
     }
-    const name = a ? `${a.kind === 'sub' ? '🧢 ' : ''}${a.background ? '👻 ' : ''}${a.nick}${a.source === 'codex' ? ' · Codex' : ''}` : '';
+    const name = a ? `${a.kind === 'sub' ? '🧢 ' : ''}${a.background ? '👻 ' : ''}${a.nick}${a.source === 'codex' ? ' · Codex' : a.source === 'pi' ? ' · Pi' : ''}` : '';
     if (el._name !== name) {
       el._parts.name.textContent = name;
       el._name = name;

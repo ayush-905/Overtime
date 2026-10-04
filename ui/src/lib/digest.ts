@@ -4,6 +4,7 @@
 
 import { duration, money, plural, projectName } from './format';
 import { titleFor } from './labels';
+import { SOURCE, SOURCES, andList, type Source } from '@/lib/sources';
 
 const SEEN_KEY = 'overtime-digest-seen';
 const DAY = 86_400_000;
@@ -26,9 +27,9 @@ export type Digest = {
   days: number;
   busiest: [number, number] | null;
   hits: { claude: number; codex: number };
-  bySource: { claude: number; codex: number };
+  bySource: Partial<Record<Source, number>>;
   projects: { name: string; cost: number; sessions: number }[];
-  topSessions: { id: string; source: 'claude' | 'codex'; title: string; project: string; cost: number; messages: number }[];
+  topSessions: { id: string; source: Source; title: string; project: string; cost: number; messages: number }[];
   before: { cost: number; activeMs: number; agentMs: number; waitMs: number };
 };
 
@@ -86,7 +87,10 @@ export function digestNotes(d: Digest) {
   if (d.agentMs > d.activeMs && d.activeMs > 0) out.push(`Your agents worked ${duration(d.agentMs)}, more than your own ${duration(d.activeMs)} of active time.`);
   const hits = [d.hits.claude && `Claude Code's limit ${d.hits.claude === 1 ? 'once' : `${d.hits.claude} times`}`, d.hits.codex && `Codex's ${d.hits.codex === 1 ? 'once' : `${d.hits.codex} times`}`].filter(Boolean);
   if (hits.length) out.push(`You hit ${hits.join(' and ')}.`);
-  if (d.bySource.codex > 0.005 && d.bySource.claude > 0.005) out.push(`Codex was ${pct(d.bySource.codex, d.cost)}% of the cost, Claude Code the rest.`);
+  // Each provider's share of the cost, when more than one did some of the work.
+  const shares = SOURCES.filter((s) => (d.bySource[s] || 0) > 0.005).sort((a, b) => (d.bySource[b] || 0) - (d.bySource[a] || 0));
+  if (shares.length === 2) out.push(`${SOURCE[shares[1]].name} was ${pct(d.bySource[shares[1]]!, d.cost)}% of the cost, ${SOURCE[shares[0]].name} the rest.`);
+  else if (shares.length > 2) out.push(`Of the cost, ${andList(shares.map((s) => `${SOURCE[s].name} was ${pct(d.bySource[s]!, d.cost)}%`))}.`);
   if (d.tools >= 50 && d.failed / d.tools >= 0.05) out.push(`${pct(d.failed, d.tools)}% of tool calls failed; Tool failures on the Agents page shows why.`);
   return out;
 }

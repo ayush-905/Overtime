@@ -4,7 +4,7 @@
 // its group to move it (or Alt+↑/↓ on one), and drag the edge to make the sidebar
 // wider or narrower: narrow enough and it folds, a double click puts it back.
 
-import { forwardRef, useRef, type AnchorHTMLAttributes, type KeyboardEvent, type PointerEvent } from 'react';
+import { forwardRef, useMemo, useRef, type AnchorHTMLAttributes, type KeyboardEvent, type PointerEvent } from 'react';
 import { DndContext, PointerSensor, useSensor, useSensors, closestCenter, type DragEndEvent } from '@dnd-kit/core';
 import { SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
@@ -12,6 +12,8 @@ import { Search } from 'lucide-react';
 import logo from '@/assets/favicon.svg';
 import { GROUPS, TITLES, groupOf, moveSection, placeSection, type Page } from '@/lib/nav';
 import { SIDE, type Provider } from '@/lib/prefs';
+import { SOURCE, andList } from '@/lib/sources';
+import { useSources } from '@/data/scope';
 import { pageLink } from '@/lib/route';
 import { useLive } from '@/data/live';
 import { MOD } from '@/data/hooks';
@@ -22,11 +24,6 @@ import { useUi } from './ui';
 import { Badge, ICONS } from './sections';
 import { SideUsage } from './SideUsage';
 
-const PROVIDERS: [Provider, string, string][] = [
-  ['all', 'All', 'Claude Code and Codex together'],
-  ['claude', 'Claude', 'Claude Code only'],
-  ['codex', 'Codex', 'Codex only'],
-];
 
 type LinkProps = { page: Page; folded: boolean; dragging?: boolean } & AnchorHTMLAttributes<HTMLAnchorElement>;
 
@@ -76,12 +73,24 @@ function SortableNavItem({ page, folded }: { page: Page; folded: boolean }) {
   return <NavLink ref={setNodeRef} page={page} folded={folded} dragging={isDragging} onKeyDown={onKeyDown} {...aria} {...listeners} style={{ transform: CSS.Translate.toString(transform), transition }} />;
 }
 
+/** The provider filter: all of them, or one on its own. */
+function useProviders(): [Provider, string, string][] {
+  const sources = useSources();
+  return useMemo(() => [
+    ['all', 'All', `${andList(sources.map((s) => SOURCE[s].name))} together`],
+    ...sources.map((s): [Provider, string, string] => [s, SOURCE[s].short, `${SOURCE[s].name} only`]),
+  ], [sources]);
+}
+
 function ProviderSwitch({ folded }: { folded: boolean }) {
   const provider = useLive((s) => s.provider);
   const setProvider = useLive((s) => s.setProvider);
+  const PROVIDERS = useProviders();
+  // With one provider on this Mac, there's nothing to switch between.
+  if (PROVIDERS.length < 3) return null;
   if (folded) {
     // Folded, it shows the provider in view; a click moves to the next.
-    const i = PROVIDERS.findIndex(([p]) => p === provider);
+    const i = Math.max(0, PROVIDERS.findIndex(([p]) => p === provider));
     const [, label, tip] = PROVIDERS[i];
     const next = PROVIDERS[(i + 1) % PROVIDERS.length];
     return (
@@ -91,7 +100,7 @@ function ProviderSwitch({ folded }: { folded: boolean }) {
     );
   }
   return (
-    <div role="group" aria-label="Provider" className="grid grid-cols-3 gap-0.5 rounded-[9px] bg-sunken p-[3px]">
+    <div role="group" aria-label="Provider" className="grid auto-cols-fr grid-flow-col gap-0.5 rounded-[9px] bg-sunken p-[3px]">
       {PROVIDERS.map(([p, label, tip]) => (
         <button
           key={p}

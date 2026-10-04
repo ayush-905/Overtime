@@ -6,7 +6,7 @@
 
 import { useState, type ReactNode } from 'react';
 import { Info, Moon, RefreshCw, TrendingUp, TriangleAlert } from 'lucide-react';
-import { useQuota } from '@/data/scope';
+import { useQuota, useSources } from '@/data/scope';
 import { useLimits, refreshCodex, refreshLimits } from '@/data/limits';
 import { useLive } from '@/data/live';
 import { demo } from '@/data/api';
@@ -23,6 +23,8 @@ import { Calendar } from '@/components/Chart';
 import { WindowChart } from '@/components/WindowChart';
 import { cx } from '@/components/cx';
 import { PageHeader } from '@/app/PageHeader';
+import { NoPlan } from '@/cards/Band';
+import { plansIn } from '@/lib/sources';
 
 const WINDOW_KEY = 'overtime-window-kind';
 const CODEX_WINDOW_KEY = 'overtime-codex-window';
@@ -463,11 +465,13 @@ function SectionHead({ provider, sub, children }: { provider: 'claude' | 'codex'
 
 export function Usage() {
   const provider = useLive((s) => s.provider);
+  const plans = plansIn(provider, useSources());
   return (
     <div className="flex flex-col gap-[var(--page-gap)]">
       <PageHeader title="Usage" id="h-usage" sub="How much of each plan is left, and when it resets" />
-      {provider !== 'codex' && <ClaudeSection />}
-      {provider !== 'claude' && <CodexSection />}
+      {plans.includes('claude') && <ClaudeSection />}
+      {plans.includes('codex') && <CodexSection />}
+      {provider !== 'all' && !plans.length && <Card><NoPlan source={provider} /></Card>}
     </div>
   );
 }

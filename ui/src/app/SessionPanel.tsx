@@ -28,6 +28,7 @@ import { cx } from '@/components/cx';
 import { note, offerUndo } from './toasts';
 import { DRAWER, useUi } from './ui';
 import { useCompare } from './CompareDialog';
+import { sourceInfo, type Source } from '@/lib/sources';
 
 const ENTRY: Record<string, string> = { 'claude-desktop': 'Desktop app', 'claude-vscode': 'VS Code', cli: 'Terminal', codex: 'Codex' };
 
@@ -36,7 +37,7 @@ const ENTRY: Record<string, string> = { 'claude-desktop': 'Desktop app', 'claude
 type Detail = {
   id: string;
   nativeId: string;
-  source: 'claude' | 'codex';
+  source: Source;
   title: string | null;
   project: string | null;
   cwd: string | null;
@@ -57,7 +58,9 @@ type Detail = {
   messages: { count: number; interrupts: number; list: { t: number; text: string; cost: number; partial: boolean; ms: number }[] };
   subagents: { count: number; list: { title: string; firstAt: number | null; calls: number; cost: number; partial: boolean }[] };
   timeline: { from: number; step: number; costs: number[] } | null;
-  resume?: { terminal?: boolean; app?: { name: string; url: string } | null; appMissing?: string | null };
+  // What picks it back up, as its harness says: the command for Terminal, and its app's link.
+  // `appMissing`: the app that would open it, and why it can't.
+  resume?: { terminal?: boolean; command?: string; app?: { name: string; url: string } | null; appMissing?: { name: string; why: string } | null };
 };
 
 type Turn = {
@@ -82,8 +85,8 @@ type Turn = {
   cwd: string | null;
 };
 
-type Live = LiveAgent & { cwd?: string; nativeId?: string; branch?: string | null; model?: string | null; entrypoint?: string | null; startedAt?: number; cost?: number; tokens?: { total: number }; lines?: { added: number; removed: number }; turns?: number; files?: { path: string; name: string; added: number; removed: number }[] };
-type Proc = { id?: string; source: 'claude' | 'codex'; title?: string; project?: string; lastActive?: number; openedAt: number; memBytes: number; toolsMemBytes: number; tools: number; cpuPct?: number | null; runtimeShared?: boolean };
+type Live = LiveAgent & { cwd?: string; nativeId?: string; branch?: string | null; model?: string | null; modelName?: string | null; resumeCommand?: string | null; entrypoint?: string | null; startedAt?: number; cost?: number; tokens?: { total: number }; lines?: { added: number; removed: number }; turns?: number; files?: { path: string; name: string; added: number; removed: number }[] };
+type Proc = { id?: string; source: Source; title?: string; project?: string; lastActive?: number; openedAt: number; memBytes: number; toolsMemBytes: number; tools: number; cpuPct?: number | null; runtimeShared?: boolean };
 
 // ── Small pieces ─────────────────────────────────────────────────────────────
 
@@ -421,7 +424,7 @@ function CostOverTime({ d }: { d: Detail }) {
       <div className="flex h-20 items-end gap-[2px]" role="img" aria-label={`Cost per ${stepText}`}>
         {tl.costs.map((c, i) => (
           <span key={i} data-tip={`${label(tl.from + i * tl.step)} · ≈ ${money(c)}`} className="flex h-full min-w-[2px] grow flex-col justify-end">
-            <span className={cx('block rounded-t-[2px]', d.source === 'codex' ? 'bg-codex' : 'bg-claude', c <= 0 && 'opacity-0')} style={{ height: `${Math.max(c > 0 ? 3 : 0, (c / max) * 100)}%` }} />
+            <span className={cx('block rounded-t-[2px]', sourceInfo(d.source).bg, c <= 0 && 'opacity-0')} style={{ height: `${Math.max(c > 0 ? 3 : 0, (c / max) * 100)}%` }} />
           </span>
         ))}
       </div>
@@ -546,14 +549,12 @@ function ModelsAndTools({ d }: { d: Detail }) {
   );
 }
 
-function Actions({ id, live, d, proc }: { id: string; live: Live | null; d: Detail | null; proc: Proc | null }) {
+function Actions({ id, live, d }: { id: string; live: Live | null; d: Detail | null }) {
   // The folder it was started in, where Claude Code can find it to resume (the history knows it best).
   const cwd = d?.cwd || live?.cwd || null;
-  const source = live?.source || d?.source || proc?.source || 'claude';
-  const nativeId = live?.nativeId || d?.nativeId || id.replace(/^codex-/, '');
-  const resume = /^[0-9a-f-]{36}$/.test(nativeId) ? `${cwd ? `cd ${shellQuote(cwd)} && ` : ''}${source === 'codex' ? 'codex resume' : 'claude --resume'} ${nativeId}` : null;
   const r = d?.resume;
-  const appName = source === 'codex' ? 'Codex' : 'Claude';
+  const command = r?.command || live?.resumeCommand || null;
+  const resume = command ? `${cwd ? `cd ${shellQuote(cwd)} && ` : ''}${command}` : null;
   const resumeInTerminal = async () => {
     try {
       await post(`/api/resume?id=${encodeURIComponent(id)}`);
@@ -563,8 +564,8 @@ function Actions({ id, live, d, proc }: { id: string; live: Live | null; d: Deta
     }
   };
   const items = [
-    r?.terminal && (
-      <Button key="terminal" size="sm" variant="primary" icon={<Play size={13} strokeWidth={2.2} aria-hidden />} data-tip={`Opens a new Terminal window in its folder and runs ${source === 'codex' ? 'codex resume' : 'claude --resume'}`} onClick={resumeInTerminal}>
+    command && (
+      <Button key="terminal" size="sm" variant="primary" icon={<Play size={13} strokeWidth={2.2} aria-hidden />} data-tip={`Opens a new Terminal window in its folder and runs ${command || 'its resume command'}`} onClick={resumeInTerminal}>
         Resume in Terminal
       </Button>
     ),
@@ -574,9 +575,9 @@ function Actions({ id, live, d, proc }: { id: string; live: Live | null; d: Deta
         Open in the {r.app.name} app
       </a>
     ) : r?.appMissing ? (
-      <span key="app" aria-disabled="true" data-tip={`This session was ${r.appMissing}, so the ${appName} app can't open it. Resume it in Terminal instead.`} className="inline-flex h-7 items-center gap-1.5 rounded-control border border-line px-2.5 text-detail font-medium text-muted opacity-60">
+      <span key="app" aria-disabled="true" data-tip={`This session was ${r.appMissing.why}, so the ${r.appMissing.name} app can't open it. Resume it in Terminal instead.`} className="inline-flex h-7 items-center gap-1.5 rounded-control border border-line px-2.5 text-detail font-medium text-muted opacity-60">
         <ExternalLink size={13} strokeWidth={2} aria-hidden />
-        Open in the {appName} app
+        Open in the {r.appMissing.name} app
       </span>
     ) : null,
     resume && <CopyButton key="resume" text={resume} label="Copy resume command" />,
@@ -776,7 +777,7 @@ export function SessionPanel() {
   const project = live?.project || d?.project || proc?.project;
   const started = d?.firstAt ? `Started ${whenText(d.firstAt)}` : live?.startedAt ? `Started ${whenText(live.startedAt)}` : '';
   const meta = [
-    (live?.source || d?.source || proc?.source) === 'codex' ? 'Codex' : 'Claude Code',
+    sourceInfo(live?.source || d?.source || proc?.source).name,
     project ? (
       <span key="p" className="inline-flex items-center gap-1">
         <ProjectDot name={project} />
@@ -784,8 +785,8 @@ export function SessionPanel() {
       </span>
     ) : null,
     live?.branch || null,
-    live?.model ? live.model.replace(/^claude-/, '') : null,
-    live?.entrypoint && live.entrypoint !== 'codex' ? ENTRY[live.entrypoint] || live.entrypoint : null,
+    live?.modelName || live?.model || null,
+    live?.entrypoint && live.entrypoint !== live.source ? ENTRY[live.entrypoint] || live.entrypoint : null,
     started || null,
   ].filter(Boolean);
   const metaLine = meta.map((bit, i) => (
@@ -857,7 +858,7 @@ export function SessionPanel() {
         <Files live={live} />
         <Subagents id={id} d={d} all={allAgents || []} />
         {d && <ModelsAndTools d={d} />}
-        <Actions id={id} live={live} d={d} proc={proc} />
+        <Actions id={id} live={live} d={d} />
       </div>
     </aside>
   );

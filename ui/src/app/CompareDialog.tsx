@@ -21,6 +21,7 @@ import { Dialog } from '@/components/Dialog';
 import { Button, IconButton } from '@/components/Button';
 import { Avatar, Empty, Insight, ProjectDot, Skeleton } from '@/components/Bits';
 import { useUi } from './ui';
+import type { Source } from '@/lib/sources';
 
 type CompareState = { picks: [string | null, string | null]; picking: 0 | 1 | null; open: boolean; show: (a?: string | null, b?: string | null) => void; close: () => void };
 
@@ -36,14 +37,14 @@ export const useCompare = create<CompareState>((set) => ({
 }));
 
 type Detail = {
-  source?: 'claude' | 'codex'; title?: string; project?: string; firstAt?: number; lastAt?: number; models?: { name: string }[];
+  source?: Source; title?: string; project?: string; firstAt?: number; lastAt?: number; models?: { name: string }[];
   cost?: number; partial?: boolean; subCost?: number; agentMs?: number; waitMs?: number; compactions?: number;
   messages?: { count: number; interrupts?: number }; lines?: { added: number; removed: number }; tools?: { calls: number; failed: number };
   tokens?: { total: number; cacheRead: number }; subagents?: { count: number };
 };
 
 type Figures = {
-  id: string; source: 'claude' | 'codex'; title: string; project: string | null; startedAt: number | null; lastAt: number | null; models: string[];
+  id: string; source: Source; title: string; project: string | null; startedAt: number | null; lastAt: number | null; models: string[];
   cost: number | null; partial: boolean; subCost: number | null; messages: number | null; agentMs: number | null; waitMs: number | null;
   added: number | null; removed: number | null; tools: number | null; failed: number | null; tokens: number | null; cacheShare: number | null;
   subagents: number | null; compactions: number | null; interrupts: number | null; loading: boolean; status: ReturnType<typeof liveStateOf> | null;

@@ -1,8 +1,8 @@
 # Overtime
 
-A dashboard for your Claude Code and Codex agents: how much of your plan is left, what
+A dashboard for your Claude Code, Codex and Pi agents: how much of your plan is left, what
 your usage would cost at API prices, when you and your agents work, and what's running
-right now. It reads the transcripts both tools already keep on your Mac, so there's
+right now. It reads the transcripts these tools already keep on your Mac, so there's
 nothing to set up, and a pixel-art office where you can watch your agents at work comes
 with it.
 
@@ -41,8 +41,9 @@ Then open <http://localhost:4777>. `/mini` is the compact view and `/office/` th
 office. Add `?demo` to any of them (`/?demo`, `/office/?demo`) to see simulated agents
 instead of yours.
 
-Either way it reads Claude Code's transcripts from `~/.claude/projects` and Codex's from
-`~/.codex/sessions`. Claude Code's plan limits are exact once you've signed in to the
+Either way it reads Claude Code's transcripts from `~/.claude/projects`, Codex's from
+`~/.codex/sessions` and [Pi](https://pi.dev)'s from `~/.pi/agent/sessions` (or wherever
+Pi's `sessionDir` setting or `PI_CODING_AGENT_SESSION_DIR` puts them). Claude Code's plan limits are exact once you've signed in to the
 Claude Code CLI (`claude auth login`); see [Plan limits](#plan-limits).
 
 ## The dashboard
@@ -65,7 +66,7 @@ A sidebar of sections, each a page of cards:
   files it changed, its subagents, models and tools, and your messages, each with what it
   led to (the replies, the files read and changed, the commands run, what it cost). Rename
   it, pin it, give it a note and tags, **Compare** it with another session, or pick it back
-  up: **Resume in Terminal** runs `claude --resume` or `codex resume` in its folder, and
+  up: **Resume in Terminal** runs `claude --resume`, `codex resume` or `pi --session` in its folder, and
   **Open in the Claude app** (for sessions the app started) or **the Codex app** opens it
   there. Dock the panel beside the page to keep it open as you move around.
   `/#session=<id>` opens one directly.
@@ -112,6 +113,10 @@ A sidebar of sections, each a page of cards:
 - **A session's numbers are kept per day**, so a range only counts what happened in it,
   and the Sessions page, the Projects page and the Cost tiles always add up to the same
   figures.
+- **A session that never got a reply** (no tokens, no tool calls), like a run that couldn't
+  sign in, isn't listed, unless it's still waiting for its first. Sessions an agent started
+  from its scratchpad (a headless `claude -p` to test something) are one project, **Agent
+  test runs**, and the Claude app's chats without a folder are **No folder**.
 - **A turn** runs from your message to the end of the agent's work on it: Codex's own
   completion event where it records one, else the last reply. Turns still running,
   interrupted, or waiting on you for an approval, a question or a plan aren't counted.
@@ -150,7 +155,7 @@ section. Search, Refresh, Settings and ↗ (open it in the dashboard window) are
 
 ## The pixel office (`/office/`)
 
-Every Claude Code and Codex session becomes a character, who walks to a part of the office
+Every Claude Code, Codex and Pi session becomes a character, who walks to a part of the office
 for what it's doing:
 
 | Where | What it means |
@@ -165,7 +170,7 @@ for what it's doing:
 | Lounge | Finished and waiting for you |
 
 Subagents are interns with a cap, background sessions (`claude -p`, the Agent SDK) are faded
-ghosts, and Codex agents wear a dark hoodie. A yellow bubble means an agent needs you, going
+ghosts, Codex agents wear a dark hoodie and Pi agents a plum one. A yellow bubble means an agent needs you, going
 from amber to red the longer it waits. A gauge under each name and a paper bin by each desk
 fill up with the context window, and the bin empties with a puff when Claude compacts. Click
 an agent for its cost, a 60-minute timeline, the files it touched, and its last few actions.
@@ -205,17 +210,19 @@ reads and writes, Claude's fast mode and OpenAI's long-context rate. On a subscr
 you're billed differently, so take them as a sense of scale. When Claude Code records its
 own total for a session, that's used instead.
 
-One price table, in `lib/pricing.js`, covers Claude and OpenAI models, checked on
-2026-09-30 against [OpenAI's](https://developers.openai.com/api/docs/pricing) and
+One model catalog, in `lib/models.js`, covers Claude and OpenAI models (however Claude
+Code, Codex, Bedrock, Vertex, OpenRouter or Copilot spell their ids) with their names and
+prices, checked on 2026-09-30 against [OpenAI's](https://developers.openai.com/api/docs/pricing) and
 [Anthropic's](https://platform.claude.com/docs/en/about-claude/pricing) price pages. A model
 with no known price still counts toward tokens and time; its cost is left out, and the
 figure gets a **+**. Restart the server after changing the table.
 
-## Claude Code and Codex together
+## Claude Code, Codex and Pi together
 
-The **Provider** switch in the sidebar (**All**, **Claude**, **Codex**) filters every
-section. With both shown, rows say which one they're from, and time you worked with both
-at once counts once. Plan limits always stay separate.
+The **Provider** switch in the sidebar (**All**, **Claude**, **Codex**, **Pi**) filters every
+section. It lists the tools whose folder is on your Mac, and with more than one shown, rows
+say which one they're from, and time you worked with several at once counts once. Plan
+limits always stay separate.
 
 - Codex history covers its last 31 days, including old chats you resumed.
 - A Codex edit counts once its patch went through; edits made by shell commands can't be
@@ -223,10 +230,22 @@ at once counts once. Plan limits always stay separate.
 - Codex doesn't record cache rebuilds, so *Cache savings* counts those for Claude Code only.
 - The Codex app runs all its chats in one process, so *Open agent sessions* shows its memory
   once.
+- Pi has no plan of its own: it uses whichever provider you sign it in to, so it has no
+  plan-limit cards. Its cost is what Pi itself works out for each request, at that
+  provider's list prices, which covers models Overtime's price list doesn't know.
+- A Pi session's branches (`/tree`) all count, since each was work done; a session made with
+  `/fork` or `/clone` counts only what happened after it was made.
+- Pi doesn't record a session's context window, so it comes from the window Pi itself works
+  with for that provider and model (its model lists, with your `models.json` first), else
+  from Overtime's price list.
+- Pi's process doesn't show which session it resumed, so *Open agent sessions* matches it to
+  the session in its folder that's been active since it started.
 
 ## What it reads, writes and sends
 
-- **Reads** the transcripts Claude Code and Codex already write, read-only. To offer **Open
+- **Reads** the transcripts Claude Code, Codex and Pi already write, read-only, and the
+  context windows from Pi's model lists (`models-store.json` and your `models.json` in
+  `~/.pi/agent`; nothing else in them, such as keys). To offer **Open
   in the Claude app**, it also reads the Claude app's list of its sessions in
   `~/Library/Application Support/Claude/claude-code-sessions`. For *Open agent sessions* it
   runs `ps` and `lsof` every 10 seconds while a page is open.
@@ -235,8 +254,8 @@ at once counts once. Plan limits always stay separate.
   the activity heatmap (`history.json`, a few KB a month, kept 400 days), and the Mac app's
   `desktop.json`. **Resume in Terminal**
   leaves a small script there for a minute. The one exception is **Make a command**, under
-  *Prompts you repeat*: pressing **Create** writes that one new file to `~/.claude/commands`
-  or `~/.codex/prompts`, never over one that's there.
+  *Prompts you repeat*: pressing **Create** writes that one new file to `~/.claude/commands`,
+  `~/.codex/prompts` or Pi's `~/.pi/agent/prompts`, never over one that's there.
 - **Sends** nothing but the plan-limit checks: to `api.anthropic.com` with your Claude Code
   login (on by default) and to OpenAI through the Codex app (off by default). Settings, under
   *Plan limits*, says which are on. The page loads nothing from the internet.
@@ -285,9 +304,11 @@ All optional.
 | `PORT` | The server's port (default `4777`; `0` for any free one) |
 | `CLAUDE_PROJECTS_DIR` | Claude Code's transcripts (default `~/.claude/projects`) |
 | `CODEX_SESSIONS_DIR` | Codex's transcripts (default `~/.codex/sessions`) |
+| `PI_SESSIONS_DIR` | Pi's transcripts (default: where Pi keeps them, `~/.pi/agent/sessions` unless Pi's `PI_CODING_AGENT_SESSION_DIR`, `sessionDir` setting or `PI_CODING_AGENT_DIR` moves them) |
 | `OVERTIME_DIR` | Overtime's own folder (default `~/.overtime`) |
 | `CLAUDE_CONFIG_DIR` | Claude Code's folder, for `.credentials.json` and `commands/` (default `~/.claude`) |
 | `CODEX_HOME` | Codex's folder, for `prompts/` (default `~/.codex`) |
+| `PI_CODING_AGENT_DIR` | Pi's folder, for `prompts/` (default `~/.pi/agent`) |
 | `CODEX_BIN` | The Codex executable for its live limits (default: the Codex app's own, else `codex`) |
 | `OVERTIME_PORT` | The port the Mac app prefers (default `4777`) |
 | `OVERTIME_USER_DATA` | The Mac app's own data folder, to run a second copy beside yours |
@@ -330,13 +351,34 @@ London's clock whatever yours is. After a deliberate change, record new ones wit
 | Where | What's there |
 | --- | --- |
 | `server.js` | The server: the live feed (`/events`), the API and the pages |
-| `lib/` | Following the transcripts (`watcher.js`, `claude.js`, `codex.js`), the 31-day usage index and what's worked out from it (`usage-index.js`, `insights.js`), prices, plan limits, session titles, skills, prompts you repeat, open sessions, resuming, and Overtime's own files (`store.js`) |
+| `lib/` | Following the transcripts (`watcher.js`), the 31-day usage index and what's worked out from it (`usage-index.js`, `insights.js`), the model catalog and prices (`models.js`, `pricing.js`), plan limits, session titles, skills, prompts you repeat, open sessions, resuming, and Overtime's own files (`store.js`) |
+| `lib/harnesses/` | One module per harness (Claude Code, Codex, Pi) and the list of them, each with its readers beside it in `lib/` (`claude.js` and `claude-usage.js`, and so on) |
 | `ui/` | The dashboard, in React and TypeScript with Tailwind, built with Vite: the sections (`src/pages`), the Overview's cards (`src/cards`), the building blocks (`src/components`), the shell (`src/app`), the logic without React (`src/lib`), and the live feed and queries (`src/data`) |
 | `web/app/` | The dashboard, built |
 | `web/office/` | The pixel office |
 | `web/shared/` | What the dashboard and the office share (settings sync, the live-update merger, the demo) and the office's state, theme and tooltips |
 | `desktop/` | The Mac app: Electron's main process, the server beside it, the updater and the icons |
 | `test/` | The server's and the Mac app's tests |
+
+### Adding a harness or a model
+
+**A harness** (another agent tool) is one module in `lib/harnesses/`, listed in
+`lib/harnesses/index.js`, whose comment says what a module provides: where its transcripts
+are and how to read them (live, and into the history), how to resume a session, how to
+spot its process, where its slash commands go, and which of its tools read and write files
+and run commands. Its readers sit in `lib/` (Pi's are `pi.js` and `pi-usage.js`, about 300
+lines between them, a good model). On the dashboard, give it an entry in
+`ui/src/lib/sources.ts` (its name, colour and mark, and its slash commands) and a colour in
+`ui/src/styles/tokens.css`. The watcher, the index, the API and the pages take it from there;
+`test/harnesses.test.js` checks a module has everything and the two lists agree. Plan
+limits are separate: only Claude Code's and Codex's plans have them.
+
+**A model** is a row in `lib/models.js`: its name and its API list prices. A provider whose
+ids or prices work differently is a family there: how to read its ids, and which pricing
+rule in `lib/pricing.js` its prices follow (or a new one). A harness that records each
+request's cost, as Pi does, needs neither. Context windows aren't kept by hand: Codex
+records its own, Pi's come from Pi's own model lists, and only Claude Code's come from the
+catalog.
 
 ### Releasing
 

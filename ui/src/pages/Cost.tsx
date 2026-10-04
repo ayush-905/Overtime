@@ -7,7 +7,7 @@
 
 import { useState, type ReactNode } from 'react';
 import { Info } from 'lucide-react';
-import { useScope } from '@/data/scope';
+import { useScope, useSources } from '@/data/scope';
 import { useChanged } from '@/data/hooks';
 import { useLive } from '@/data/live';
 import { useSessions } from '@/data/queries';
@@ -29,6 +29,7 @@ import { ArrangeButton, PageGrid, type GridCard } from '@/components/PageGrid';
 import { SessionRow } from '@/components/SessionRow';
 import { cx } from '@/components/cx';
 import { PageHeader } from '@/app/PageHeader';
+import { SOURCE, plansIn, sourceInfo, type Source } from '@/lib/sources';
 
 type Day = { start: number; cost: number; tokens: number };
 type Period = { cost: number; tokens: number; unpricedTokens?: number };
@@ -116,9 +117,17 @@ export function PlansCard() {
   const provider = useLive((s) => s.provider);
   const analytics = useLive((s) => s.snap?.analytics);
   const now = serverNow();
-  const inView = (provider === 'all' ? ['claude', 'codex'] : [provider]) as ('claude' | 'codex')[];
+  const inView = plansIn(provider, useSources());
   const set = inView.filter((p) => plans[p]);
   const head = <CardHead title="What your plans are worth" sub="Your usage at API list prices, against what you pay" tools={<TextLink href={pageLink('settings')}>Your plans →</TextLink>} />;
+  if (!inView.length) {
+    return (
+      <Card>
+        {head}
+        <Empty>{providerName(provider)} has no plan of its own: you pay the provider you sign it in to, and its cost here is that usage at their list prices.</Empty>
+      </Card>
+    );
+  }
   if (!set.length) {
     return (
       <Card>
@@ -163,8 +172,9 @@ export function PlansCard() {
 
 export function TrendCard() {
   const { scope, provider } = useScope();
+  const sources = useSources();
   const kind = useChartKind('trend');
-  const split = useLive((s) => s.snap?.analytics) as { claude?: { insights?: { trend?: { days: Day[] } } | null }; codex?: { insights?: { trend?: { days: Day[] } } | null } } | null | undefined;
+  const split = useLive((s) => s.snap?.analytics) as Partial<Record<Source, { insights?: { trend?: { days: Day[] } } | null }>> | null | undefined;
   const trend = (scope?.insights as { trend?: { days: Day[] } } | null)?.trend;
   if (!trend) {
     return (
@@ -179,9 +189,10 @@ export function TrendCard() {
   const active = days.filter((d) => d.cost > 0.01).length;
   const peak = days.reduce((best, d) => (d.cost > best.cost ? d : best), days[0]);
   const n = days.length;
-  const both = provider === 'all';
-  const claude = split?.claude?.insights?.trend?.days || [];
-  const codex = split?.codex?.insights?.trend?.days || [];
+  const both = provider === 'all' && sources.length > 1;
+  // Each provider's days, to split the bars by when they're all in view.
+  const series = sources.map((s) => ({ s, days: split?.[s]?.insights?.trend?.days || [] }));
+  const splitDays = both && series.every((x) => x.days.length === n);
   return (
     <Card>
       <CardHead
@@ -201,12 +212,13 @@ export function TrendCard() {
       <Plot
         kind={kind}
         values={days.map((d, i) => ({ value: d.cost, current: i === n - 1, d, i }))}
-        color={provider === 'codex' ? 'var(--codex)' : 'var(--claude)'}
-        segments={both && claude.length === n && codex.length === n ? (v) => [{ value: claude[v.i as number]?.cost || 0, color: 'var(--claude)', name: 'Claude Code' }, { value: codex[v.i as number]?.cost || 0, color: 'var(--codex)', name: 'Codex' }] : null}
+        color={sourceInfo(provider === 'all' ? 'claude' : provider).color}
+        segments={splitDays ? (v) => series.map((x) => ({ value: x.days[v.i as number]?.cost || 0, color: SOURCE[x.s].color, name: SOURCE[x.s].name })) : null}
         tip={(v) => {
           const d = v.d as Day;
           const i = v.i as number;
-          const parts = both && claude[i] && codex[i] && claude[i].cost > 0.005 && codex[i].cost > 0.005 ? ` (Claude Code ${money(claude[i].cost)}, Codex ${money(codex[i].cost)})` : '';
+          const spent = both ? series.filter((x) => (x.days[i]?.cost || 0) > 0.005) : [];
+          const parts = spent.length > 1 ? ` (${spent.map((x) => `${SOURCE[x.s].name} ${money(x.days[i].cost)}`).join(', ')})` : '';
           return `${dayLabel(d.start)} · ≈ ${money(d.cost)}${parts} · ${compact(d.tokens)} tokens${d.cost > 0.005 ? '\nClick for that day’s sessions' : ''}`;
         }}
         link={(v) => ((v.d as Day).cost > 0.005 ? pageLink('sessions', { day: dayParam((v.d as Day).start) }) : null)}
@@ -219,8 +231,7 @@ export function TrendCard() {
       />
       {both && (
         <p className="mt-2 flex gap-3 text-label text-muted" aria-hidden>
-          <span className="inline-flex items-center gap-1.5"><i className="size-2 rounded-[2px] bg-claude" />Claude Code</span>
-          <span className="inline-flex items-center gap-1.5"><i className="size-2 rounded-[2px] bg-codex" />Codex</span>
+          {sources.map((s) => <span key={s} className="inline-flex items-center gap-1.5"><i className={cx('size-2 rounded-[2px]', SOURCE[s].bg)} />{SOURCE[s].name}</span>)}
         </p>
       )}
     </Card>
@@ -440,7 +451,7 @@ export function ContextCard() {
   const big = group((b) => b.max == null || b.max > 200_000);
   const ratio = small.messages >= 20 && big.messages >= 20 ? big.cost / big.messages / (small.cost / small.messages) : null;
   const k = ctx.compactions;
-  const full = agents.filter((a) => a.kind === 'main' && ((a as { context?: { pct?: number } }).context?.pct || 0) >= 70).sort((a, b) => ((b as { context: { pct: number } }).context.pct - (a as { context: { pct: number } }).context.pct)).slice(0, 4) as unknown as { id: string; source: 'claude' | 'codex'; title: string; project: string; context: { used: number; window: number; pct: number } }[];
+  const full = agents.filter((a) => a.kind === 'main' && ((a as { context?: { pct?: number } }).context?.pct || 0) >= 70).sort((a, b) => ((b as { context: { pct: number } }).context.pct - (a as { context: { pct: number } }).context.pct)).slice(0, 4) as unknown as { id: string; source: Source; title: string; project: string; context: { used: number; window: number; pct: number } }[];
   let tip = '';
   if (ratio && ratio >= 1.5 && big.cost / ctx.cost >= 0.3) tip = `Messages with over 200K tokens of context cost ${ratio.toFixed(1)}× as much as those under 100K, and were ${Math.round((big.cost / ctx.cost) * 100)}% of the cost. A fresh session or /clear between tasks keeps messages small.`;
   return (
@@ -482,7 +493,7 @@ export function ContextCard() {
   );
 }
 
-type LongContext = { from: number; cost: number; spend: number; count: number; sessions: { id: string; source: 'claude' | 'codex'; title: string; project: string; peak: number; messages: number; cost: number; surcharge: number }[]; size: { cost: number; messages: number }; surcharge: { cost: number; requests: number } };
+type LongContext = { from: number; cost: number; spend: number; count: number; sessions: { id: string; source: Source; title: string; project: string; peak: number; messages: number; cost: number; surcharge: number }[]; size: { cost: number; messages: number }; surcharge: { cost: number; requests: number } };
 
 const LONG_NOTE = "Two ways a long conversation costs more, over the last 7 days. The surcharge is exact: OpenAI's models charge 2× for input and 1.5× for output once a request passes 272K tokens. The rest is an estimate: every message re-reads the whole conversation from the cache, so the part of those reads beyond 200K tokens is roughly what compacting (or a fresh session) at 200K would have saved.";
 

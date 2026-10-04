@@ -1,7 +1,9 @@
 // The shapes the server sends (see server.js's snapshot()). Only what the pages
 // read is spelled out; the rest passes through untyped until a card needs it.
 
-export type Source = 'claude' | 'codex';
+import type { Source } from '@/lib/sources';
+
+export type { Source };
 
 export type Agent = {
   id: string;
@@ -44,7 +46,8 @@ export type Snapshot = {
   watching: string[];
   openSessions: OpenSessions | null;
   limits: Record<string, unknown> | null;
-  analytics: { all: AnalyticsView; claude: AnalyticsView; codex: AnalyticsView } | null;
+  // All of them together, and each source with a folder on this Mac on its own.
+  analytics: ({ all: AnalyticsView } & Partial<Record<Source, AnalyticsView>>) | null;
   codexLimits: Record<string, unknown> | null;
   prefs: { workdayHour: number; search: boolean } | null;
   agents: Agent[];

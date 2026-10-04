@@ -29,6 +29,7 @@ import { PageHeader } from '@/app/PageHeader';
 import { useRoute } from '@/app/router';
 import { useProjectDialog } from '@/app/ProjectDialog';
 import { useCompact } from '@/app/layout';
+import { SOURCE, SOURCES } from '@/lib/sources';
 
 const saved = readProjectsView();
 
@@ -133,7 +134,8 @@ function Detail({ p, list, range, all }: { p: Project | null; list: Project[]; r
   for (const s of p.sessions) for (const m of s.models || []) models.set(m.name, (models.get(m.name) || 0) + measureOf({ cost: m.cost, tokens: m.tokens || 0 }));
   const modelTotal = [...models.values()].reduce((n, c) => n + c, 0);
   const modelRows = [...models.entries()].filter(([, v]) => something(v)).sort((a, b) => b[1] - a[1]).slice(0, 4);
-  const both = something(measureOf(p.bySource.claude)) && something(measureOf(p.bySource.codex));
+  // Which providers worked on it, when it's more than one.
+  const providers = SOURCES.filter((s) => something(measureOf(p.bySource[s])));
 
   const top = [...p.sessions].sort((a, b) => measureOf(b) - measureOf(a)).slice(0, 5);
   const allWait = list.reduce((n, x) => n + x.waitMs, 0);
@@ -200,7 +202,7 @@ function Detail({ p, list, range, all }: { p: Project | null; list: Project[]; r
           table={{ head: ['Day', tokens ? 'Tokens' : 'Cost'], row: (v) => [dayLabel(v.day), something(v.value) ? valueShort(v.value) : ''], newestFirst: true }}
         />
       </section>
-      {(modelRows.length > 0 || both) && (
+      {(modelRows.length > 0 || providers.length > 1) && (
         <div className="grid gap-6 @min-[640px]:grid-cols-2">
           {modelRows.length > 0 && (
             <section className="flex flex-col gap-2.5">
@@ -210,15 +212,12 @@ function Detail({ p, list, range, all }: { p: Project | null; list: Project[]; r
               <ShareList total={modelTotal} items={modelRows.map(([name, value]) => ({ name, value, valueText: valueShort(value) }))} />
             </section>
           )}
-          {both && (
+          {providers.length > 1 && (
             <section className="flex flex-col gap-2.5">
               <h3 className="text-detail font-semibold text-muted">Providers</h3>
               <ShareList
                 total={measureOf(p)}
-                items={[
-                  { name: 'Claude Code', value: measureOf(p.bySource.claude), color: 'var(--claude)', valueText: valueShort(measureOf(p.bySource.claude)) },
-                  { name: 'Codex', value: measureOf(p.bySource.codex), color: 'var(--codex)', valueText: valueShort(measureOf(p.bySource.codex)) },
-                ]}
+                items={providers.map((s) => ({ name: SOURCE[s].name, value: measureOf(p.bySource[s]), color: SOURCE[s].color, valueText: valueShort(measureOf(p.bySource[s])) }))}
               />
             </section>
           )}

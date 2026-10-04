@@ -18,8 +18,9 @@ import { Stat, StatRow } from '@/components/Stat';
 import { SessionRow } from '@/components/SessionRow';
 import { cx } from '@/components/cx';
 import { ExpandButton } from './Expand';
+import { SOURCE, SOURCES, bySourceOf, type Source } from '@/lib/sources';
 
-type Top = { id: string; source: 'claude' | 'codex'; title: string; project: string | null; cost: number; partial: boolean; subCost: number; tokens: number; added: number; removed: number; context?: { used: number; window: number; pct: number } | null };
+type Top = { id: string; source: Source; title: string; project: string | null; cost: number; partial: boolean; subCost: number; tokens: number; added: number; removed: number; context?: { used: number; window: number; pct: number } | null };
 
 const linesText = (s: { added: number; removed: number }) => (s.added + s.removed ? `+${compact(s.added)} −${compact(s.removed)} lines` : 'no edits');
 
@@ -80,7 +81,7 @@ export function TopSessionsCard({ expanded = false }: { expanded?: boolean }) {
   );
 }
 
-type Today = { id: string; source: 'claude' | 'codex'; project: string | null; cost: number; tokens?: number; partial?: boolean };
+type Today = { id: string; source: Source; project: string | null; cost: number; tokens?: number; partial?: boolean };
 
 export function WhereTodayCard() {
   useChanged();
@@ -96,18 +97,20 @@ export function WhereTodayCard() {
       </Card>
     );
   }
-  const byProject = new Map<string, { claude: number; codex: number }>();
-  const bySource = { claude: 0, codex: 0 };
+  const byProject = new Map<string, Record<Source, number>>();
+  const bySource = bySourceOf(() => 0);
   for (const s of list) {
     const v = measureOf({ cost: s.cost, tokens: s.tokens ?? 0 });
     const p = s.project || 'Unknown';
-    const row = byProject.get(p) || { claude: 0, codex: 0 };
+    const row = byProject.get(p) || bySourceOf(() => 0);
     row[s.source] += v;
     bySource[s.source] += v;
     byProject.set(p, row);
   }
-  const all = bySource.claude + bySource.codex;
-  const rows = [...byProject].map(([name, v]) => ({ name, ...v, total: v.claude + v.codex })).filter((r) => something(r.total)).sort((a, b) => b.total - a.total);
+  const all = SOURCES.reduce((n, s) => n + bySource[s], 0);
+  const rows = [...byProject].map(([name, v]) => ({ name, by: v, total: SOURCES.reduce((n, s) => n + v[s], 0) })).filter((r) => something(r.total)).sort((a, b) => b.total - a.total);
+  // The providers that used anything today, each with its share.
+  const used = SOURCES.filter((s) => something(bySource[s]));
   const shown = rows.slice(0, 5);
   const rest = rows.slice(5);
   if (!shown.length) {
@@ -122,7 +125,7 @@ export function WhereTodayCard() {
     <Card aria-label="Where today went" className="flex flex-col gap-3.5">
       <CardHead className="mb-0" title="Where today went" sub={`By project${provider === 'all' ? ', split by provider' : ''}`} />
       {shown.map((r) => (
-        <a key={r.name} href={pageLink('projects', { p: r.name, range: 'today' })} className="flex flex-col gap-1.5 text-ink no-underline" data-tip={`${projectName(r.name)}: ${tokens ? `${compact(r.total)} tokens` : `≈ ${money(r.total)}`}${r.claude > 0 && r.codex > 0 ? ` (Claude Code ${valueShort(r.claude)}, Codex ${valueShort(r.codex)})` : ''}\nClick for the project`}>
+        <a key={r.name} href={pageLink('projects', { p: r.name, range: 'today' })} className="flex flex-col gap-1.5 text-ink no-underline" data-tip={`${projectName(r.name)}: ${tokens ? `${compact(r.total)} tokens` : `≈ ${money(r.total)}`}${SOURCES.filter((s) => r.by[s] > 0).length > 1 ? ` (${SOURCES.filter((s) => r.by[s] > 0).map((s) => `${SOURCE[s].name} ${valueShort(r.by[s])}`).join(', ')})` : ''}\nClick for the project`}>
           <span className="flex items-center gap-2">
             <ProjectDot name={r.name} />
             <span className="grow truncate font-medium">{projectName(r.name)}</span>
@@ -130,17 +133,16 @@ export function WhereTodayCard() {
             <span className="w-9 text-right text-detail text-muted tnum">{Math.round((r.total / all) * 100)}%</span>
           </span>
           <span className="flex h-2 gap-0.5 overflow-hidden rounded-full bg-sunken" aria-hidden>
-            {r.claude > 0 && <span className="bg-claude" style={{ width: `${(r.claude / all) * 100}%` }} />}
-            {r.codex > 0 && <span className="bg-codex" style={{ width: `${(r.codex / all) * 100}%` }} />}
+            {SOURCES.map((s) => r.by[s] > 0 && <span key={s} className={SOURCE[s].bg} style={{ width: `${(r.by[s] / all) * 100}%` }} />)}
           </span>
         </a>
       ))}
       {rest.length > 0 && <p className="text-detail text-muted">and {plural(rest.length, 'other project')}, {valueShort(rest.reduce((n, r) => n + r.total, 0))}</p>}
-      {provider === 'all' && something(bySource.claude) && something(bySource.codex) && (
+      {provider === 'all' && used.length > 1 && (
         <>
           <div className="h-px bg-line" />
-          <div className="grid grid-cols-2 gap-4">
-            {(['claude', 'codex'] as const).map((p) => (
+          <div className={cx('grid gap-4', used.length > 2 ? 'grid-cols-3' : 'grid-cols-2')}>
+            {used.map((p) => (
               <div key={p} className="flex items-center gap-2.5">
                 <ProviderMark source={p} size={20} />
                 <span className="flex flex-col">
@@ -158,7 +160,7 @@ export function WhereTodayCard() {
   );
 }
 
-type Open = { id?: string; source: 'claude' | 'codex'; title?: string; status: 'needs' | 'working' | 'idle' | 'new'; project?: string; lastActive?: number; openedAt: number; memBytes: number; toolsMemBytes: number; tools: number; cpuPct?: number | null; runtimeShared?: boolean };
+type Open = { id?: string; source: Source; title?: string; status: 'needs' | 'working' | 'idle' | 'new'; project?: string; lastActive?: number; openedAt: number; memBytes: number; toolsMemBytes: number; tools: number; cpuPct?: number | null; runtimeShared?: boolean };
 
 const IDLE_LONG_MS = 60 * 60_000; // an open session with nothing for this long counts as idle
 const STATUS: Record<Open['status'], string> = { needs: 'Needs you', working: 'Working', idle: 'Idle', new: 'No messages yet' };
@@ -168,7 +170,7 @@ export function OpenSessionsCard({ expanded = false }: { expanded?: boolean }) {
   const { scope } = useScope();
   const o = scope?.openSessions as { everyMs?: number; sessions: Open[]; sharedRuntimes?: Open[] } | null;
   const now = serverNow();
-  const note = `Claude Code and Codex sessions running on this Mac right now, each with the MCP servers and tools it started. Memory includes those; CPU is the share of one core. Updated every ${Math.round((o?.everyMs || 10_000) / 1000)} seconds while this page is open.`;
+  const note = `Claude Code, Codex and Pi sessions running on this Mac right now, each with the MCP servers and tools it started. Memory includes those; CPU is the share of one core. Updated every ${Math.round((o?.everyMs || 10_000) / 1000)} seconds while this page is open.`;
   const list = o?.sessions || [];
   const runtimes = o?.sharedRuntimes || [];
   const total = [...list, ...runtimes].reduce((n, x) => n + (x.memBytes || 0) + (x.toolsMemBytes || 0), 0);

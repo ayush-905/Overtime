@@ -18,7 +18,7 @@ export const ACTIVITY = [
   ['wait', 'Waiting for you', 'lounge'],
 ];
 const ACTIVITY_LABEL = Object.fromEntries(ACTIVITY.map(([k, label]) => [k, label]));
-const ENTRY = { 'claude-desktop': 'Desktop', 'claude-vscode': 'VS Code', cli: 'CLI', codex: 'Codex' };
+const ENTRY = { 'claude-desktop': 'Desktop', 'claude-vscode': 'VS Code', cli: 'CLI', codex: 'Codex', pi: 'Pi' };
 const COUNT_ICONS = [['edit', '⌨️', 'edits'], ['read', '📖', 'reads'], ['search', '🔎', 'searches'], ['bash', '💻', 'commands'], ['web', '🌐', 'web'], ['delegate', '📞', 'subagents']];
 
 let els;
@@ -38,22 +38,13 @@ function setHtml(el, key, html) {
 
 function portraitUrl(a) {
   const parent = a.parentId && state.agents.get(a.parentId);
-  const look = lookFor(a.seed, a.kind === 'sub', parent ? parent.seed % 360 : null, a.source === 'codex');
+  const look = lookFor(a.seed, a.kind === 'sub', parent ? parent.seed % 360 : null, a.source);
   let url = portraits.get(look.key);
   if (!url) {
     url = portrait(look).toDataURL();
     portraits.set(look.key, url);
   }
   return url;
-}
-
-function prettyModel(model) {
-  if (!model) return '';
-  const m = model.replace(/^claude-/, '').replace(/-\d{8}$/, '').replace(/\[1m\]$/i, '');
-  const match = m.match(/^([a-z]+)-(\d+)(?:-(\d+))?/);
-  if (!match) return m;
-  const name = match[1][0].toUpperCase() + match[1].slice(1);
-  return match[3] ? `${name} ${match[2]}.${match[3]}` : `${name} ${match[2]}`;
 }
 
 function statusText(a) {
@@ -150,7 +141,7 @@ function detailsHtml(a) {
 }
 
 function cardHtml(a, subs) {
-  const meta = [a.project && projectName(a.project), a.branch, prettyModel(a.model)].filter(Boolean).map(esc).join(' · ');
+  const meta = [a.project && projectName(a.project), a.branch, a.modelName || a.model].filter(Boolean).map(esc).join(' · ');
   const entry = ENTRY[a.entrypoint] || (a.background ? 'Background' : a.entrypoint?.startsWith('sdk') ? 'SDK' : '');
   const selected = a.id === state.selectedId;
   const age = waitLevel(a);

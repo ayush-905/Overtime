@@ -4,7 +4,7 @@
 // your time and the work done across the bottom. A day's bar opens its
 // sessions. Past your daily budget, it says so.
 
-import { useScope, useAlertPrefs } from '@/data/scope';
+import { useScope, useAlertPrefs, useSources } from '@/data/scope';
 import { useChanged, useNow } from '@/data/hooks';
 import { useLive } from '@/data/live';
 import { activeBetween, calendarDay, compact, costText, dayLabel, duration, longDate, money } from '@/lib/format';
@@ -16,6 +16,7 @@ import { Figure, Stat } from '@/components/Stat';
 import { Skeleton } from '@/components/Bits';
 import { cx } from '@/components/cx';
 import { ExpandButton } from './Expand';
+import { SOURCE, andList, type Source } from '@/lib/sources';
 
 type Day = { start: number; cost: number; tokens: number };
 type Spend = { cost: number; tokens: number; unpricedTokens?: number };
@@ -31,24 +32,26 @@ function delta(current: number, previous: number | undefined, tokens: boolean) {
   return { text, tip: `${tokens ? `${compact(previous!)} tokens` : money(previous!)} yesterday by this time` };
 }
 
-/** The last 30 days, a bar each, Claude Code under Codex. */
-function Spark({ claude, codex, both, tall = 52 }: { claude: Day[]; codex: Day[]; both: boolean; tall?: number }) {
+type Series = { source: Source; days: Day[] };
+
+/** The last 30 days, a bar each, split by provider: Claude Code at the foot, then Codex, then Pi. */
+function Spark({ series, both, tall = 52 }: { series: Series[]; both: boolean; tall?: number }) {
   const tokens = byTokens();
-  const days = claude.length ? claude : codex;
+  const days = series.find((s) => s.days.length)?.days || [];
   const at = (list: Day[], i: number) => (list[i] ? measureOf(list[i]) : 0);
-  const max = Math.max(0.01, ...days.map((_, i) => at(claude, i) + at(codex, i)));
+  const max = Math.max(0.01, ...days.map((_, i) => series.reduce((n, s) => n + at(s.days, i), 0)));
   return (
-    <div role="img" aria-label={`${tokens ? 'Tokens' : 'Cost'} each day for the last 30 days${both ? ', Claude Code and Codex' : ''}`} className="flex items-end justify-between gap-[3px]" style={{ height: tall }}>
+    <div role="img" aria-label={`${tokens ? 'Tokens' : 'Cost'} each day for the last 30 days${both ? `, ${andList(series.map((s) => SOURCE[s.source].name))}` : ''}`} className="flex items-end justify-between gap-[3px]" style={{ height: tall }}>
       {days.map((d, i) => {
-        const c = at(claude, i);
-        const x = at(codex, i);
-        const total = c + x;
-        const tip = `${longDate(d.start)} · ${tokens ? `${compact(total)} tokens` : `≈ ${money(total)}`}${both && c > 0 && x > 0 ? ` (Claude Code ${valueShort(c)}, Codex ${valueShort(x)})` : ''}${total > 0 ? '\nClick for that day’s sessions' : ''}`;
+        const parts = series.map((s) => ({ source: s.source, v: at(s.days, i) })).filter((p) => p.v > 0);
+        const total = parts.reduce((n, p) => n + p.v, 0);
+        const tip = `${longDate(d.start)} · ${tokens ? `${compact(total)} tokens` : `≈ ${money(total)}`}${both && parts.length > 1 ? ` (${parts.map((p) => `${SOURCE[p.source].name} ${valueShort(p.v)}`).join(', ')})` : ''}${total > 0 ? '\nClick for that day’s sessions' : ''}`;
         const today = i === days.length - 1;
         const body = (
           <>
-            {x > 0 && <span className="block rounded-t-[2px] bg-codex" style={{ height: Math.max(2, (x / max) * tall) }} />}
-            {c > 0 && <span className={cx('block bg-claude', x > 0 ? 'rounded-b-[2px]' : 'rounded-[2px]')} style={{ height: Math.max(2, (c / max) * tall) }} />}
+            {[...parts].reverse().map((p, k, top) => (
+              <span key={p.source} className={cx('block', SOURCE[p.source].bg, top.length === 1 ? 'rounded-[2px]' : k === 0 ? 'rounded-t-[2px]' : k === top.length - 1 && 'rounded-b-[2px]')} style={{ height: Math.max(2, (p.v / max) * tall) }} />
+            ))}
             {total <= 0 && <span className="block h-px rounded-full bg-line-strong" />}
           </>
         );
@@ -70,6 +73,7 @@ export function TodayCard({ expanded = false, glance = false }: { expanded?: boo
   useChanged();
   useNow();
   const { scope, provider } = useScope();
+  const sources = useSources();
   const prefs = useAlertPrefs();
   const analytics = useLive((s) => s.snap?.analytics);
   const spend = scope?.spend;
@@ -85,9 +89,10 @@ export function TodayCard({ expanded = false, glance = false }: { expanded?: boo
   const insights = scope?.insights as { messages?: { today?: number }; hours?: never } | null;
   const now = serverNow();
   const active = activeBetween(insights?.hours, calendarDay(now), now);
-  const trend = (p: string) => ((analytics?.[p as 'claude']?.insights as { trend?: { days: Day[] } } | null)?.trend?.days || []) as Day[];
-  const claude = provider === 'codex' ? [] : trend('claude');
-  const codex = provider === 'claude' ? [] : trend('codex');
+  const trend = (p: Source) => ((analytics?.[p]?.insights as { trend?: { days: Day[] } } | null)?.trend?.days || []) as Day[];
+  const series = (provider === 'all' ? sources : [provider]).map((source) => ({ source, days: trend(source) }));
+  const both = provider === 'all' && sources.length > 1;
+  const first = series.find((s) => s.days[0])?.days[0];
   const month = spend.last30;
   const d = delta(measureOf(today), measureOf(spend.yesterdayByNow), tokens);
   const partial = unpriced(today);
@@ -101,8 +106,8 @@ export function TodayCard({ expanded = false, glance = false }: { expanded?: boo
       </a>
       <p className="mt-2 text-detail text-muted">{d ? <span data-tip={d.tip}>{d.text}</span> : tokens ? 'Tokens used today' : 'At API list prices'}</p>
       {overBudget && <p className="mt-1 text-detail text-warn">Past your {money(prefs.budgetUsd)} daily budget</p>}
-      <div className="mb-3 mt-4"><Spark claude={claude} codex={codex} both={provider === 'all'} tall={40} /></div>
-      <div className="mb-3.5 flex flex-wrap justify-between gap-2 text-label text-muted"><span>Last 30 days</span>{provider === 'all' && <span className="flex gap-2"><span className="inline-flex items-center gap-1"><span className="size-1.5 rounded-full bg-claude" />Claude</span><span className="inline-flex items-center gap-1"><span className="size-1.5 rounded-full bg-codex" />Codex</span></span>}</div>
+      <div className="mb-3 mt-4"><Spark series={series} both={both} tall={40} /></div>
+      <div className="mb-3.5 flex flex-wrap justify-between gap-2 text-label text-muted"><span>Last 30 days</span>{both && <span className="flex gap-2">{sources.map((s) => <span key={s} className="inline-flex items-center gap-1"><span className={cx('size-1.5 rounded-full', SOURCE[s].bg)} />{SOURCE[s].short}</span>)}</span>}</div>
       <dl className="mt-auto grid grid-cols-3 gap-2 border-t border-line pt-3 [&_dd]:text-[1rem]">
         <Stat label="Active" value={active ? duration(active) : '0m'} />
         <Stat label="Sessions" value={t?.sessions ?? 0} />
@@ -133,13 +138,12 @@ export function TodayCard({ expanded = false, glance = false }: { expanded?: boo
           <Eyebrow>Last 30 days</Eyebrow>
           <span className="font-bold tnum">{month ? (tokens ? compact(month.tokens) : costText(month.cost, unpriced(month))) : '—'}</span>
         </div>
-        <Spark claude={claude} codex={codex} both={provider === 'all'} tall={expanded ? 160 : 64} />
+        <Spark series={series} both={both} tall={expanded ? 160 : 64} />
         <div className="flex items-center justify-between text-label text-muted">
-          <span>{(claude[0] || codex[0]) && dayLabel((claude[0] || codex[0]).start)}</span>
-          {provider === 'all' && (
+          <span>{first && dayLabel(first.start)}</span>
+          {both && (
             <span className="flex gap-2.5">
-              <span className="inline-flex items-center gap-1"><span className="size-2 shrink-0 rounded-[2px] bg-claude" />Claude Code</span>
-              <span className="inline-flex items-center gap-1"><span className="size-2 shrink-0 rounded-[2px] bg-codex" />Codex</span>
+              {sources.map((s) => <span key={s} className="inline-flex items-center gap-1"><span className={cx('size-2 shrink-0 rounded-[2px]', SOURCE[s].bg)} />{SOURCE[s].name}</span>)}
             </span>
           )}
           <span>Today</span>

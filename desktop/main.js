@@ -568,7 +568,7 @@ async function start() {
     logFile = createWriteStream(path.join(logs, 'overtime.log'), { flags: 'w' });
   } catch {}
   Menu.setApplicationMenu(appMenu());
-  app.setAboutPanelOptions({ applicationName: 'Overtime', applicationVersion: app.getVersion(), credits: 'Your Claude Code and Codex limits, costs and agents, on this Mac.' });
+  app.setAboutPanelOptions({ applicationName: 'Overtime', applicationVersion: app.getVersion(), credits: 'Your Claude Code, Codex and Pi limits, costs and agents, on this Mac.' });
   if (!app.isPackaged) app.dock?.setIcon(path.join(ICONS, 'icon.png'));
 
   // Only notifications and copying, and only for the app's own pages.

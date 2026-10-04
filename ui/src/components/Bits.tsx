@@ -6,8 +6,7 @@
 import type { ReactNode, SelectHTMLAttributes } from 'react';
 import { ChevronDown, Lightbulb, Tag } from 'lucide-react';
 import { Switch as RadixSwitch } from 'radix-ui';
-import claudeMark from '@/assets/claude.svg';
-import codexMark from '@/assets/codex.png';
+import { sourceInfo, type Source } from '@/lib/sources';
 import { projectColor } from '@/lib/format';
 import { highlightParts } from '@/lib/search';
 import { cx } from './cx';
@@ -41,22 +40,23 @@ export function TagCount({ tags }: { tags: string[] }) {
   );
 }
 
-/** Claude Code's burst or Codex's knot. */
-export function ProviderMark({ source, size = 20, className }: { source: 'claude' | 'codex'; size?: number; className?: string }) {
+/** Claude Code's burst, Codex's knot or Pi's π. */
+export function ProviderMark({ source, size = 20, className }: { source: Source; size?: number; className?: string }) {
+  const info = sourceInfo(source);
   return (
     <img
-      src={source === 'codex' ? codexMark : claudeMark}
-      alt={source === 'codex' ? 'Codex' : 'Claude Code'}
+      src={info.mark}
+      alt={info.name}
       width={size}
       height={size}
-      className={cx('shrink-0', source === 'codex' && 'rounded-[5px]', className)}
+      className={cx('shrink-0', source !== 'claude' && 'rounded-[5px]', className)}
       style={{ width: size, height: size }}
     />
   );
 }
 
 /** A provider's mark with how it's doing, as a dot on its corner. */
-export function Avatar({ source, status, size = 20 }: { source: 'claude' | 'codex'; status?: 'needs' | 'working' | 'idle' | null; size?: number }) {
+export function Avatar({ source, status, size = 20 }: { source: Source; status?: 'needs' | 'working' | 'idle' | null; size?: number }) {
   return (
     <span className="relative inline-flex shrink-0">
       <ProviderMark source={source} size={size} />

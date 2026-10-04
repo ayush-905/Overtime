@@ -34,6 +34,7 @@
 
   --claude: #d97757;
   --codex: #4466dc;
+  --pi: #b4458d;
   --you: #595d64;
   --usual: #e4ded2;
   /* Chart series, for charts that aren't split by provider: teal, ochre, violet, green. */
@@ -87,6 +88,7 @@
     --bad-soft: #3a1f1a;
     --claude: #e3876a;
     --codex: #7b93f2;
+    --pi: #e58bc4;
     --you: #b7bbc1;
     --usual: #2a2e35;
     --s1: #5fb1c2;
@@ -125,6 +127,7 @@
   --bad-soft: #3a1f1a;
   --claude: #e3876a;
   --codex: #7b93f2;
+  --pi: #e58bc4;
   --you: #b7bbc1;
   --usual: #2a2e35;
   --s1: #5fb1c2;

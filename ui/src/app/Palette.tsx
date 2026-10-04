@@ -15,6 +15,7 @@ import { highlightParts, queryTerms, score } from '@/lib/search';
 import { setMeasure } from '@/lib/measure';
 import { setTheme, toggleTheme } from '@/lib/prefs';
 import { stepAppearance, appearance } from '@/lib/appearance';
+import { SOURCE, andList, sourcesIn, type Source } from '@/lib/sources';
 import { useSessions, useSearch, type SearchResult } from '@/data/queries';
 import { useLive } from '@/data/live';
 import { refreshLimits } from '@/data/limits';
@@ -35,8 +36,8 @@ type Item =
   | { kind: 'action'; id: string; title: string; icon: Icon; hint: string; run: () => void }
   | { kind: 'link'; id: string; title: string; icon: Icon; hint: string }
   | { kind: 'project'; id: string; title: string; hint: string }
-  | { kind: 'session'; id: string; source: 'claude' | 'codex'; title: string; hint: string }
-  | { kind: 'said'; id: string; source: 'claude' | 'codex'; title: string; hint: string; quote: SearchResult['hits'][number]; count: number; q: string };
+  | { kind: 'session'; id: string; source: Source; title: string; hint: string }
+  | { kind: 'said'; id: string; source: Source; title: string; hint: string; quote: SearchResult['hits'][number]; count: number; q: string };
 
 type Action = { id: string; title: string; hint?: string; icon: Icon; keywords?: string; run: () => void };
 
@@ -54,6 +55,7 @@ function showCard(page: Page, selector: string) {
 
 function actions(): Action[] {
   const setProvider = useLive.getState().setProvider;
+  const sources = sourcesIn(useLive.getState().snap?.analytics);
   const ui = useUi.getState();
   return [
     { id: 'digest-now', title: 'Your week so far', hint: 'Digest', icon: CalendarDays, keywords: 'digest weekly review this week', run: () => ui.setDigest(0) },
@@ -65,9 +67,10 @@ function actions(): Action[] {
     { id: 'sidebar-order', title: 'Reorder or hide sidebar sections', hint: 'Settings', icon: List, keywords: 'navigation menu sections hide', run: () => showCard('settings', '#nav-edit') },
     { id: 'by-tokens', title: 'Compare by tokens', hint: 'Settings', icon: BarChart3, keywords: 'measure tokens usage sort rank primary subscription', run: () => setMeasure('tokens') },
     { id: 'by-cost', title: 'Compare by cost', hint: 'Settings', icon: CircleDollarSign, keywords: 'measure cost money price sort rank primary', run: () => setMeasure('cost') },
-    { id: 'all', title: 'Show Claude Code and Codex', icon: Layers, keywords: 'provider all both filter', run: () => setProvider('all') },
-    { id: 'claude', title: 'Show Claude Code only', icon: Layers, keywords: 'provider filter', run: () => setProvider('claude') },
-    { id: 'codex', title: 'Show Codex only', icon: Layers, keywords: 'provider filter openai', run: () => setProvider('codex') },
+    ...(sources.length > 1 ? [
+      { id: 'all', title: `Show ${andList(sources.map((s) => SOURCE[s].name))}`, icon: Layers, keywords: 'provider all both every filter', run: () => setProvider('all') },
+      ...sources.map((s) => ({ id: s, title: `Show ${SOURCE[s].name} only`, icon: Layers, keywords: `provider filter${s === 'codex' ? ' openai' : s === 'claude' ? ' anthropic' : ''}`, run: () => setProvider(s) })),
+    ] : []),
     { id: 'refresh', title: 'Refresh limits', icon: RefreshCw, keywords: 'reload update', run: () => refreshLimits() },
     { id: 'sidebar', title: 'Hide or show the sidebar', hint: `${MOD}B`, icon: LayoutPanelLeft, keywords: 'rail fold', run: () => useUi.getState().toggleFolded() },
     { id: 'switch-theme', title: 'Switch between light and dark', hint: 'T', icon: SunMoon, keywords: 'theme appearance dark light mode toggle', run: toggleTheme },

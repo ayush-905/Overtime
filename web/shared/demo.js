@@ -1,12 +1,12 @@
 // Simulated agents for /?demo, producing the same snapshot shape as the server.
 
 const SESSIONS = [
-  { nick: 'Grace', title: 'Refactor survey scoring service', project: 'thrive-backend', branch: 'feat/scoring', entrypoint: 'claude-desktop', model: 'claude-opus-5-5' },
-  { nick: 'Linus', title: 'Fix flaky pulse survey tests', project: 'thrive-backend', branch: 'fix/flaky-tests', entrypoint: 'claude-vscode', model: 'claude-sonnet-5' },
-  { nick: 'Ada', title: 'Build member CSV import', project: 'Member-Management', branch: 'main', entrypoint: 'cli', model: 'claude-opus-5-5' },
-  { nick: 'Hedy', title: 'Upgrade the web app to React 19', project: 'thrive-web', branch: 'chore/react-19', entrypoint: 'claude-desktop', model: 'claude-opus-5-5' },
-  { nick: 'Ken', title: 'Explain the job queue retries', project: 'distributed-job-queue', branch: 'main', entrypoint: 'codex', model: 'gpt-5-codex', source: 'codex' },
-  { nick: 'Tim', title: 'Nightly dependency audit', project: 'thrive-backend', branch: 'main', entrypoint: 'sdk-cli', model: 'claude-haiku-4-5' },
+  { nick: 'Grace', title: 'Refactor survey scoring service', project: 'thrive-backend', branch: 'feat/scoring', entrypoint: 'claude-desktop', model: 'claude-opus-5-5', modelName: 'Opus 5.5' },
+  { nick: 'Linus', title: 'Fix flaky pulse survey tests', project: 'thrive-backend', branch: 'fix/flaky-tests', entrypoint: 'claude-vscode', model: 'claude-sonnet-5', modelName: 'Sonnet 5' },
+  { nick: 'Ada', title: 'Build member CSV import', project: 'Member-Management', branch: 'main', entrypoint: 'cli', model: 'claude-opus-5-5', modelName: 'Opus 5.5' },
+  { nick: 'Hedy', title: 'Upgrade the web app to React 19', project: 'thrive-web', branch: 'chore/react-19', entrypoint: 'claude-desktop', model: 'claude-opus-5-5', modelName: 'Opus 5.5' },
+  { nick: 'Ken', title: 'Explain the job queue retries', project: 'distributed-job-queue', branch: 'main', entrypoint: 'codex', model: 'gpt-5-codex', modelName: 'GPT-5 Codex', source: 'codex' },
+  { nick: 'Tim', title: 'Nightly dependency audit', project: 'thrive-backend', branch: 'main', entrypoint: 'sdk-cli', model: 'claude-haiku-4-5', modelName: 'Haiku 4.5' },
 ];
 const INTERN_NAMES = ['Radia', 'Brendan', 'Frances', 'Guido', 'Joan', 'Niklaus'];
 const FILES = ['scoring.service.ts', 'pulse.controller.ts', 'users.repo.ts', 'App.tsx', 'schema.prisma', 'import.worker.ts', 'README.md', 'package.json', 'survey.test.ts'];
@@ -610,7 +610,7 @@ export function startDemo(emit) {
     const n = internCount++;
     const intern = base(`demo-intern-${n}`, INTERN_NAMES[n % INTERN_NAMES.length], 5000 + n * 104729, {
       kind: 'sub', parentId: parent.id, agentType: 'Explore', title: task, project: parent.project,
-      branch: parent.branch, entrypoint: parent.entrypoint, model: 'claude-haiku-4-5', cwd: parent.cwd,
+      branch: parent.branch, entrypoint: parent.entrypoint, model: 'claude-haiku-4-5', modelName: 'Haiku 4.5', cwd: parent.cwd,
       budget: 4 + Math.floor(Math.random() * 4), cost: 0, timeline: new Array(30).fill(null),
     });
     intern.context = { used: 12_000, window: 200_000, pct: 6 };

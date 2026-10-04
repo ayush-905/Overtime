@@ -2,13 +2,15 @@
 // it's working, needs you or is idle, and which agents are waiting for you.
 // Golden tests (limits.test.ts) hold the words.
 
+import type { Source } from '@/lib/sources';
+
 export const WORKING = ['thinking', 'working', 'replying'];
 
 export type LiveAgent = {
   id: string;
   kind: 'main' | 'sub';
   parentId?: string | null;
-  source: 'claude' | 'codex';
+  source: Source;
   title: string;
   project: string | null;
   status: string;

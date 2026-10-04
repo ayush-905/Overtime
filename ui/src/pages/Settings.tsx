@@ -98,7 +98,7 @@ function Appearance() {
       <Row title="Theme" note={<>Light, dark, or the same as your Mac. Press <Kbd>T</Kbd> anywhere to switch between light and dark.</>}>
         <Seg label="Theme" value={themeChoice()} onChange={(v: ThemeChoice) => setTheme(v)} options={[['light', 'Light'], ['auto', 'Like your Mac'], ['dark', 'Dark']]} />
       </Row>
-      <Row title="Colour theme" note="The accent and the sidebar's tint, each with a version for the dark theme. Claude Code and Codex keep their own colours, and red, green and amber always mean the same things." stack>
+      <Row title="Colour theme" note="The accent and the sidebar's tint, each with a version for the dark theme. Claude Code, Codex and Pi keep their own colours, and red, green and amber always mean the same things." stack>
         <div role="radiogroup" aria-label="Colour theme" className="flex flex-wrap gap-1.5">
           {[...THEMES, { id: 'custom', name: 'Custom', note: 'Pick the accent yourself', light: { accent: custom?.accent || THEMES[0].light.accent } }].map((t) => (
             <button

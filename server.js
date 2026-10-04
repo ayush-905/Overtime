@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Overtime: follows local Claude Code and Codex transcripts (read-only) and
+// Overtime: follows local Claude Code, Codex and pi transcripts (read-only) and
 // streams live state to two pages in the browser: the dashboard at / and the
 // pixel office at /office/. The desktop app (desktop/) runs this same server.
 // Binds to 127.0.0.1 only. Optional account-limit checks contact Anthropic
@@ -19,19 +19,20 @@ import { createSessionMonitor } from './lib/open-sessions.js';
 import { createStore, cleanPrefs, mergeHistory, historyDays, applySettings, settingsScript, DEFAULT_PREFS } from './lib/store.js';
 import { resumeOptions, resumeInTerminal } from './lib/resume.js';
 import { writeCommand } from './lib/prompts.js';
+import { harness, isSessionId, nativeIdOf, openHarnesses } from './lib/harnesses/index.js';
 
 // PORT=0 takes any free port, as the desktop app does when 4777 is taken by something else.
 const PORT = /^\d{1,5}$/.test(process.env.PORT || '') ? Number(process.env.PORT) : 4777;
 const HOST = '127.0.0.1';
-const CLAUDE_DIR = process.env.CLAUDE_PROJECTS_DIR || path.join(os.homedir(), '.claude', 'projects');
-const CODEX_DIR = process.env.CODEX_SESSIONS_DIR || path.join(os.homedir(), '.codex', 'sessions');
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
 const WEB_DIR = path.join(ROOT, 'web');
 const VERSION = JSON.parse(await fsp.readFile(path.join(ROOT, 'package.json'), 'utf8').catch(() => '{}')).version || '';
 
 const feed = createFeed();
-const watcher = createWatcher({ claudeDir: CLAUDE_DIR, codexDir: CODEX_DIR, feed });
-const usageIndex = createUsageIndex({ claudeDir: CLAUDE_DIR, codexDir: CODEX_DIR });
+// Every harness, with its transcripts' folder from the environment (CLAUDE_PROJECTS_DIR and so on).
+const harnesses = openHarnesses();
+const watcher = createWatcher({ harnesses, feed });
+const usageIndex = createUsageIndex({ harnesses });
 const claudeIndex = usageIndex.scope('claude');
 const openSessions = createSessionMonitor({
   sessions: () => usageIndex.sessions(),
@@ -51,6 +52,7 @@ usageIndex.setSearch(prefs.search);
 let history = await store.read('history.json', { version: 1, days: {} });
 let dailyFresh = null; // the last 30 days from the transcripts, per provider view
 let watching = [];
+let present = ['claude']; // the sources with a folder on this Mac, each a view of its own
 let limitsEstimate = null;
 let limitsComputedAt = 0;
 
@@ -67,12 +69,12 @@ let insightsComputedAt = 0;
 
 /**
  * Insights, spend and today's totals for every provider view the dashboard can
- * filter to: both, Claude Code alone and Codex alone.
+ * filter to: all of them, and each one on this Mac alone.
  */
 function insights(now) {
   if (now - insightsComputedAt > 30_000) {
     const daily = {};
-    insightsCache = Object.fromEntries(['all', 'claude', 'codex'].map((source) => {
+    insightsCache = Object.fromEntries(['all', ...present].map((source) => {
       const index = usageIndex.scope(source);
       const computed = computeInsights({ index, agents: watcher.agents, now });
       // The days are served on their own (/api/history), not with every snapshot.
@@ -127,6 +129,9 @@ function snapshot() {
     const v = view(a, now);
     if (!v.present) continue;
     v.internCost = internCost.get(a.id) || 0;
+    // What picks it back up, from the start (the history has it a few seconds later).
+    const h = harness(a.source);
+    v.resumeCommand = a.kind === 'main' && h.nativeId.test(v.nativeId || '') ? h.resume.command(v.nativeId) : null;
     list.push(v);
   }
   feed.trim();
@@ -135,7 +140,7 @@ function snapshot() {
     watching: watching.map((dir) => dir.replace(os.homedir(), '~')),
     openSessions: openSessions.latest(),
     limits: limits(now),
-    // Per provider view: { all, claude, codex }, each with insights, spend and today's totals.
+    // Per provider view: { all, claude, codex?, pi? }, each with insights, spend and today's totals.
     analytics: insights(now),
     codexLimits: recordedCodexLimits(usageIndex, now),
     prefs,
@@ -245,16 +250,16 @@ const server = http.createServer(async (req, res) => {
   // loading its history. Read-only.
   if (url.pathname === '/api/session-target') {
     const id = url.searchParams.get('id') || '';
-    const known = /^(?:codex-)?[0-9a-f-]{36}$/.test(id)
+    const known = isSessionId(id)
       ? watcher.agents.get(id) || usageIndex.sessionRecord(id) : null;
-    const target = known ? await resumeOptions({ source: known.source, nativeId: known.nativeId || id.replace(/^codex-/, '') }) : null;
+    const target = known ? await resumeOptions({ source: known.source, nativeId: known.nativeId || nativeIdOf(id) }) : null;
     res.writeHead(target ? 200 : 404, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }).end(JSON.stringify(target));
     return;
   }
   // One session in full, for the dashboard's session panel. Read-only.
   if (url.pathname === '/api/session') {
     const id = url.searchParams.get('id') || '';
-    const detail = /^(?:codex-)?[0-9a-f-]{36}$/.test(id) ? sessionDetail(usageIndex, id) : null;
+    const detail = isSessionId(id) ? sessionDetail(usageIndex, id) : null;
     // Where it can be picked up again: Terminal, and the app it belongs to.
     if (detail) detail.resume = await resumeOptions({ source: detail.source, nativeId: detail.nativeId });
     res.writeHead(detail ? 200 : 404, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }).end(JSON.stringify(detail));
@@ -264,7 +269,7 @@ const server = http.createServer(async (req, res) => {
   if (url.pathname === '/api/turn') {
     const id = url.searchParams.get('id') || '';
     const at = Number(url.searchParams.get('t'));
-    const body = /^(?:codex-)?[0-9a-f-]{36}$/.test(id) && Number.isFinite(at) ? turnDetail(usageIndex, id, at) : null;
+    const body = isSessionId(id) && Number.isFinite(at) ? turnDetail(usageIndex, id, at) : null;
     res.writeHead(body ? 200 : 404, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }).end(JSON.stringify(body));
     return;
   }
@@ -284,16 +289,16 @@ const server = http.createServer(async (req, res) => {
   // Every day on record for one provider view, for the activity heatmap: the
   // days kept in ~/.overtime, with the last 30 from the transcripts over them.
   if (url.pathname === '/api/history') {
-    const scope = ['claude', 'codex'].includes(url.searchParams.get('scope')) ? url.searchParams.get('scope') : 'all';
+    const scope = present.includes(url.searchParams.get('scope')) ? url.searchParams.get('scope') : 'all';
     if (!dailyFresh) insights(Date.now());
     const body = dailyFresh ? { scope, days: historyDays(history, dailyFresh, scope) } : null;
     res.writeHead(body ? 200 : 503, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }).end(JSON.stringify(body));
     return;
   }
   // Search inside the conversations of the last 30 days: ?q=words or "a phrase",
-  // &scope=claude|codex. Read-only; off when you've turned search off.
+  // &scope=claude|codex|pi. Read-only; off when you've turned search off.
   if (url.pathname === '/api/search') {
-    const scope = ['claude', 'codex'].includes(url.searchParams.get('scope')) ? url.searchParams.get('scope') : 'all';
+    const scope = present.includes(url.searchParams.get('scope')) ? url.searchParams.get('scope') : 'all';
     const q = (url.searchParams.get('q') || '').slice(0, 200);
     const limit = Math.min(100, Math.max(1, Number(url.searchParams.get('limit')) || 40));
     const stats = usageIndex.searchStats();
@@ -374,9 +379,9 @@ const server = http.createServer(async (req, res) => {
   // the command and the folder are the session's own, from its transcript.
   if (url.pathname === '/api/resume') {
     const id = url.searchParams.get('id') || '';
-    const d = /^(?:codex-)?[0-9a-f-]{36}$/.test(id) ? sessionDetail(usageIndex, id) : null;
+    const d = isSessionId(id) ? sessionDetail(usageIndex, id) : null;
     const live = watcher.agents.get(id);
-    const session = d ? { source: d.source, nativeId: d.nativeId, cwd: d.cwd } : live ? { source: live.source, nativeId: live.nativeId || id.replace(/^codex-/, ''), cwd: live.cwd } : null;
+    const session = d ? { source: d.source, nativeId: d.nativeId, cwd: d.cwd } : live ? { source: live.source, nativeId: live.nativeId || nativeIdOf(id), cwd: live.cwd } : null;
     try {
       if (!session) throw new Error("Overtime doesn't know this session");
       const result = await resumeInTerminal(session, store.dir);
@@ -386,10 +391,10 @@ const server = http.createServer(async (req, res) => {
     }
     return;
   }
-  // Make a prompt you keep typing into a slash command: { target: 'claude' | 'codex',
-  // name, description, body }. A new file in ~/.claude/commands or ~/.codex/prompts,
-  // never over one that's there. The only place outside ~/.overtime it writes, and
-  // only when you press Create.
+  // Make a prompt you keep typing into a slash command: { target: 'claude' | 'codex' | 'pi',
+  // name, description, body }. A new file in ~/.claude/commands, ~/.codex/prompts or
+  // ~/.pi/agent/prompts, never over one that's there. The only place outside
+  // ~/.overtime it writes, and only when you press Create.
   if (url.pathname === '/api/commands') {
     const body = await readJson(req, 40_000);
     const result = body ? await writeCommand(body) : { ok: false, status: 400, message: 'Send the command as JSON' };
@@ -469,14 +474,18 @@ setInterval(() => {
 }, 250);
 
 const started = Date.now();
-watching = await watcher.sources();
+({ folders: watching, sources: present } = await watcher.onThisMac());
 await watcher.discover();
 setInterval(() => watcher.tick(), 1000);
 setInterval(() => watcher.discover(), 4000);
 // The usage index behind the limits, spend and insights builds in the background,
 // then only reads what's new, which takes a few milliseconds.
 usageIndex.scan().then(() => { limitsComputedAt = 0; insightsComputedAt = 0; });
-setInterval(() => usageIndex.scan(), 15_000);
+setInterval(async () => {
+  await usageIndex.scan();
+  // A tool installed since: its folder appears, and with it its own view.
+  ({ folders: watching, sources: present } = await watcher.onThisMac());
+}, 15_000);
 
 // Started by the desktop app, the server tells it how it went; from a terminal, it says so.
 const tellApp = (message) => process.parentPort?.postMessage(message);
@@ -498,6 +507,6 @@ server.listen(PORT, HOST, () => {
   tellApp({ type: 'listening', port });
   const snap = snapshot();
   console.log(`Overtime is open at http://localhost:${port} (the pixel office is at /office/)`);
-  console.log(`Watching ${watching.join(' and ')} (read-only). Loaded ${watcher.agents.size} sessions in ${Date.now() - started} ms.`);
+  console.log(`Watching ${watching.length > 1 ? `${watching.slice(0, -1).join(', ')} and ${watching.at(-1)}` : watching[0]} (read-only). Loaded ${watcher.agents.size} sessions in ${Date.now() - started} ms.`);
   console.log(`${snap.agents.length} agent${snap.agents.length === 1 ? '' : 's'} in the office right now.`);
 });
