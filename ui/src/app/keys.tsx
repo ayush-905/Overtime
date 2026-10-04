@@ -1,46 +1,13 @@
 // The keyboard, anywhere on the dashboard except while you're typing: ⌘K opens
 // the palette, / searches the page you're on (or opens the palette where there's
 // no search), j and k step through a list's rows, T switches light and dark, ⌘B
-// folds the sidebar, ? lists all of these. ⌘Z (undo) lives with the toasts, and
-// ⌘[ ⌘] (in the Mac app) with back and forward.
+// folds the sidebar, ? lists all of these (KeysDialog.tsx). ⌘Z (undo) lives with
+// the toasts, and ⌘[ ⌘] (in the Mac app) with back and forward.
 
 import { useEffect } from 'react';
 import { toggleTheme } from '@/lib/prefs';
-import { MAC, MOD, typing } from '@/data/hooks';
-import { Dialog } from '@/components/Dialog';
-import { Kbd } from '@/components/Bits';
+import { MAC, typing } from '@/data/hooks';
 import { useUi } from './ui';
-
-const KEYS: [string[], string][] = [
-  [[MOD.replace('+', ''), 'K'], 'Open the palette: go anywhere, or run an action'],
-  [['/'], "Search the page you're on (the palette, where there's no search)"],
-  [['j', 'k'], 'Next and previous row in a list'],
-  [['↵'], 'Open the row you’re on'],
-  [['t'], 'Switch between light and dark'],
-  [[MOD.replace('+', ''), 'B'], 'Hide or show the sidebar'],
-  [['Alt', '↑', '↓'], 'Move the sidebar section you’re on up or down'],
-  [[MOD.replace('+', ''), 'Z'], 'Undo the change you just made, while its note shows'],
-  [['⌘', '['], 'Back, in the Mac app (⌘] for forward)'],
-  [['Esc'], 'Close a panel or dialog, or clear a search'],
-  [['?'], 'This list'],
-];
-
-export function KeysDialog() {
-  const open = useUi((s) => s.keysOpen);
-  const setOpen = useUi((s) => s.setKeysOpen);
-  return (
-    <Dialog open={open} onOpenChange={setOpen} title="Keyboard shortcuts" description="Anywhere on the dashboard, except while you're typing">
-      <dl className="grid gap-2.5">
-        {KEYS.map(([keys, what]) => (
-          <div key={what} className="grid grid-cols-[120px_minmax(0,1fr)] items-center gap-3">
-            <dt className="flex gap-1">{keys.map((k) => <Kbd key={k}>{k}</Kbd>)}</dt>
-            <dd className="text-detail">{what}</dd>
-          </div>
-        ))}
-      </dl>
-    </Dialog>
-  );
-}
 
 /** Step to the next (1) or previous (-1) row of the list on screen. */
 function stepRow(by: number) {

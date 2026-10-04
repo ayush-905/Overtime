@@ -3,7 +3,7 @@
 // they waited for you, the projects and sessions that took the most, and the few
 // things worth knowing. Copies as text for a note or a message.
 
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Check, Copy, Lightbulb } from 'lucide-react';
 import { useDigest } from '@/data/queries';
 import { compact, costCol, costText, dayLabel, duration, money, plural, projectName } from '@/lib/format';
@@ -99,9 +99,10 @@ export function DigestDialog() {
   useEffect(() => {
     if (week === 1) markDigestSeen();
   }, [week]);
-  // Opening a session or following a link from it gets it out of the way.
+  // Opening a session or following a link from it gets it out of the way (not one already open when it opened).
+  const before = useRef(session);
   useEffect(() => {
-    if (session) setWeek(null);
+    if (session && session !== before.current) setWeek(null);
   }, [session, setWeek]);
   useEffect(() => {
     const close = () => setWeek(null);

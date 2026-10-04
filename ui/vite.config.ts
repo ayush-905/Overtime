@@ -45,6 +45,13 @@ export default defineConfig({
 		emptyOutDir: true,
 		assetsDir: 'assets',
 		chunkSizeWarningLimit: 900,
+		rolldownOptions: {
+			output: {
+				// Everything the page needs to start comes as one file; what loads later
+				// (the other sections, the panel, the dialogs) still comes in its own.
+				codeSplitting: { groups: [{ name: 'start', tags: ['$initial'] }] },
+			},
+		},
 	},
 	server: {
 		port: 5173,

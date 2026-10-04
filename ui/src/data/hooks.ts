@@ -1,54 +1,74 @@
-// Small hooks the whole app uses: redraw when settings or labels change, a shared
-// once-a-second clock for countdowns, and a media query.
+// Small hooks the whole app uses: redraw when settings or labels change, shared
+// clocks (once a second for countdowns, once a minute for the rest), and a media
+// query.
 
 import { useEffect, useState, useSyncExternalStore } from 'react';
 import { onChange, changeVersion } from '@/lib/bus';
+import { env } from '@/lib/env';
 
 /** Redraw when a setting, label or the look changes (in this tab or another). */
 export function useChanged() {
   return useSyncExternalStore(onChange, changeVersion, changeVersion);
 }
 
-// One interval for every countdown on the page, only while something shows one.
-const tickers = new Set<() => void>();
-let timer: ReturnType<typeof setInterval> | undefined;
-let second = Math.floor(Date.now() / 1000);
-
-function subscribeTick(fn: () => void) {
-  tickers.add(fn);
-  if (!timer) {
-    timer = setInterval(() => {
-      // Nobody can see a background tab, so it catches up when you come back.
-      if (document.hidden) return;
-      second = Math.floor(Date.now() / 1000);
-      for (const t of tickers) t();
-    }, 1000);
-  }
-  return () => {
-    tickers.delete(fn);
-    if (!tickers.size) {
-      clearInterval(timer);
-      timer = undefined;
-    }
+/**
+ * A clock that moves on every `unit` ms, looked at every `every` ms: one timer for
+ * everything that reads it, and none while nothing does. Nobody can see a
+ * background tab, so it stands still there and catches up the moment you're back.
+ */
+function clock(every: number, unit: number) {
+  const readers = new Set<() => void>();
+  let timer: ReturnType<typeof setInterval> | undefined;
+  let value = Math.floor(Date.now() / unit);
+  const tick = () => {
+    if (document.hidden) return;
+    const next = Math.floor(Date.now() / unit);
+    if (next === value) return;
+    value = next;
+    for (const fn of readers) fn();
   };
+  const subscribe = (fn: () => void) => {
+    readers.add(fn);
+    if (!timer) {
+      // Nothing was reading it, so it may be behind; React looks again once it's subscribed.
+      value = Math.floor(Date.now() / unit);
+      timer = setInterval(tick, every);
+      document.addEventListener('visibilitychange', tick);
+    }
+    return () => {
+      readers.delete(fn);
+      if (!readers.size) {
+        clearInterval(timer);
+        timer = undefined;
+        document.removeEventListener('visibilitychange', tick);
+      }
+    };
+  };
+  return { subscribe, read: () => value * unit };
 }
 
-/** The time, a new value each second: only for what shows a countdown or "x ago". */
+const second = clock(1000, 1000);
+const minute = clock(5_000, 60_000);
+
+/** The time, a new value each second: only for what shows a countdown or "x ago" (see components/Clock.tsx). */
 export function useNow() {
-  const s = useSyncExternalStore(subscribeTick, () => second, () => second);
-  return s * 1000;
+  return useSyncExternalStore(second.subscribe, second.read, second.read);
 }
 
-/** The time, a new value each minute: for what only changes by the minute, like "updated 2m ago" and the day's name. */
+/** The time, a new value each minute: for what only changes by the minute, like "updated 2m ago", a forecast and the day's name. */
 export function useMinute() {
-  const [minute, setMinute] = useState(() => Math.floor(Date.now() / 60_000));
-  useEffect(() => {
-    const t = setInterval(() => {
-      if (!document.hidden) setMinute(Math.floor(Date.now() / 60_000));
-    }, 15_000);
-    return () => clearInterval(t);
-  }, []);
-  return minute * 60_000;
+  return useSyncExternalStore(minute.subscribe, minute.read, minute.read);
+}
+
+/**
+ * Something worked out from the time each second (a string, number or boolean),
+ * which redraws what reads it only when it comes out different: whether an agent
+ * looks stuck yet, say, rather than the whole card every second. `work` gets the
+ * time by the server's clock.
+ */
+export function useEachSecond<T extends string | number | boolean | null>(work: (now: number) => T): T {
+  const read = () => work(second.read() - env.timeOffset);
+  return useSyncExternalStore(second.subscribe, read, read);
 }
 
 /** Whether a media query matches, kept up to date. */

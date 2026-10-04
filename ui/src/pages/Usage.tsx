@@ -2,11 +2,13 @@
 // it's heading at your pace, the current window as a line, and (for Claude Code)
 // the 5-hour windows of the last week with when to start your first. Each
 // provider in view gets its own section, with where its figures come from and
-// its own Refresh.
+// its own Refresh. The figures move on by the minute (and at a reset); only "x
+// ago" counts the seconds.
 
-import { useState, type ReactNode } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import { Info, Moon, RefreshCw, TrendingUp, TriangleAlert } from 'lucide-react';
 import { useQuota, useSources } from '@/data/scope';
+import { useChanged } from '@/data/hooks';
 import { useLimits, refreshCodex, refreshLimits } from '@/data/limits';
 import { useLive } from '@/data/live';
 import { demo } from '@/data/api';
@@ -21,6 +23,7 @@ import { Empty, Insight, ProviderMark, Skeleton } from '@/components/Bits';
 import { Meter, toneFor } from '@/components/Meter';
 import { Calendar } from '@/components/Chart';
 import { WindowChart } from '@/components/WindowChart';
+import { EachSecond } from '@/components/Clock';
 import { cx } from '@/components/cx';
 import { PageHeader } from '@/app/PageHeader';
 import { NoPlan } from '@/cards/Band';
@@ -192,8 +195,9 @@ function ChartStats({ r }: { r: ChartResult | null }) {
 }
 
 function ClaudeWindowCard({ inp }: { inp: LimitsInput }) {
+  const v = useChanged();
   const [kind, setKind] = useState<'session' | 'weekly'>(() => read(WINDOW_KEY, 'weekly', 'session') as 'session' | 'weekly');
-  const r = claudeWindow(inp, kind);
+  const r = useMemo(() => claudeWindow(inp, kind), [inp, kind, v]); // eslint-disable-line react-hooks/exhaustive-deps
   const note = 'How much of the limit this window has used so far, and where it goes at your recent pace. The shape comes from Claude Code on this Mac; the % is the same as on the limit card.';
   return (
     <Card aria-label="This window">
@@ -228,8 +232,14 @@ function ClaudeWindowCard({ inp }: { inp: LimitsInput }) {
   );
 }
 
+/** Claude Code's insights, or everything's where there are no Claude Code ones of their own. */
+const claudeInsights = (s: ReturnType<typeof useLive.getState>) => s.snap?.analytics?.claude?.insights || s.snap?.analytics?.all?.insights;
+
 function WindowsCard({ inp }: { inp: LimitsInput }) {
-  const insights = useLive((s) => (s.snap?.analytics?.claude?.insights || s.snap?.analytics?.all?.insights) as { windows?: WindowPlan; hours?: { typicalStop?: number | null } } | null | undefined);
+  const v = useChanged();
+  const p = useLive((s) => claudeInsights(s)?.windows) as WindowPlan | undefined;
+  const hours = useLive((s) => claudeInsights(s)?.hours) as { typicalStop?: number | null } | undefined;
+  const m = useMemo(() => (p?.windows.length ? windowsModel(p, hours, inp) : null), [p, hours, inp, v]); // eslint-disable-line react-hooks/exhaustive-deps
   const note = "A window starts with your first message after the last one ended (on a 10-minute mark) and resets 5 hours later. It's rebuilt from Claude Code on this Mac, so claude.ai chats aren't counted. How full each got is its cost against what a full window costs: from the exact % when that's on, otherwise from when you last hit the limit.";
   const head = (
     <CardHead
@@ -242,7 +252,6 @@ function WindowsCard({ inp }: { inp: LimitsInput }) {
       }
     />
   );
-  const p = insights?.windows;
   if (!p) {
     return (
       <Card>
@@ -259,7 +268,7 @@ function WindowsCard({ inp }: { inp: LimitsInput }) {
       </Card>
     );
   }
-  const m = windowsModel(p, insights?.hours, inp);
+  if (!m) return null;
   const f = m.fullest;
   return (
     <Card className="flex flex-col gap-4" aria-label="5-hour windows">
@@ -317,7 +326,7 @@ function ClaudeSection() {
       <SectionHead provider="claude" sub="Its windows, forecasts and planning">
         <span data-tip={src.tip || undefined} className={cx('inline-flex items-center gap-1.5 text-detail', src.live ? 'text-ok' : 'text-muted')}>
           {src.live && <i className="size-1.5 rounded-full bg-ok-fill" />}
-          {src.text}
+          <EachSecond>{(now) => claudeSource({ ...inp, now }).text}</EachSecond>
           {!src.live && <Info size={13} strokeWidth={1.8} aria-hidden />}
         </span>
         {!demo && (
@@ -378,6 +387,7 @@ function CodexRow({ w, now }: { w: QuotaItem; now: number }) {
 }
 
 function CodexSection() {
+  const v = useChanged();
   const { items, input: inp } = useQuota('codex');
   const refreshing = useLimits((s) => s.codexRefreshing);
   const exactOn = useLimits((s) => s.codexExactOn);
@@ -385,15 +395,17 @@ function CodexSection() {
   const first = items[0];
   const now = inp.now;
   const SOURCE: Record<string, string> = { exact: 'Live check', estimate: 'Estimate', recorded: 'As Codex last recorded it' };
-  const sub = first ? `${SOURCE[first.source || ''] || ''}${first.observedAt ? ` · ${ago(Math.max(0, now - first.observedAt))} ago` : ''}${first.stale ? ' · old reading' : ''}` : 'Unavailable';
-  const windows = codexChartWindows(inp);
+  const sub = (t: number) => (first ? `${SOURCE[first.source || ''] || ''}${first.observedAt ? ` · ${ago(Math.max(0, t - first.observedAt))} ago` : ''}${first.stale ? ' · old reading' : ''}` : 'Unavailable');
+  const windows = useMemo(() => codexChartWindows(inp), [inp]);
   const w = windows.find((x) => x.kind === kind) || windows[0];
-  const r = codexWindow(inp, w);
+  const r = useMemo(() => codexWindow(inp, w), [inp, w, v]); // eslint-disable-line react-hooks/exhaustive-deps
   const q = codexQuota(inp);
   return (
     <section aria-label="Codex" className="flex flex-col gap-[var(--page-gap)]">
       <SectionHead provider="codex" sub="Its windows, as Codex reports them">
-        <span className={cx('text-detail', first?.stale ? 'text-warn' : 'text-muted')}>{sub}</span>
+        <span className={cx('text-detail', first?.stale ? 'text-warn' : 'text-muted')}>
+          <EachSecond>{sub}</EachSecond>
+        </span>
         {!demo && (
           <Button size="sm" disabled={refreshing} onClick={() => refreshCodex()} data-tip={exactOn ? 'Ask Codex for the latest numbers now' : 'Re-read Codex’s transcripts now. Turn on the live check in Settings to ask Codex itself.'} icon={<RefreshCw size={13} strokeWidth={2} className={refreshing ? 'animate-spin' : ''} aria-hidden />}>
             {refreshing ? 'Checking…' : 'Refresh'}
@@ -464,6 +476,7 @@ function SectionHead({ provider, sub, children }: { provider: 'claude' | 'codex'
 }
 
 export function Usage() {
+  useChanged();
   const provider = useLive((s) => s.provider);
   const plans = plansIn(provider, useSources());
   return (

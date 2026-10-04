@@ -4,7 +4,6 @@ import type { QuotaItem } from '@/lib/limits';
 
 const quota = vi.hoisted(() => ({ items: [] as QuotaItem[] }));
 vi.mock('@/data/scope', () => ({ useQuota: () => ({ items: quota.items }) }));
-vi.mock('@/data/hooks', () => ({ useNow: () => 0 }));
 import { SideUsage } from './SideUsage';
 
 beforeEach(() => { quota.items = []; });

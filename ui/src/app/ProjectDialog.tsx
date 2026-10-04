@@ -3,7 +3,6 @@
 // can be undone.
 
 import { useEffect, useRef, useState } from 'react';
-import { create } from 'zustand';
 import { Check } from 'lucide-react';
 import { projectHue, projectName } from '@/lib/format';
 import { projectPref, setProjectPref } from '@/lib/prefs';
@@ -11,14 +10,9 @@ import { Dialog } from '@/components/Dialog';
 import { Button } from '@/components/Button';
 import { cx } from '@/components/cx';
 import { offerUndo } from './toasts';
+import { useProjectDialog } from './dialogs';
 
 const HUES = [0, 25, 45, 90, 140, 170, 195, 215, 240, 265, 295, 330];
-
-export const useProjectDialog = create<{ name: string | null; open: (name: string) => void; close: () => void }>((set) => ({
-  name: null,
-  open: (name) => set({ name }),
-  close: () => set({ name: null }),
-}));
 
 function save(name: string, alias: string, hue: number | null | undefined) {
   const before = projectPref(name);
@@ -32,8 +26,9 @@ function save(name: string, alias: string, hue: number | null | undefined) {
 export function ProjectDialog() {
   const name = useProjectDialog((s) => s.name);
   const close = useProjectDialog((s) => s.close);
-  const [alias, setAlias] = useState('');
-  const [hue, setHue] = useState<number | null>(null);
+  // It opens with the project's own (and again if another is opened).
+  const [alias, setAlias] = useState(() => (name && projectPref(name).alias) || '');
+  const [hue, setHue] = useState<number | null>(() => (name && Number.isFinite(projectPref(name).hue) ? (projectPref(name).hue as number) : null));
   const field = useRef<HTMLInputElement>(null);
   useEffect(() => {
     if (!name) return;

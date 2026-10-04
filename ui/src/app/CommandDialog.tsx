@@ -5,7 +5,6 @@
 // until you press Create, and never over a file that's there.
 
 import { useEffect, useState } from 'react';
-import { create } from 'zustand';
 import { Copy, Folder, TriangleAlert } from 'lucide-react';
 import { demo } from '@/data/api';
 import { copyText } from '@/lib/copy';
@@ -17,26 +16,21 @@ import { changed } from '@/lib/bus';
 import { SOURCE, commandUse, isSource, type Source } from '@/lib/sources';
 import { useSources } from '@/data/scope';
 import { note } from './toasts';
-import type { Repeat } from '@/pages/You';
+import { useCommand } from './dialogs';
 
 const MADE_KEY = 'overtime-commands-made';
 const NAME = /^[a-z0-9][a-z0-9_-]{0,39}$/;
 const slug = (v: string) => v.toLowerCase().replace(/^\/+/, '').replace(/[^a-z0-9_-]+/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '').slice(0, 40);
 
-export const useCommand = create<{ group: Repeat | null; open: (g: Repeat) => void; close: () => void }>((set) => ({
-  group: null,
-  open: (group) => set({ group }),
-  close: () => set({ group: null }),
-}));
-
 export function CommandDialog() {
   const g = useCommand((s) => s.group);
   const close = useCommand((s) => s.close);
   const sources = useSources();
-  const [target, setTarget] = useState<Source>('claude');
-  const [name, setName] = useState('');
-  const [description, setDescription] = useState('');
-  const [body, setBody] = useState('');
+  // It opens with the prompt's own (and again if another is opened).
+  const [target, setTarget] = useState<Source>(() => (g && isSource(g.source) ? g.source : 'claude'));
+  const [name, setName] = useState(() => g?.name || '');
+  const [description, setDescription] = useState(() => g?.description || '');
+  const [body, setBody] = useState(() => g?.body || '');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   useEffect(() => {

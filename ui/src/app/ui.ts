@@ -6,6 +6,8 @@
 import { create } from 'zustand';
 import { readSideWidth, saveFolded, saveSideWidth, savedFolded, SIDE } from '@/lib/prefs';
 import { readNavState, writeNavState, type NavState } from '@/lib/nav';
+import { useMedia } from '@/data/hooks';
+import { inPopover } from '@/data/desktop';
 
 const narrowQuery = matchMedia('(max-width: 1100px)');
 
@@ -102,6 +104,14 @@ export const useUi = create<UiState>((set, get) => ({
     set({ nav });
   },
 }));
+
+/** Whether the session panel sits beside the page (docked, with room) rather than over it. */
+export function usePanelDocked() {
+  const docked = useUi((s) => s.docked);
+  const roomy = useMedia('(min-width: 1100px)');
+  const open = useUi((s) => !!s.session);
+  return open && docked && roomy && !inPopover;
+}
 
 narrowQuery.addEventListener('change', () => {
   const folded = narrowQuery.matches || savedFolded();

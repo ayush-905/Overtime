@@ -9,7 +9,7 @@ import { CSS } from '@dnd-kit/utilities';
 import { ChevronDown, ChevronUp, GripVertical } from 'lucide-react';
 import { Dialog } from '@/components/Dialog';
 import { Button, IconButton } from '@/components/Button';
-import { Switch } from '@/components/Bits';
+import { Switch } from '@/components/Switch';
 import { cx } from '@/components/cx';
 import { useChanged } from '@/data/hooks';
 import { offerUndo } from '@/app/toasts';

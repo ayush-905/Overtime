@@ -2,12 +2,14 @@
 // inbox. Approval, question and plan waits lead; suspected failures and finished
 // turns follow. Actions use available app links; titles open the session panel.
 // Under them, the sessions working now: a row each with what it's doing (one
-// summary line in the compact layout).
+// summary line in the compact layout). Only the "how long" figures count each
+// second; the list itself is drawn again when it changes (a session looking
+// stuck counts).
 
 import { ChevronRight, Inbox, RefreshCw } from 'lucide-react';
 import type { ReactNode } from 'react';
-import { useAgents, useAlertPrefs, useQuota, useSources } from '@/data/scope';
-import { useNow } from '@/data/hooks';
+import { useAlertPrefs, useLoaded, useQuota, useScopedAgents, useSources } from '@/data/scope';
+import { useEachSecond, useNow } from '@/data/hooks';
 import { refreshCodex, refreshLimits, useLimits } from '@/data/limits';
 import { useLive } from '@/data/live';
 import { useSessionTarget } from '@/data/queries';
@@ -22,6 +24,7 @@ import { Figure } from '@/components/Stat';
 import { Meter, toneFor } from '@/components/Meter';
 import { Avatar, Empty, ProviderMark, Skeleton } from '@/components/Bits';
 import { Button, TextLink } from '@/components/Button';
+import { Ago, EachSecond } from '@/components/Clock';
 import { cx } from '@/components/cx';
 import { useUi } from '@/app/ui';
 import { titleFor } from '@/lib/labels';
@@ -29,7 +32,7 @@ import { SOURCE, plansIn, type PlanSource, type Source } from '@/lib/sources';
 
 // ── The attention inbox ──────────────────────────────────────────────────────
 
-function AttentionLine({ item, now, compact = false }: { item: AttentionItem; now: number; compact?: boolean }) {
+function AttentionLine({ item, compact = false }: { item: AttentionItem; compact?: boolean }) {
   const openSession = useUi((s) => s.openSession);
   const { agent, tone } = item;
   const { data: target } = useSessionTarget(agent.id);
@@ -38,7 +41,7 @@ function AttentionLine({ item, now, compact = false }: { item: AttentionItem; no
     const body = <>
       <Avatar source={agent.source} status={agent.needsYou ? 'needs' : 'working'} size={20} />
       <span className="min-w-0 grow">
-        <span className="mb-1 flex items-center justify-between gap-2 text-label"><span className={tone === 'bad' ? 'text-bad' : 'text-warn'}>{item.label}</span><span className="tnum text-muted">{ago(Math.max(0, now - item.since))}</span></span>
+        <span className="mb-1 flex items-center justify-between gap-2 text-label"><span className={tone === 'bad' ? 'text-bad' : 'text-warn'}>{item.label}</span><span className="tnum text-muted"><Ago t={item.since} /></span></span>
         <span className="block truncate font-semibold">{titleFor(agent.id, agent.title)}</span>
         <span className="block truncate text-label text-muted">{agent.project ? `${agent.project} · ` : ''}{item.detail}</span>
       </span>
@@ -55,7 +58,7 @@ function AttentionLine({ item, now, compact = false }: { item: AttentionItem; no
       <div className="min-w-0 grow">
         <div className="mb-1 flex flex-wrap items-center gap-x-2 gap-y-1">
           <span className={cx('attention-badge', tone === 'bad' ? 'text-bad bg-bad-soft' : 'text-warn bg-warn-soft')}>{item.label}</span>
-          <span className="text-label text-muted tnum">{ago(Math.max(0, now - item.since))}</span>
+          <span className="text-label text-muted tnum"><Ago t={item.since} /></span>
         </div>
         <button type="button" data-row="" data-session={agent.id} onClick={() => openSession(agent.id)} className="block max-w-full truncate text-left font-semibold hover:underline" data-tip={titleFor(agent.id, agent.title)}>{titleFor(agent.id, agent.title)}</button>
         <p className="truncate text-detail text-muted" data-tip={item.detail}>{agent.project ? `${agent.project} · ` : ''}{item.detail}</p>
@@ -66,13 +69,14 @@ function AttentionLine({ item, now, compact = false }: { item: AttentionItem; no
   );
 }
 
-/** A session that's working: lighter than a row that needs you, and it opens the session's panel. */
-function WorkingLine({ item, now }: { item: WorkingItem; now: number }) {
+/** A session that's working: lighter than a row that needs you, and it opens the session's panel. It counts each second, its tip too. */
+function WorkingLine({ item }: { item: WorkingItem }) {
+  useNow();
   const openSession = useUi((s) => s.openSession);
   const { agent } = item;
   const title = titleFor(agent.id, agent.title);
   const detail = [item.doing, item.subagents ? plural(item.subagents, 'subagent') : '', agent.project].filter(Boolean).join(' · ');
-  const elapsed = ago(Math.max(0, now - item.since));
+  const elapsed = ago(Math.max(0, serverNow() - item.since));
   return (
     <button type="button" data-row="" data-session={agent.id} onClick={() => openSession(agent.id)} className="working-row w-full text-left text-ink" data-tip={`${title}\n${detail} · for ${elapsed}`}>
       <Avatar source={agent.source} status="working" size={18} />
@@ -87,12 +91,12 @@ function WorkingLine({ item, now }: { item: WorkingItem; now: number }) {
 
 const WORKING_ROWS = 3;
 
-function WorkingGroup({ items, now }: { items: WorkingItem[]; now: number }) {
+function WorkingGroup({ items }: { items: WorkingItem[] }) {
   const more = items.length - WORKING_ROWS;
   return (
     <section className="working-group" aria-label="Working sessions">
       <h3 className="text-label font-semibold text-muted">Working · {items.length}</h3>
-      <div className="mt-1 flex flex-col">{items.slice(0, WORKING_ROWS).map((item) => <WorkingLine key={item.agent.id} item={item} now={now} />)}</div>
+      <div className="mt-1 flex flex-col">{items.slice(0, WORKING_ROWS).map((item) => <WorkingLine key={item.agent.id} item={item} />)}</div>
       {more > 0 && <TextLink href={pageLink('agents')} className="mt-2 block">{more} more working →</TextLink>}
     </section>
   );
@@ -111,15 +115,17 @@ function WorkingSummary({ items }: { items: WorkingItem[] }) {
   );
 }
 
+/** What the inbox lists, in a word each: drawn again when that changes, as a session starts to look stuck. */
+const listed = (items: AttentionItem[]) => items.map((i) => `${i.agent.id} ${i.label} ${i.detail}`).join('\n');
+
 export function AttentionInbox({ compact = false }: { compact?: boolean }) {
-  useNow();
-  const snap = useLive((s) => s.snap);
-  const { agents } = useAgents();
+  const loaded = useLoaded();
+  const agents = useScopedAgents();
   const prefs = useAlertPrefs();
-  const now = serverNow();
-  if (!snap) return <Skeleton lines={3} />;
+  useEachSecond((now) => listed(attentionItems(agents, now, prefs.stuckMinutes)));
+  if (!loaded) return <Skeleton lines={3} />;
   const mains = agents.filter((a) => a.kind === 'main');
-  const items = attentionItems(agents, now, prefs.stuckMinutes);
+  const items = attentionItems(agents, serverNow(), prefs.stuckMinutes);
   const working = workingItems(agents, items);
   const limit = compact ? 2 : 3;
   const shown = items.slice(0, limit);
@@ -133,9 +139,9 @@ export function AttentionInbox({ compact = false }: { compact?: boolean }) {
         </div>
         <TextLink href={pageLink('agents')}>All agents →</TextLink>
       </header>
-      {shown.length ? <div className="attention-list">{shown.map((item) => <AttentionLine key={item.agent.id} item={item} now={now} compact={compact} />)}</div> : <p className="mt-2 text-detail text-muted">{working.length ? 'Nothing needs your attention.' : mains.length ? 'No session needs your attention right now.' : 'Start a Claude Code, Codex or Pi session to see it here.'}</p>}
+      {shown.length ? <div className="attention-list">{shown.map((item) => <AttentionLine key={item.agent.id} item={item} compact={compact} />)}</div> : <p className="mt-2 text-detail text-muted">{working.length ? 'Nothing needs your attention.' : mains.length ? 'No session needs your attention right now.' : 'Start a Claude Code, Codex or Pi session to see it here.'}</p>}
       {items.length > limit && <TextLink href={pageLink('agents')} className="mt-3 block">{items.length - limit === 1 ? '1 more session needs' : `${items.length - limit} more sessions need`} attention →</TextLink>}
-      {working.length > 0 && (compact ? <WorkingSummary items={working} /> : <WorkingGroup items={working} now={now} />)}
+      {working.length > 0 && (compact ? <WorkingSummary items={working} /> : <WorkingGroup items={working} />)}
     </div>
   );
 }
@@ -215,7 +221,7 @@ export function ProviderLimits({ provider, compact = false }: { provider: PlanSo
       <ProviderMark source={provider} size={compact ? 16 : 18} />
       <h2 className={cx('shrink-0 whitespace-nowrap', compact ? 'text-detail font-semibold' : 'text-[15px] font-semibold')}>{providerName(provider)}</h2>
       <span className="ml-auto truncate text-label text-muted" data-tip={stale ? 'Pace forecasts are paused until a newer reading is available.' : undefined}>
-        {shortSource(items, now)}
+        <EachSecond>{(t) => shortSource(items, t)}</EachSecond>
       </span>
     </div>
   );

@@ -1,5 +1,5 @@
 import { Timer } from 'lucide-react';
-import { useScope } from '@/data/scope';
+import { useInsight } from '@/data/scope';
 import { duration, plural } from '@/lib/format';
 import { pageLink } from '@/lib/route';
 import { Card, CardHead, InfoTip } from '@/components/Card';
@@ -11,8 +11,7 @@ import { ExpandButton } from './Expand';
 type Performance = { count: number; pending: number; interrupted: number; inferred: number; medianMs: number | null; p90Ms: number | null; maxMs: number | null; buckets: { label: string; count: number }[] };
 
 export function TurnDurationCard({ expanded = false }: { expanded?: boolean }) {
-  const { scope } = useScope();
-  const data = scope?.insights?.turnPerformance as Performance | undefined;
+  const data = useInsight<Performance>('turnPerformance');
   const head = <CardHead title={<span className="inline-flex items-center gap-2"><Timer size={16} aria-hidden />Turn duration</span>} sub="Last 7 days · time from your message to the end of the observed turn" tools={<><InfoTip note="Median: half the sampled turns were this fast or faster. P90: 90% were this fast or faster. Codex completion events are used when available; other durations end at the last recorded reply. Ongoing turns, interruptions and unresolved approval or question waits are excluded." />{!expanded && <ExpandButton card="turn-duration" />}</>} />;
   return (
     <Card aria-label="Turn duration">

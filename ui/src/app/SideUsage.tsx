@@ -1,11 +1,12 @@
 // What's left of each plan, at the foot of the sidebar, on every page,
 // a row for each window. Folded, it's each provider's lowest window as a figure.
-// Either way it opens Usage.
+// Either way it opens Usage. It counts nothing by the second, so it moves with
+// the plan windows (each minute, and at a reset).
 
 import { useQuota } from '@/data/scope';
 import { useLive } from '@/data/live';
 import { hasPlan } from '@/lib/sources';
-import { useNow } from '@/data/hooks';
+import { useChanged } from '@/data/hooks';
 import { whenText } from '@/lib/format';
 import { providerName, type QuotaItem } from '@/lib/limits';
 import { pageLink } from '@/lib/route';
@@ -37,7 +38,7 @@ function groups(items: QuotaItem[]) {
 }
 
 export function SideUsage({ folded }: { folded: boolean }) {
-  useNow();
+  useChanged();
   const { items } = useQuota();
   const provider = useLive((s) => s.provider);
   const list = groups(items);

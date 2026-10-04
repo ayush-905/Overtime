@@ -4,8 +4,8 @@
 // your time and the work done across the bottom. A day's bar opens its
 // sessions. Past your daily budget, it says so.
 
-import { useScope, useAlertPrefs, useSources } from '@/data/scope';
-import { useChanged, useNow } from '@/data/hooks';
+import { useAlertPrefs, useInsight, useInsightOf, useProvider, useSources, useSpend, useToday } from '@/data/scope';
+import { useChanged, useMinute } from '@/data/hooks';
 import { useLive } from '@/data/live';
 import { activeBetween, calendarDay, compact, costText, dayLabel, duration, longDate, money } from '@/lib/format';
 import { serverNow } from '@/lib/env';
@@ -71,12 +71,17 @@ function Spark({ series, both, tall = 52 }: { series: Series[]; both: boolean; t
 
 export function TodayCard({ expanded = false, glance = false }: { expanded?: boolean; glance?: boolean }) {
   useChanged();
-  useNow();
-  const { scope, provider } = useScope();
+  // Your active time today counts by the minute.
+  useMinute();
+  const provider = useProvider();
   const sources = useSources();
   const prefs = useAlertPrefs();
-  const analytics = useLive((s) => s.snap?.analytics);
-  const spend = scope?.spend;
+  const spend = useSpend();
+  const t = useToday();
+  const messages = useInsight<{ today?: number }>('messages');
+  const hours = useInsight<Parameters<typeof activeBetween>[0]>('hours');
+  const trends = useInsightOf<{ days: Day[] }>(sources, 'trend');
+  const spentToday = useLive((s) => s.snap?.analytics?.all?.spend?.today?.cost);
   const today = spend?.today;
   if (!spend || !today) {
     return (
@@ -86,18 +91,16 @@ export function TodayCard({ expanded = false, glance = false }: { expanded?: boo
     );
   }
   const tokens = byTokens();
-  const insights = scope?.insights as { messages?: { today?: number }; hours?: never } | null;
   const now = serverNow();
-  const active = activeBetween(insights?.hours, calendarDay(now), now);
-  const trend = (p: Source) => ((analytics?.[p]?.insights as { trend?: { days: Day[] } } | null)?.trend?.days || []) as Day[];
+  const active = activeBetween(hours, calendarDay(now), now);
+  const trend = (p: Source) => (trends[sources.indexOf(p)]?.days || []) as Day[];
   const series = (provider === 'all' ? sources : [provider]).map((source) => ({ source, days: trend(source) }));
   const both = provider === 'all' && sources.length > 1;
   const first = series.find((s) => s.days[0])?.days[0];
   const month = spend.last30;
   const d = delta(measureOf(today), measureOf(spend.yesterdayByNow), tokens);
   const partial = unpriced(today);
-  const overBudget = prefs.budget && prefs.budgetUsd > 0 && (analytics?.all?.spend?.today?.cost ?? 0) >= prefs.budgetUsd;
-  const t = scope?.today;
+  const overBudget = prefs.budget && prefs.budgetUsd > 0 && (spentToday ?? 0) >= prefs.budgetUsd;
   if (glance) return (
     <Card aria-label="Today" className="flex h-full flex-col">
       <div className="mb-2 flex items-center justify-between gap-2"><Eyebrow>Today</Eyebrow><span className="ml-auto text-label text-muted">{tokens ? 'Tokens' : 'API equivalent'}</span><ExpandButton card="today" /></div>
@@ -129,7 +132,7 @@ export function TodayCard({ expanded = false, glance = false }: { expanded?: boo
       <dl className="grid grid-cols-[repeat(auto-fit,minmax(96px,1fr))] content-center gap-4 border-t border-line px-[var(--card-px)] py-[var(--card-py)] @max-[699px]:border-b @min-[700px]:order-last @min-[700px]:col-span-2 @min-[700px]:grid-cols-5 [&_dt]:whitespace-nowrap">
         <Stat label="Active" value={active ? duration(active) : '0m'} tip="From each message you sent until the agent's last reply, with breaks under 30 minutes bridged" />
         <Stat label="Sessions" value={t?.sessions ?? 0} />
-        <Stat label="Your messages" value={insights?.messages?.today ?? '—'} tip="Messages you typed, not background notices or subagent tasks" />
+        <Stat label="Your messages" value={messages?.today ?? '—'} tip="Messages you typed, not background notices or subagent tasks" />
         <Stat label="Tool calls" value={compact(t?.tools ?? 0)} />
         <Stat label="Lines changed" value={<><span className="text-ok">+{compact(t?.added ?? 0)}</span> <span className="text-bad">−{compact(t?.removed ?? 0)}</span></>} />
       </dl>

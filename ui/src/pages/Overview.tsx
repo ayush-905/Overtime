@@ -3,7 +3,7 @@
 // their chosen position. Phones and the menu bar retain their compact summary.
 
 import { CalendarDays, LayoutPanelTop, RefreshCw } from 'lucide-react';
-import { useChanged } from '@/data/hooks';
+import { useChanged, useMinute } from '@/data/hooks';
 import { refreshLimits, useLimits } from '@/data/limits';
 import { useLive } from '@/data/live';
 import { inPopover } from '@/data/desktop';
@@ -58,14 +58,45 @@ function Cards({ skipToday = false }: { skipToday?: boolean }) {
 	);
 }
 
+/** Today's date, which changes at midnight. */
+function DateToday() {
+	useMinute();
+	return <>{longDate(serverNow())}</>;
+}
+
+/** "Your week", with "New" early in the week until you've read last week's. */
+function WeekButton() {
+	useMinute();
+	const setDigest = useUi((s) => s.setDigest);
+	// Closing it after reading it takes "New" away.
+	useUi((s) => s.digest);
+	const ready = digestReady();
+	return (
+		<Button
+			icon={<CalendarDays size={15} strokeWidth={1.8} aria-hidden />}
+			onClick={() => setDigest(ready ? 1 : 0)}
+			data-tip={
+				ready
+					? 'Last week in review is ready'
+					: 'This week so far, and last week, in review'
+			}
+		>
+			Your week
+			{ready && (
+				<span className="ml-0.5 rounded-full bg-warn-soft px-1.5 text-label font-bold text-warn">
+					New
+				</span>
+			)}
+		</Button>
+	);
+}
+
 export function Overview() {
 	useChanged();
 	const compact = useCompact();
 	const provider = useLive((s) => s.provider);
 	const refreshing = useLimits((s) => s.refreshing);
-	const setDigest = useUi((s) => s.setDigest);
 	const setCustomizing = useUi((s) => s.setCustomizing);
-	const ready = digestReady();
 	const todayFirst = shownCards(readLayout())[0]?.id === 'today';
 	if (compact) {
 		return (
@@ -74,7 +105,7 @@ export function Overview() {
 					<PageHeader
 						title="Overview"
 						id="h-overview"
-						sub={longDate(serverNow())}
+						sub={<DateToday />}
 					/>
 				)}
 				<Summary today={inPopover || MINI} />
@@ -93,25 +124,10 @@ export function Overview() {
 			<PageHeader
 				title="Overview"
 				id="h-overview"
-				sub={`${longDate(serverNow())} · Costs are what your usage would be at API list prices`}
+				sub={<><DateToday /> · Costs are what your usage would be at API list prices</>}
 				tools={
 					<>
-						<Button
-							icon={<CalendarDays size={15} strokeWidth={1.8} aria-hidden />}
-							onClick={() => setDigest(ready ? 1 : 0)}
-							data-tip={
-								ready
-									? 'Last week in review is ready'
-									: 'This week so far, and last week, in review'
-							}
-						>
-							Your week
-							{ready && (
-								<span className="ml-0.5 rounded-full bg-warn-soft px-1.5 text-label font-bold text-warn">
-									New
-								</span>
-							)}
-						</Button>
+						<WeekButton />
 						<Button
 							icon={<LayoutPanelTop size={15} strokeWidth={1.8} aria-hidden />}
 							onClick={() => setCustomizing(true)}

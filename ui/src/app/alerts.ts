@@ -1,10 +1,12 @@
 // Saying the alerts: a chime, then a note on the page while you're looking at
 // it, or a notification while it's in the background. Only the dashboard proper
 // (not the popover or /mini) runs the checks, so an alert never comes twice. They
-// run with every snapshot, and every 15 seconds for what passes with no new data
-// (a reset, a wait, a budget).
+// run with every message from the server (its heartbeat too, which is what keeps
+// them going in a window you can't see), and every 15 seconds while you can, for
+// what passes with no new data (a reset, a wait, a budget). They follow the
+// stores rather than drawing anything, so the page isn't drawn again for them.
 
-import { useEffect, useRef } from 'react';
+import { useEffect } from 'react';
 import { useLive } from '@/data/live';
 import { useLimits } from '@/data/limits';
 import { demo } from '@/data/api';
@@ -80,22 +82,36 @@ export function checkAll() {
   for (const a of list) deliver(a);
 }
 
-/** The dashboard proper's alerts: on each snapshot, and every 15 seconds. */
+/** The dashboard proper's alerts: on each message from the server, and every 15 seconds. */
 export function useAlerts(on: boolean) {
-  const prev = useRef<Map<string, LiveAgent> | null>(null);
-  const snap = useLive((s) => s.snap);
   useEffect(() => {
-    if (!on || !snap || demo) return;
-    const agents = snap.agents as unknown as LiveAgent[];
-    if (prev.current) for (const a of checkNeeds(readAlertPrefs(), prev.current, agents)) deliver(a);
-    prev.current = new Map(agents.map((a) => [a.id, a]));
-    checkAll();
-  }, [on, snap]);
-  useEffect(() => {
-    if (!on) return;
+    if (!on || demo) return;
+    let prev: Map<string, LiveAgent> | null = null;
+    let seen: unknown = null;
+    let agents: unknown = null;
+    let at = 0;
+    const check = () => {
+      const snap = useLive.getState().snap;
+      // Each message, the heartbeat too (the same snapshot, with only its time moved on), but not the store's other changes.
+      if (!snap || (snap === seen && snap.now === at)) return;
+      seen = snap;
+      at = snap.now;
+      if (snap.agents !== agents) {
+        agents = snap.agents;
+        const list = snap.agents as unknown as LiveAgent[];
+        if (prev) for (const a of checkNeeds(readAlertPrefs(), prev, list)) deliver(a);
+        prev = new Map(list.map((a) => [a.id, a]));
+      }
+      checkAll();
+    };
+    check();
+    const stop = useLive.subscribe(check);
     const t = setInterval(() => {
       if (!document.hidden) checkAll();
     }, 15_000);
-    return () => clearInterval(t);
+    return () => {
+      stop();
+      clearInterval(t);
+    };
   }, [on]);
 }

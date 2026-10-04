@@ -6,11 +6,12 @@ import type { LiveAgent } from '@/lib/agents';
 
 const state = vi.hoisted(() => ({ agents: [] as LiveAgent[], insights: {} as Record<string, unknown>, target: undefined as { app?: { name: string; url: string } | null } | undefined, openSession: vi.fn() }));
 vi.mock('@/data/scope', () => ({
-  useAgents: () => ({ agents: state.agents }),
-  useScope: () => ({ scope: { insights: state.insights }, provider: 'all' }),
+  useScopedAgents: () => state.agents,
+  useLoaded: () => true,
+  useInsight: (key: string) => state.insights[key],
   useAlertPrefs: () => ({ stuckMinutes: 10 }),
 }));
-vi.mock('@/data/hooks', () => ({ useNow: () => Date.now(), useChanged: () => 0 }));
+vi.mock('@/data/hooks', () => ({ useNow: () => Date.now(), useMinute: () => Date.now(), useEachSecond: (work: (now: number) => unknown) => work(Date.now()), useChanged: () => 0 }));
 vi.mock('@/data/live', () => ({ useLive: (selector: (s: unknown) => unknown) => selector({ snap: {}, provider: 'all' }) }));
 vi.mock('@/app/ui', () => ({ useUi: (selector: (s: unknown) => unknown) => selector({ openSession: state.openSession }) }));
 vi.mock('@/data/queries', () => ({ useSessionTarget: () => ({ data: state.target }) }));

@@ -1,9 +1,10 @@
 // What's happening now, from the server's live feed (/events): the first message
 // after connecting has everything, and each one after only what changed, put
 // back together by @shared/live.js, the same merger the office uses. Unchanged
-// parts keep their identity, so a card that reads only its
-// part redraws only when that part changes. The demo (?demo) makes up snapshots
-// of the same shape instead.
+// parts keep their identity (a message that changes nothing gives back the same
+// snapshot), so a card that reads only its part redraws only when that part
+// changes (see scope.ts for the hooks that pick them out). The demo (?demo) makes
+// up snapshots of the same shape instead.
 //
 // The provider filter lives here too, since most of what's scoped by it comes
 // from here: the analytics, agents and open sessions for the provider in view.
@@ -14,7 +15,7 @@ import { env } from '@/lib/env';
 import { changed } from '@/lib/bus';
 import { readProvider, saveProvider, type Provider } from '@/lib/prefs';
 import { demo, post } from './api';
-import type { Agent, AnalyticsView, OpenSessions, Snapshot } from './types';
+import type { Snapshot } from './types';
 
 type LiveState = {
   snap: Snapshot | null;
@@ -90,45 +91,6 @@ export function connectLive() {
 window.addEventListener('storage', (e) => {
   if (e.key === 'overtime-provider') useLive.setState({ provider: readProvider() });
 });
-
-// ── For the provider in view ──────────────────────────────────────────────────
-
-export type Scope = {
-  provider: Provider;
-  /** Every live agent, whatever the filter. */
-  allAgents: Agent[];
-  agents: Agent[];
-  insights: AnalyticsView['insights'];
-  spend: AnalyticsView['spend'];
-  today: AnalyticsView['today'];
-  openSessions: OpenSessions | null;
-};
-
-const scopeCache = new WeakMap<Snapshot, Map<Provider, Scope>>();
-
-/** The analytics, agents and open sessions for the provider in view, worked out once per snapshot. */
-export function scopeOf(snap: Snapshot | null, provider: Provider): Scope | null {
-  if (!snap) return null;
-  let byProvider = scopeCache.get(snap);
-  if (!byProvider) scopeCache.set(snap, (byProvider = new Map()));
-  let scope = byProvider.get(provider);
-  if (!scope) {
-    const mine = (x: { source: string }) => provider === 'all' || x.source === provider;
-    const view = snap.analytics?.[provider];
-    const open = snap.openSessions;
-    scope = {
-      provider,
-      allAgents: snap.agents,
-      agents: snap.agents.filter(mine),
-      insights: view?.insights || null,
-      spend: view?.spend || null,
-      today: view?.today || null,
-      openSessions: open ? { ...open, sessions: open.sessions.filter(mine), sharedRuntimes: (open.sharedRuntimes || []).filter(mine) } : null,
-    };
-    byProvider.set(provider, scope);
-  }
-  return scope;
-}
 
 /** An agent is working while it's thinking, using a tool or replying. */
 export const WORKING = ['thinking', 'working', 'replying'];

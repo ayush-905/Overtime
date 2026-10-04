@@ -24,13 +24,15 @@ import { pageLink } from '@/lib/route';
 import { Card, CardHead } from '@/components/Card';
 import { Seg } from '@/components/Seg';
 import { Button, TextLink } from '@/components/Button';
-import { Kbd, Select, Switch } from '@/components/Bits';
+import { Kbd, Select } from '@/components/Bits';
+import { Switch } from '@/components/Switch';
 import { cx } from '@/components/cx';
 import { PageHeader } from '@/app/PageHeader';
 import { useUi } from '@/app/ui';
 import { offerUndo, note } from '@/app/toasts';
 import { askPermission, checkAll, deliver } from '@/app/alerts';
-import { restoreFrom, saveCopy, useReset } from '@/app/ResetDialog';
+import { restoreFrom, saveCopy } from '@/app/ResetDialog';
+import { useReset } from '@/app/dialogs';
 import { ICONS } from '@/app/sections';
 
 function Row({ title, note: text, children, id, stack }: { title: string; note?: ReactNode; children?: ReactNode; id?: string; stack?: boolean }) {
