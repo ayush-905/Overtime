@@ -4,13 +4,12 @@
 // the session list, like the Sessions page; tokens, subagents, compactions and
 // interruptions from each session's own details.
 
-import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { create } from 'zustand';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { ArrowLeftRight, ExternalLink, Pencil, Search } from 'lucide-react';
 import { useQueries } from '@tanstack/react-query';
 import { useChanged } from '@/data/hooks';
 import { useSessions } from '@/data/queries';
-import { useAgents } from '@/data/scope';
+import { useAllAgents } from '@/data/scope';
 import { demo, getJson } from '@/data/api';
 import { clip, compact, dayLabel, duration, money, plural, projectName, whenText } from '@/lib/format';
 import { titleFor } from '@/lib/labels';
@@ -21,20 +20,8 @@ import { Dialog } from '@/components/Dialog';
 import { Button, IconButton } from '@/components/Button';
 import { Avatar, Empty, Insight, ProjectDot, Skeleton } from '@/components/Bits';
 import { useUi } from './ui';
+import { useCompare } from './dialogs';
 import type { Source } from '@/lib/sources';
-
-type CompareState = { picks: [string | null, string | null]; picking: 0 | 1 | null; open: boolean; show: (a?: string | null, b?: string | null) => void; close: () => void };
-
-export const useCompare = create<CompareState>((set) => ({
-  picks: [null, null],
-  picking: 0,
-  open: false,
-  show: (a = null, b = null) => {
-    const picks: [string | null, string | null] = [a, b && b !== a ? b : null];
-    set({ open: true, picks, picking: picks[0] ? (picks[1] ? null : 1) : 0 });
-  },
-  close: () => set({ open: false }),
-}));
 
 type Detail = {
   source?: Source; title?: string; project?: string; firstAt?: number; lastAt?: number; models?: { name: string }[];
@@ -293,8 +280,8 @@ export function CompareDialog() {
   useChanged();
   const { open, picks, picking, close } = useCompare();
   const { data: list } = useSessions({ enabled: open });
-  const { all } = useAgents();
-  const live = new Map(all.filter((a) => a.kind === 'main').map((a) => [a.id, a]));
+  const all = useAllAgents();
+  const live = useMemo(() => new Map(all.filter((a) => a.kind === 'main').map((a) => [a.id, a])), [all]);
   const details = useQueries({
     queries: picks.map((id) => ({ queryKey: ['session', id], queryFn: () => getJson<Detail>(`/api/session?id=${encodeURIComponent(id!)}`), enabled: open && !!id && !demo, staleTime: 10_000 })),
   });

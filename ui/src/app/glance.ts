@@ -3,7 +3,9 @@
 // window over its weekly one, with a dot before them while an agent needs you,
 // and the figures for the other ways it can show (the window closest to its
 // limit, today's cost). The app puts the needs count on the Dock too. Sent when
-// it changes, and every 5 seconds, since a window can reset with no new data.
+// it changes, and every 5 seconds, since a window can reset with no new data. It
+// follows the stores rather than drawing anything, so the page isn't drawn again
+// for it.
 // The popover's page is hidden most of the time, so the logos are decoded with
 // createImageBitmap (an <img> never finishes decoding there) and nothing waits
 // on an animation frame.
@@ -105,6 +107,7 @@ function drawMenuBar(providers: ReturnType<typeof limitLines>, needs: boolean) {
 }
 
 let sent = '';
+let at = 0; // the time of the snapshot it last looked at, since a heartbeat moves only that
 let drawn = { key: '', image: '' };
 
 /** Tell the app what the menu bar shows, when that's changed. For every provider, whatever the popover shows. */
@@ -112,6 +115,7 @@ export function sendGlance() {
   if (!inPopover || !bridge) return;
   const snap = useLive.getState().snap;
   if (!snap) return;
+  at = snap.now;
   const l = useLimits.getState();
   const inp: LimitsInput = { now: Date.now() - env.timeOffset, limits: (snap.limits || null) as LimitsInput['limits'], exactOn: l.exactOn, exact: l.exact as LimitsInput['exact'], codexRecorded: (snap.codexLimits || null) as LimitsInput['codexRecorded'], codexExactOn: l.codexExactOn, codexExact: l.codexExact as LimitsInput['codexExact'] };
   const items = quotaItems(inp, 'all');
@@ -139,18 +143,23 @@ export function sendGlance() {
   bridge.glance(glance);
 }
 
-/** The popover keeps the menu bar up to date, seen or not. */
+/** The popover keeps the menu bar up to date, seen or not: with each message from the server, each new exact reading, and every 5 seconds. */
 export function useGlance() {
-  const snap = useLive((s) => s.snap);
-  const exact = useLimits((s) => s.exact);
-  const codex = useLimits((s) => s.codexExact);
   useEffect(() => {
     if (!inPopover) return;
     loadGlyphs().then(sendGlance, (error) => console.error("Couldn't load the providers' logos for the menu bar", error));
-    const t = setInterval(sendGlance, 5000);
-    return () => clearInterval(t);
-  }, []);
-  useEffect(() => {
     sendGlance();
-  }, [snap, exact, codex]);
+    const stopLive = useLive.subscribe((s, before) => {
+      if (s.snap !== before.snap || s.snap?.now !== at) sendGlance();
+    });
+    const stopLimits = useLimits.subscribe((s, before) => {
+      if (s.exact !== before.exact || s.codexExact !== before.codexExact) sendGlance();
+    });
+    const t = setInterval(sendGlance, 5000);
+    return () => {
+      stopLive();
+      stopLimits();
+      clearInterval(t);
+    };
+  }, []);
 }

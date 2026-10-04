@@ -4,36 +4,26 @@
 // once, tool failures, and the skills they used. Cards in the order you arrange
 // them.
 
-import { useState, type ReactNode } from 'react';
+import { useState } from 'react';
 import { Layers, Moon, Sparkles } from 'lucide-react';
-import { useScope } from '@/data/scope';
-import { useChanged, useNow } from '@/data/hooks';
+import { useInsight } from '@/data/scope';
+import { useChanged, useMinute } from '@/data/hooks';
 import { ago, atOffset, change, clock, compact, dayRuns, dayTicks, duration, hourLabel, hoursShort, hoursText, listText, longDate, MINUTE, HOUR, pctOf, plural, projectName, weekday, WEEKDAY_NAMES, whenText, workdayHour } from '@/lib/format';
 import { serverNow } from '@/lib/env';
 import { dayParam, pageLink } from '@/lib/route';
 import type { ChartKind } from '@/lib/charts';
 import { Card, CardHead, InfoTip } from '@/components/Card';
-import { Stat } from '@/components/Stat';
+import { Hero, Stat } from '@/components/Stat';
 import { Seg } from '@/components/Seg';
 import { Avatar, Empty, Insight, Skeleton } from '@/components/Bits';
 import { Calendar, ChartSwitch, Plot, ShareList, useChartKind, type CalendarColumn } from '@/components/Chart';
 import { ArrangeButton, PageGrid, type GridCard } from '@/components/PageGrid';
-import { cx } from '@/components/cx';
+import { Ago } from '@/components/Clock';
 import { PageHeader } from '@/app/PageHeader';
 import { TimelineCard } from '@/cards/Timeline';
 import { OpenSessionsCard } from '@/cards/Sessions';
 import { ExpandButton, ExpandDialog } from '@/cards/Expand';
 import { sourceInfo, type Source } from '@/lib/sources';
-
-/** A card's big figure and the line under it. */
-export function Hero({ value, sub, tone }: { value: ReactNode; sub?: ReactNode; tone?: 'ok' }) {
-  return (
-    <div>
-      <p className={cx('text-figure font-bold tracking-[-0.02em] tnum', tone === 'ok' && 'text-ok')}>{value}</p>
-      {sub && <p className="text-detail text-muted">{sub}</p>}
-    </div>
-  );
-}
 
 const Delta = ({ now, before }: { now: number; before: number }) => {
   const c = change(now, before);
@@ -56,10 +46,7 @@ function agentDayTip(d: AgentDay, today: AgentDay) {
   ].filter(Boolean).join('\n');
 }
 
-function useAgentHours() {
-  const { scope } = useScope();
-  return (scope?.insights as { agentHours?: AgentHours } | null)?.agentHours;
-}
+const useAgentHours = () => useInsight<AgentHours>('agentHours');
 
 function Loading({ title }: { title: string }) {
   return (
@@ -210,10 +197,10 @@ export function TotalAgentTimeCard({ expanded = false }: { expanded?: boolean })
 type YouDay = { start: number; stretches?: [number, number][] };
 
 export function AgentWorkCard() {
-  useNow();
-  const { scope } = useScope();
-  const ins = scope?.insights as { agentHours?: AgentHours; hours?: { days: YouDay[] } } | null;
-  const a = ins?.agentHours;
+  // Its "now" line moves by the minute.
+  useMinute();
+  const a = useAgentHours();
+  const hours = useInsight<{ days: YouDay[] }>('hours');
   if (!a) return <Loading title="When your agents worked" />;
   const note = `When at least one agent was working, whatever set it off, next to your own active time (the thin grey blocks). A day runs ${dayRuns()} here${workdayHour() ? ', so agent work past midnight counts toward the day it started, shown deeper' : ''}.`;
   const head = <CardHead title="When your agents worked" sub="Last 14 days" tools={<InfoTip note={note} />} />;
@@ -229,7 +216,7 @@ export function AgentWorkCard() {
   const today = a.days[a.days.length - 1];
   const columns: CalendarColumn[] = a.days.map((d, i) => {
     const blocks: CalendarColumn['blocks'] = [];
-    for (const [s, e] of ins?.hours?.days[i]?.stretches || []) blocks.push({ from: s, to: e, color: 'var(--you)', opacity: 0.35 });
+    for (const [s, e] of hours?.days[i]?.stretches || []) blocks.push({ from: s, to: e, color: 'var(--you)', opacity: 0.35 });
     if (d.wallMs) {
       const midnight = new Date(d.start).setHours(24, 0, 0, 0);
       for (const [s, e] of d.stretches || []) {
@@ -264,8 +251,9 @@ export function AgentWorkCard() {
 type Parallel = { peak: { count: number; at: number; main: number; sub: number }; peakToday: { count: number; at: number; main: number; sub: number }; hours: { max: number; agentMs: number }[]; busyMs: number; agentMs: number; agentMsToday: number };
 
 export function ParallelCard() {
-  const { scope } = useScope();
-  const p = (scope?.insights as { parallel?: Parallel } | null)?.parallel;
+  // The hour it's in now is marked, so it's looked at again each minute.
+  useMinute();
+  const p = useInsight<Parallel>('parallel');
   const kind = useChartKind('parallel');
   if (!p) return <Loading title="Agents at once" />;
   const head = <CardHead title="Agents at once" sub="Last 7 days · how many worked at the same time" tools={p.peak.count ? <ChartSwitch id="parallel" /> : undefined} />;
@@ -317,8 +305,7 @@ export function ParallelCard() {
 type Tools = { calls: number; failed: number; denied: number; today: { failed: number; calls: number }; byTool: { name: string; failed: number; calls: number; denied?: number }[]; reasons: { text: string; count: number }[]; staleEdits: number };
 
 export function ToolsCard() {
-  const { scope } = useScope();
-  const t = (scope?.insights as { tools?: Tools } | null)?.tools;
+  const t = useInsight<Tools>('tools');
   if (!t) return <Loading title="Tool failures" />;
   const note = "Tool calls that came back with an error, over the last 7 days. A search that finds nothing (grep exiting with 1) doesn't count, and calls you said no to are counted separately.";
   const head = <CardHead title="Tool failures" sub="Last 7 days" tools={<InfoTip note={note} />} />;
@@ -417,8 +404,8 @@ const skillTip = (s: Skill) =>
   ].filter(Boolean).join('\n');
 
 export function SkillsCard() {
-  const { scope } = useScope();
-  const k = (scope?.insights as { skills?: Skills } | null)?.skills;
+  useMinute();
+  const k = useInsight<Skills>('skills');
   const kind = useChartKind('skills', SKILL_KINDS);
   const [view, setView] = useState<'used' | 'unused'>(() => {
     try {
@@ -491,7 +478,7 @@ export function SkillsCard() {
                     <b className="font-semibold tnum">{s.uses}</b>
                     <small className="whitespace-nowrap text-label text-muted">{s.you && s.agent ? `${s.you} you · ${s.agent} agent` : s.you ? 'you ran it' : 'agent chose it'}</small>
                   </span>
-                  <time className="whitespace-nowrap text-right text-label text-muted">{ago(now - s.lastAt)} ago</time>
+                  <time className="whitespace-nowrap text-right text-label text-muted"><Ago t={s.lastAt} /> ago</time>
                 </li>
               ))}
             </ul>

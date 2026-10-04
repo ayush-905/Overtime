@@ -2,15 +2,14 @@
 // the provider filter and Settings. Folded (⌘B, or when the window is narrow) it's
 // a rail of icons that name themselves on hover. Drag a section up or down within
 // its group to move it (or Alt+↑/↓ on one), and drag the edge to make the sidebar
-// wider or narrower: narrow enough and it folds, a double click puts it back.
+// wider or narrower: narrow enough and it folds, a double click puts it back. The
+// dragging comes with SortableSections.tsx, which loads once the page is up
+// (later.tsx); until then the sections are plain links, and Alt+↑/↓ works on them.
 
-import { forwardRef, useMemo, useRef, type AnchorHTMLAttributes, type KeyboardEvent, type PointerEvent } from 'react';
-import { DndContext, PointerSensor, useSensor, useSensors, closestCenter, type DragEndEvent } from '@dnd-kit/core';
-import { SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
-import { CSS } from '@dnd-kit/utilities';
+import { forwardRef, useLayoutEffect, useMemo, useRef, type AnchorHTMLAttributes, type KeyboardEvent, type PointerEvent, type ReactNode } from 'react';
 import { Search } from 'lucide-react';
 import logo from '@/assets/favicon.svg';
-import { GROUPS, TITLES, groupOf, moveSection, placeSection, type Page } from '@/lib/nav';
+import { GROUPS, TITLES, groupOf, moveSection, type Page } from '@/lib/nav';
 import { SIDE, type Provider } from '@/lib/prefs';
 import { SOURCE, andList } from '@/lib/sources';
 import { useSources } from '@/data/scope';
@@ -23,11 +22,11 @@ import { useRoute } from './router';
 import { useUi } from './ui';
 import { Badge, ICONS } from './sections';
 import { SideUsage } from './SideUsage';
-
+import { later } from './later';
 
 type LinkProps = { page: Page; folded: boolean; dragging?: boolean } & AnchorHTMLAttributes<HTMLAnchorElement>;
 
-const NavLink = forwardRef<HTMLAnchorElement, LinkProps>(function NavLink({ page, folded, dragging, className, style, ...rest }, ref) {
+export const NavLink = forwardRef<HTMLAnchorElement, LinkProps>(function NavLink({ page, folded, dragging, className, style, ...rest }, ref) {
   const current = useRoute((s) => s.page) === page;
   const Icon = ICONS[page];
   return (
@@ -53,25 +52,55 @@ const NavLink = forwardRef<HTMLAnchorElement, LinkProps>(function NavLink({ page
   );
 });
 
-/** A section you can drag within its group, or move with Alt+↑/↓. */
-function SortableNavItem({ page, folded }: { page: Page; folded: boolean }) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: page });
-  const nav = useUi((s) => s.nav);
-  const setNav = useUi((s) => s.setNav);
-  const onKeyDown = (e: KeyboardEvent<HTMLAnchorElement>) => {
-    if (!e.altKey || e.metaKey || e.ctrlKey) return;
-    const step = e.key === 'ArrowUp' ? -1 : e.key === 'ArrowDown' ? 1 : 0;
-    if (!step) return;
-    e.preventDefault();
-    const next = moveSection(nav, page, step);
-    if (next) setNav(next);
-  };
-  // The link stays a link for screen readers and the keyboard; only the pointer drags it.
-  const aria: Record<string, unknown> = { ...attributes };
-  delete aria.role;
-  delete aria.tabIndex;
-  return <NavLink ref={setNodeRef} page={page} folded={folded} dragging={isDragging} onKeyDown={onKeyDown} {...aria} {...listeners} style={{ transform: CSS.Translate.toString(transform), transition }} />;
+/** Alt+↑/↓ on a section moves it up or down within its group. */
+export const moveKeys = (page: Page) => (e: KeyboardEvent<HTMLAnchorElement>) => {
+  if (!e.altKey || e.metaKey || e.ctrlKey) return;
+  const step = e.key === 'ArrowUp' ? -1 : e.key === 'ArrowDown' ? 1 : 0;
+  if (!step) return;
+  e.preventDefault();
+  const { nav, setNav } = useUi.getState();
+  const next = moveSection(nav, page, step);
+  if (next) setNav(next);
+};
+
+/** The sections in their groups, each drawn by `item`. */
+export function SectionList({ shown, folded, item }: { shown: Page[]; folded: boolean; item: (page: Page) => ReactNode }) {
+  return shown.map((page, i) => {
+    const group = GROUPS[page];
+    const heading = group && group !== groupOf(shown[i - 1] || '') ? group : null;
+    return (
+      <div key={page} className="relative flex shrink-0 flex-col">
+        {heading && !folded && <span className="px-2.5 pb-1 pt-3.5 text-group font-semibold uppercase tracking-[0.06em] text-muted">{heading}</span>}
+        {heading && folded && <span className="mx-auto my-2 h-px w-5 bg-line" aria-hidden />}
+        {item(page)}
+      </div>
+    );
+  });
 }
+
+const LIST = 'nav[aria-label="Dashboard sections"]';
+// The section that had the keyboard's focus as the plain links made way for the ones you can drag.
+let focused: string | null = null;
+
+/** Give the focus back to the section that had it before the list was drawn again. */
+export function takeFocusBack() {
+  const href = focused;
+  focused = null;
+  if (href) document.querySelector<HTMLElement>(`${LIST} a[href="${CSS.escape(href)}"]`)?.focus();
+}
+
+/** The sections as plain links: in the rail, and until the dragging has loaded. */
+function PlainSections({ shown, folded }: { shown: Page[]; folded: boolean }) {
+  useLayoutEffect(() => {
+    focused = null;
+    return () => {
+      if (!folded) focused = (document.activeElement as HTMLElement | null)?.closest?.(`${LIST} a`)?.getAttribute('href') || null;
+    };
+  }, [folded]);
+  return <SectionList shown={shown} folded={folded} item={(page) => (folded ? <NavLink page={page} folded /> : <NavLink page={page} folded={false} onKeyDown={moveKeys(page)} />)} />;
+}
+
+const SortableSections = later(() => import('./SortableSections').then((m) => m.SortableSections), PlainSections);
 
 /** The provider filter: all of them, or one on its own. */
 function useProviders(): [Provider, string, string][] {
@@ -180,15 +209,8 @@ function Edge() {
 export function Sidebar() {
   const folded = useUi((s) => s.folded);
   const nav = useUi((s) => s.nav);
-  const setNav = useUi((s) => s.setNav);
   const setPaletteOpen = useUi((s) => s.setPaletteOpen);
-  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
-  const shown = nav.order.filter((p) => !nav.hidden.has(p));
-  const onDragEnd = (e: DragEndEvent) => {
-    if (!e.over) return;
-    const next = placeSection(nav, e.active.id as Page, e.over.id as Page);
-    if (next) setNav(next);
-  };
+  const shown = useMemo(() => nav.order.filter((p) => !nav.hidden.has(p)), [nav]);
 
   return (
     <aside
@@ -218,21 +240,7 @@ export function Sidebar() {
       </button>
 
       <nav aria-label="Dashboard sections" className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto">
-        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
-          <SortableContext items={shown} strategy={verticalListSortingStrategy}>
-            {shown.map((page, i) => {
-              const group = GROUPS[page];
-              const heading = group && group !== groupOf(shown[i - 1] || '') ? group : null;
-              return (
-                <div key={page} className="relative flex shrink-0 flex-col">
-                  {heading && !folded && <span className="px-2.5 pb-1 pt-3.5 text-group font-semibold uppercase tracking-[0.06em] text-muted">{heading}</span>}
-                  {heading && folded && <span className="mx-auto my-2 h-px w-5 bg-line" aria-hidden />}
-                  {folded ? <NavLink page={page} folded /> : <SortableNavItem page={page} folded={false} />}
-                </div>
-              );
-            })}
-          </SortableContext>
-        </DndContext>
+        {folded ? <PlainSections shown={shown} folded /> : <SortableSections shown={shown} folded={false} />}
       </nav>
 
       <div className="flex shrink-0 flex-col gap-3">

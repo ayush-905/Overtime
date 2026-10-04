@@ -4,7 +4,6 @@
 // button works, since it can't be undone. Every open tab reloads after.
 
 import { useState } from 'react';
-import { create } from 'zustand';
 import { Copy, TriangleAlert } from 'lucide-react';
 import { useLive } from '@/data/live';
 import { useHistory } from '@/data/queries';
@@ -13,11 +12,7 @@ import { dayParam } from '@/lib/route';
 import { Dialog } from '@/components/Dialog';
 import { Button } from '@/components/Button';
 import { note } from './toasts';
-
-type Copy = { app: string; version?: number; savedAt?: string; settings: Record<string, unknown>; prefs?: Record<string, unknown> };
-type ResetState = { mode: 'reset' | 'restore' | null; copy: Copy | null; open: (mode: 'reset' | 'restore', copy?: Copy) => void; close: () => void };
-
-export const useReset = create<ResetState>((set) => ({ mode: null, copy: null, open: (mode, copy) => set({ mode, copy: copy || null }), close: () => set({ mode: null, copy: null }) }));
+import { useReset, type SettingsCopy } from './dialogs';
 
 const send = (path: string, body: unknown) => fetch(path, { method: 'POST', headers: { 'X-Overtime': '1', 'Content-Type': 'application/json' }, body: JSON.stringify(body || {}) });
 
@@ -38,7 +33,7 @@ function reloadEverywhere() {
 export async function saveCopy() {
   try {
     const saved = await fetch('/api/settings').then((r) => r.json());
-    const copy: Copy = { app: 'overtime', version: 1, savedAt: new Date().toISOString(), settings: saved.values || {}, prefs: (useLive.getState().snap?.prefs as Record<string, unknown>) || {} };
+    const copy: SettingsCopy = { app: 'overtime', version: 1, savedAt: new Date().toISOString(), settings: saved.values || {}, prefs: (useLive.getState().snap?.prefs as Record<string, unknown>) || {} };
     const a = document.createElement('a');
     a.href = URL.createObjectURL(new Blob([JSON.stringify(copy, null, 2)], { type: 'application/json' }));
     a.download = `overtime-settings-${dayParam(Date.now())}.json`;
@@ -52,7 +47,7 @@ export async function saveCopy() {
 
 /** Read a saved copy and ask before putting it back. */
 export async function restoreFrom(file: File) {
-  let copy: Copy | null = null;
+  let copy: SettingsCopy | null = null;
   try {
     copy = JSON.parse(await file.text());
   } catch {}

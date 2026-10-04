@@ -20,6 +20,7 @@ import { createStore, cleanPrefs, mergeHistory, historyDays, applySettings, sett
 import { resumeOptions, resumeInTerminal } from './lib/resume.js';
 import { writeCommand } from './lib/prompts.js';
 import { harness, isSessionId, nativeIdOf, openHarnesses } from './lib/harnesses/index.js';
+import { watchFolders } from './lib/folder-watch.js';
 
 // PORT=0 takes any free port, as the desktop app does when 4777 is taken by something else.
 const PORT = /^\d{1,5}$/.test(process.env.PORT || '') ? Number(process.env.PORT) : 4777;
@@ -79,13 +80,19 @@ function limits(now) {
 
 let insightsCache = null;
 let insightsComputedAt = 0;
+let insightsFrom = ''; // what the last pass was worked out from: the transcripts' version and the views
 
 /**
  * Insights, spend and today's totals for every provider view the dashboard can
- * filter to: all of them, and each one on this Mac alone.
+ * filter to: all of them, and each one on this Mac alone. Worked out again every
+ * 30 seconds at most, and only when a transcript has moved since, or every two
+ * minutes for what changes with the time alone (today's start, the last 7 days).
  */
 function insights(now) {
-  if (now - insightsComputedAt > 30_000) {
+  const from = `${usageIndex.version()} ${present.join(' ')}`;
+  const age = now - insightsComputedAt;
+  if (age > 120_000 || (age > 30_000 && from !== insightsFrom)) {
+    insightsFrom = from;
     const daily = {};
     insightsCache = Object.fromEntries(['all', ...present].map((source) => {
       const index = usageIndex.scope(source);
@@ -189,18 +196,22 @@ let ALLOWED_HOSTS = new Set();
 // A page gets everything when it connects, then only the parts that changed
 // since the last update it had, as [path, value] pairs; web/shared/live.js puts
 // them back together. The analytics are split down to each card's data, so a
-// new reading of one doesn't resend the rest. Each page keeps its own record of
-// what it has, so one connecting later never misses a change.
+// new reading of one doesn't resend the rest, and the agents and the feed go
+// item by item, so an agent that's idle isn't sent again because another one is
+// working, and the feed sends only what's new. Each page keeps its own record
+// of what it has, so one connecting later never misses a change.
 
-const clients = new Map(); // each open page → what it has: path → the JSON it was sent
+const clients = new Map(); // each open page → what it has: { parts: path → JSON, lists: name → { order, items: id → JSON } }
+const LISTS = ['agents', 'feed']; // sent item by item, by each item's id
 
 // Costs and ratios need no more than four decimals, which trims the analytics by a good share.
 const round = (key, v) => (typeof v === 'number' && !Number.isInteger(v) ? Math.round(v * 1e4) / 1e4 : v);
-const partsCache = new WeakMap(); // an analytics object → its parts, worked out once
+const analyticsCache = new WeakMap(); // an analytics object → its parts, worked out once
+const snapCache = new WeakMap(); // a snapshot → its parts, worked out once for every page
 
 function analyticsParts(analytics) {
   if (!analytics) return [[['analytics'], 'null']];
-  let parts = partsCache.get(analytics);
+  let parts = analyticsCache.get(analytics);
   if (!parts) {
     parts = [];
     for (const [scope, view] of Object.entries(analytics)) {
@@ -209,26 +220,53 @@ function analyticsParts(analytics) {
         else parts.push([['analytics', scope, section], JSON.stringify(value, round) ?? 'null']);
       }
     }
-    partsCache.set(analytics, parts);
+    analyticsCache.set(analytics, parts);
   }
   return parts;
+}
+
+/** A snapshot as JSON pieces: [path, JSON] for each part, and each list as [name, ids, id → JSON]. */
+function snapshotParts(snap) {
+  let cached = snapCache.get(snap);
+  if (!cached) {
+    const parts = [];
+    const lists = [];
+    for (const [key, value] of Object.entries(snap)) {
+      if (key === 'now' || key === 'analytics') continue;
+      if (LISTS.includes(key) && Array.isArray(value)) lists.push([key, value.map((x) => x.id), new Map(value.map((x) => [x.id, JSON.stringify(x)]))]);
+      else parts.push([[key], JSON.stringify(value) ?? 'null']);
+    }
+    cached = { parts: [...parts, ...analyticsParts(snap.analytics)], lists };
+    snapCache.set(snap, cached);
+  }
+  return cached;
 }
 
 /** Send a page what changed since its last update. */
 function sendTo(res, snap) {
   const has = clients.get(res);
   if (!has) return;
-  const parts = [...Object.entries(snap).filter(([k]) => k !== 'now' && k !== 'analytics').map(([k, v]) => [[k], JSON.stringify(v) ?? 'null']), ...analyticsParts(snap.analytics)];
+  const { parts, lists } = snapshotParts(snap);
   const changes = [];
   for (const [path, json] of parts) {
     const key = path.join('.');
-    if (has.get(key) === json) continue;
+    if (has.parts.get(key) === json) continue;
     // This replaces whatever the page had at, under or above this path.
-    for (const k of has.keys()) if (k.startsWith(`${key}.`) || key.startsWith(`${k}.`)) has.delete(k);
-    has.set(key, json);
+    for (const k of has.parts.keys()) if (k.startsWith(`${key}.`) || key.startsWith(`${k}.`)) has.parts.delete(k);
+    has.parts.set(key, json);
     changes.push(`[${JSON.stringify(path)},${json}]`);
   }
-  res.write(`data: {"now":${snap.now},"patch":1,"changes":[${changes.join(',')}]}\n\n`);
+  const items = [];
+  for (const [name, ids, byId] of lists) {
+    const before = has.lists.get(name);
+    const order = JSON.stringify(ids);
+    const changed = [];
+    for (const [id, json] of byId) if (before?.items.get(id) !== json) changed.push(json);
+    if (before?.order === order && !changed.length) continue;
+    items.push(`[${JSON.stringify([name])},${before?.order === order ? 'null' : order},[${changed.join(',')}]]`);
+    has.lists.set(name, { order, items: byId });
+  }
+  res.write(`data: {"now":${snap.now},"patch":1,"changes":[${changes.join(',')}]${items.length ? `,"items":[${items.join(',')}]` : ''}}\n\n`);
 }
 
 /** A page, with your saved settings put in before anything else runs. */
@@ -269,7 +307,7 @@ async function handle(req, res) {
   if (url.pathname === '/events') {
     res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', Connection: 'keep-alive' });
     openSessions.tick();
-    clients.set(res, new Map());
+    clients.set(res, { parts: new Map(), lists: new Map() });
     sendTo(res, snapshot());
     req.on('close', () => clients.delete(res));
     return;
@@ -505,19 +543,41 @@ setInterval(() => {
   }
 }, 250);
 
+// Looking for new transcripts (every 4 seconds) and reading the history (every 15)
+// only happen when something under the transcripts' folders changed since, which
+// the system's file events say, or after a minute or five anyway, for anything they
+// missed. Without file events, every time, as the folders can't say.
+const due = { discover: true, scan: true };
+const folderWatch = watchFolders(() => { due.discover = true; due.scan = true; });
+
+function whenChanged(name, slowMs, job) {
+  let last = Date.now();
+  return async () => {
+    const now = Date.now();
+    if (folderWatch.ok && !due[name] && now - last < slowMs) return;
+    due[name] = false;
+    last = now;
+    await job();
+  };
+}
+
 const started = Date.now();
 ({ folders: watching, sources: present } = await watcher.onThisMac());
+folderWatch.set(watching);
 await watcher.discover().catch((error) => report('Finding the transcripts', error));
 setInterval(() => watcher.tick(), 1000);
-setInterval(() => watcher.discover().catch((error) => report('Finding the transcripts', error)), 4000);
+const discover = whenChanged('discover', 60_000, () => watcher.discover());
+setInterval(() => discover().catch((error) => report('Finding the transcripts', error)), 4000);
 // The usage index behind the limits, spend and insights builds in the background,
 // then only reads what's new, which takes a few milliseconds.
 usageIndex.scan().then(() => { limitsComputedAt = 0; insightsComputedAt = 0; }, (error) => report('Reading the history', error));
+const scan = whenChanged('scan', 5 * 60_000, () => usageIndex.scan());
 setInterval(async () => {
   try {
-    await usageIndex.scan();
+    await scan();
     // A tool installed since: its folder appears, and with it its own view.
     ({ folders: watching, sources: present } = await watcher.onThisMac());
+    folderWatch.set(watching);
   } catch (error) {
     report('Reading the history', error);
   }

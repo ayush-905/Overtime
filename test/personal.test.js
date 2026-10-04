@@ -211,3 +211,28 @@ test('live updates rebuild the whole snapshot from changes, keeping what didn\'t
   assert.deepEqual(s.agents, []);
   assert.equal(s.analytics.all.insights.trend, trend);
 });
+
+test('lists come item by item: unchanged items keep their identity, and a message with nothing new keeps the snapshot', async () => {
+  const { createMerger } = await import('../web/shared/live.js');
+  const merge = createMerger();
+  let s = merge({ patch: 1, now: 1, changes: [[['prefs'], { workdayHour: 4 }]], items: [[['agents'], ['a', 'b'], [{ id: 'a', cost: 1 }, { id: 'b', cost: 2 }]], [['feed'], [1], [{ id: 1, text: 'Read a file' }]]] });
+  assert.deepEqual(s.agents, [{ id: 'a', cost: 1 }, { id: 'b', cost: 2 }]);
+  const [a, b] = s.agents;
+  const feed = s.feed;
+  // One agent changed, in the same order: only it is sent, and the other is the same object.
+  s = merge({ patch: 1, now: 2, changes: [], items: [[['agents'], null, [{ id: 'b', cost: 3 }]]] });
+  assert.equal(s.agents[0], a);
+  assert.deepEqual(s.agents[1], { id: 'b', cost: 3 });
+  assert.equal(s.feed, feed);
+  // A new order: one gone, one new, and the one kept is the same object.
+  s = merge({ patch: 1, now: 3, changes: [], items: [[['agents'], ['c', 'a'], [{ id: 'c', cost: 0 }]], [['feed'], [1, 2], [{ id: 2, text: 'Ran a command' }]]] });
+  assert.deepEqual(s.agents.map((x) => x.id), ['c', 'a']);
+  assert.equal(s.agents[1], a);
+  assert.equal(s.feed[0], feed[0]);
+  assert.ok(!s.agents.includes(b));
+  // The heartbeat: nothing changed, so the same snapshot, at the new time.
+  const before = s;
+  s = merge({ patch: 1, now: 4, changes: [] });
+  assert.equal(s, before);
+  assert.equal(s.now, 4);
+});

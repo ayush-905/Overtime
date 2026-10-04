@@ -5,18 +5,21 @@
 // files it read and changed, the commands it ran), from /api/turn: click the
 // message, or a search's match, which opens it with the words marked. It floats
 // over the page, or docks beside it (when the window has room) and stays open as
-// you look around. Its left edge drags it wider.
+// you look around. Its left edge drags it wider. It loads the first time it's
+// wanted (app/later.tsx), and redraws with its own session's changes, not every
+// message: its sections that come from the history only when that does.
 
-import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type PointerEvent, type ReactNode } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent, type PointerEvent, type ReactNode } from 'react';
 import {
   ArrowLeftRight, Check, Copy, ExternalLink, Folder, PanelRightClose, PanelRightOpen, Pencil, Pin, Play, Tag, TriangleAlert, X, Ban,
 } from 'lucide-react';
+import { useShallow } from 'zustand/react/shallow';
 import { useLive } from '@/data/live';
 import { useSessionDetail, useTurn } from '@/data/queries';
-import { useChanged, useMedia, useNow } from '@/data/hooks';
+import { useChanged, useMedia, useMinute } from '@/data/hooks';
 import { demo, post } from '@/data/api';
 import { inPopover, openInWindow } from '@/data/desktop';
-import { ago, clip, clock, compact, costText, dayLabel, duration, lower, money, moneyCol, plural, projectName, whenText } from '@/lib/format';
+import { calendarDay, clip, clock, compact, costText, dayLabel, duration, lower, money, moneyCol, plural, projectName, whenText } from '@/lib/format';
 import { serverNow } from '@/lib/env';
 import { MAX_NOTE, MAX_TAGS, allTags, cleanTag, customName, isPinned, noteFor, rename, setNote, setTags, tagsFor, tidyTitle, titleFor, togglePin } from '@/lib/labels';
 import { doingText, liveStateOf, sinceFor, type LiveAgent } from '@/lib/agents';
@@ -24,10 +27,11 @@ import { queryTerms } from '@/lib/search';
 import { pageLink } from '@/lib/route';
 import { Empty, Marked, ProjectDot, Skeleton } from '@/components/Bits';
 import { Button, IconButton } from '@/components/Button';
+import { Ago } from '@/components/Clock';
 import { cx } from '@/components/cx';
 import { note, offerUndo } from './toasts';
-import { DRAWER, useUi } from './ui';
-import { useCompare } from './CompareDialog';
+import { DRAWER, useUi, usePanelDocked } from './ui';
+import { useCompare } from './dialogs';
 import { sourceInfo, type Source } from '@/lib/sources';
 
 const ENTRY: Record<string, string> = { 'claude-desktop': 'Desktop app', 'claude-vscode': 'VS Code', cli: 'Terminal', codex: 'Codex' };
@@ -130,7 +134,8 @@ const shellQuote = (s: string) => `'${String(s).replace(/'/g, `'\\''`)}'`;
 
 // ── Its sections ─────────────────────────────────────────────────────────────
 
-function Status({ live, d, proc, now }: { live: Live | null; d: Detail | null; proc: Proc | null; now: number }) {
+/** What it's doing now, and since when: only the "for 3m" counts each second. */
+function Status({ live, d, proc }: { live: Live | null; d: Detail | null; proc: Proc | null }) {
   if (live) {
     const state = liveStateOf(live);
     const since = sinceFor(live);
@@ -138,12 +143,12 @@ function Status({ live, d, proc, now }: { live: Live | null; d: Detail | null; p
       <div className={cx('mx-5 mt-1 flex items-center gap-2.5 rounded-row px-3 py-2.5', state === 'needs' ? 'bg-warn-soft' : state === 'working' ? 'bg-ok-soft' : 'bg-sunken')}>
         <span className={cx('size-2 shrink-0 rounded-full', state === 'needs' ? 'bg-warn-fill' : state === 'working' ? 'bg-ok-fill' : 'bg-faint')} aria-hidden />
         <b className={cx('font-semibold', state === 'needs' ? 'text-warn' : state === 'working' ? 'text-ok' : '')}>{doingText(live)}</b>
-        {since != null && <span className="ml-auto shrink-0 whitespace-nowrap text-detail text-muted tnum">for {ago(Math.max(0, now - since))}</span>}
+        {since != null && <span className="ml-auto shrink-0 whitespace-nowrap text-detail text-muted tnum">for <Ago t={since} /></span>}
       </div>
     );
   }
   if (proc) {
-    const last = proc.lastActive ? `last active ${ago(Math.max(0, now - proc.lastActive))} ago` : `opened ${ago(now - proc.openedAt)} ago`;
+    const last = proc.lastActive ? <>last active <Ago t={proc.lastActive} /> ago</> : <>opened <Ago t={proc.openedAt} /> ago</>;
     return (
       <div className="mx-5 mt-1 flex items-center gap-2.5 rounded-row bg-sunken px-3 py-2.5">
         <span className="size-2 shrink-0 rounded-full bg-faint" aria-hidden />
@@ -156,14 +161,16 @@ function Status({ live, d, proc, now }: { live: Live | null; d: Detail | null; p
     return (
       <div className="mx-5 mt-1 flex items-center gap-2.5 rounded-row bg-sunken px-3 py-2.5">
         <b className="font-semibold">Not running</b>
-        <span className="ml-auto text-detail text-muted">last active {whenText(d.lastAt)}, {ago(now - d.lastAt)} ago</span>
+        <span className="ml-auto text-detail text-muted">last active {whenText(d.lastAt)}, <Ago t={d.lastAt} /> ago</span>
       </div>
     );
   }
   return null;
 }
 
-function TurnView({ id, at, terms, onClose }: { id: string; at: number; terms: string[]; onClose: () => void }) {
+/** `today` is only so it's drawn again when the day changes, as its times say the weekday then. */
+const TurnView = memo(function TurnView({ id, at, terms, onClose }: { id: string; at: number; terms: string[]; onClose: () => void; today: number }) {
+  useChanged();
   const q = useTurn(id, Math.round(at));
   const box = useRef<HTMLDivElement>(null);
   const t = q.data as Turn | undefined;
@@ -252,9 +259,9 @@ function TurnView({ id, at, terms, onClose }: { id: string; at: number; terms: s
       </Section>
     </div>
   );
-}
+});
 
-function Notes({ id }: { id: string }) {
+const Notes = memo(function Notes({ id }: { id: string }) {
   useChanged();
   const mine = tagsFor(id);
   const [draft, setDraft] = useState('');
@@ -369,7 +376,7 @@ function Notes({ id }: { id: string }) {
       />
     </Section>
   );
-}
+});
 
 function Stats({ live, d, proc }: { live: Live | null; d: Detail | null; proc: Proc | null }) {
   const cost = d ? d.cost : live?.cost;
@@ -412,7 +419,8 @@ function Stats({ live, d, proc }: { live: Live | null; d: Detail | null; proc: P
   );
 }
 
-function CostOverTime({ d }: { d: Detail }) {
+const CostOverTime = memo(function CostOverTime({ d }: { d: Detail }) {
+  useChanged();
   const tl = d.timeline;
   if (!tl || tl.costs.length < 2 || !tl.costs.some((c) => c > 0)) return null;
   const label = (t: number) => (tl.step >= 86_400_000 ? dayLabel(t) : tl.step >= 3_600_000 ? `${dayLabel(t)} ${clock(t)}` : clock(t));
@@ -434,9 +442,10 @@ function CostOverTime({ d }: { d: Detail }) {
       </div>
     </Section>
   );
-}
+});
 
-function Messages({ d, current, onOpen }: { d: Detail; current: number | null; onOpen: (t: number) => void }) {
+const Messages = memo(function Messages({ d, current, onOpen }: { d: Detail; current: number | null; onOpen: (t: number) => void; today: number }) {
+  useChanged();
   const list = d.messages.list;
   if (!list.length) return null;
   return (
@@ -465,7 +474,7 @@ function Messages({ d, current, onOpen }: { d: Detail; current: number | null; o
       {d.messages.count > list.length && <p className="text-detail text-muted">The latest {list.length} of {d.messages.count}.</p>}
     </Section>
   );
-}
+});
 
 function Files({ live }: { live: Live | null }) {
   const files = live?.files || [];
@@ -484,8 +493,7 @@ function Files({ live }: { live: Live | null }) {
   );
 }
 
-function Subagents({ id, d, all }: { id: string; d: Detail | null; all: Live[] }) {
-  const liveSubs = all.filter((a) => a.parentId === id);
+function Subagents({ d, liveSubs }: { d: Detail | null; liveSubs: Live[] }) {
   const list = d?.subagents?.list || [];
   if (!list.length && !liveSubs.length) return null;
   const count = d?.subagents?.count || liveSubs.length;
@@ -514,7 +522,8 @@ function Subagents({ id, d, all }: { id: string; d: Detail | null; all: Live[] }
   );
 }
 
-function ModelsAndTools({ d }: { d: Detail }) {
+const ModelsAndTools = memo(function ModelsAndTools({ d }: { d: Detail }) {
+  useChanged();
   const models = d.models.filter((m) => m.cost > 0.005);
   const toolLine = `${plural(d.tools.calls, 'tool call')}${d.tools.failed ? ` · ${d.tools.failed} failed` : ''}${d.tools.denied ? ` · ${d.tools.denied} denied by you` : ''}${d.compactions ? ` · compacted ${d.compactions === 1 ? 'once' : `${d.compactions} times`}` : ''}`;
   return (
@@ -547,7 +556,7 @@ function ModelsAndTools({ d }: { d: Detail }) {
       )}
     </>
   );
-}
+});
 
 function Actions({ id, live, d }: { id: string; live: Live | null; d: Detail | null }) {
   // The folder it was started in, where Claude Code can find it to resume (the history knows it best).
@@ -705,33 +714,38 @@ function Head({ id, own, meta, docked, roomy }: { id: string; own: string; meta:
   );
 }
 
-/** Whether the panel sits beside the page (docked, with room) rather than over it. */
-export function usePanelDocked() {
-  const docked = useUi((s) => s.docked);
-  const roomy = useMedia('(min-width: 1100px)');
-  const open = useUi((s) => !!s.session);
-  return open && docked && roomy && !inPopover;
-}
-
 export function SessionPanel() {
   const session = useUi((s) => s.session);
   const docked = useUi((s) => s.docked);
   const width = useUi((s) => s.drawerWidth);
   const setWidth = useUi((s) => s.setDrawerWidth);
   const closeSession = useUi((s) => s.closeSession);
-  const openSession = useUi((s) => s.openSession);
   const roomy = useMedia('(min-width: 1100px)');
   const beside = usePanelDocked();
   const id = session?.id || null;
-  useNow();
-  const now = serverNow();
-  const allAgents = useLive((s) => s.snap?.agents) as unknown as Live[] | undefined;
-  const open = useLive((s) => s.snap?.openSessions);
+  useChanged();
+  // Its times say the weekday once they're not today's.
+  useMinute();
+  const today = calendarDay(serverNow());
+  // Only this session from the live feed: it, its subagents, and how it's running on this Mac.
+  const live = (useLive((s) => (id ? s.snap?.agents.find((a) => a.id === id) : undefined)) as unknown as Live | undefined) || null;
+  const liveSubs = useLive(useShallow((s) => (id ? s.snap?.agents.filter((a) => a.parentId === id) || [] : []))) as unknown as Live[];
+  const proc = (useLive(useShallow((s) => (id ? s.snap?.openSessions?.sessions.find((x) => x.id === id) : undefined))) as unknown as Proc | undefined) || null;
   const detail = useSessionDetail(id);
   const body = useRef<HTMLDivElement>(null);
   const panel = useRef<HTMLElement>(null);
   const [focusAt, setFocusAt] = useState<number | null>(null);
   const terms = useMemo(() => queryTerms(session?.q || ''), [session?.q]);
+  const noTerms = useMemo<string[]>(() => [], []);
+  const closeTurn = useCallback(() => setFocusAt(null), []);
+  const openAt = useCallback(
+    (t: number) => {
+      if (id) useUi.getState().openSession(id, { at: t, q: '' });
+      setFocusAt(t);
+      body.current?.scrollTo(0, 0);
+    },
+    [id],
+  );
 
   // A new session starts at its top, at the message it was opened at, if any.
   useEffect(() => {
@@ -770,8 +784,6 @@ export function SessionPanel() {
   };
 
   if (!id) return null;
-  const live = allAgents?.find((a) => a.id === id) || null;
-  const proc = ((open?.sessions || []) as unknown as Proc[]).find((x) => x.id === id) || null;
   const d = (detail.data as Detail | undefined) || null;
   const own = live?.title || d?.title || proc?.title || 'Untitled session';
   const project = live?.project || d?.project || proc?.project;
@@ -834,8 +846,8 @@ export function SessionPanel() {
       )}
       <Head id={id} own={own} meta={metaLine} docked={docked} roomy={roomy} />
       <div ref={body} className="min-h-0 grow overflow-y-auto pb-6">
-        <Status live={live} d={d} proc={proc} now={now} />
-        {focusAt != null && <TurnView id={id} at={focusAt} terms={focusAt === session?.at ? terms : []} onClose={() => setFocusAt(null)} />}
+        <Status live={live} d={d} proc={proc} />
+        {focusAt != null && <TurnView id={id} at={focusAt} terms={focusAt === session?.at ? terms : noTerms} onClose={closeTurn} today={today} />}
         <Notes id={id} />
         <div className="border-t border-line">
           <Stats live={live} d={d} proc={proc} />
@@ -844,19 +856,9 @@ export function SessionPanel() {
           {d?.partial && <p className="px-5 pb-3 text-detail text-muted">Some of its models have no known price, so costs marked + show what the rest cost.</p>}
         </div>
         {d && <CostOverTime d={d} />}
-        {d && (
-          <Messages
-            d={d}
-            current={focusAt}
-            onOpen={(t) => {
-              openSession(id, { at: t, q: '' });
-              setFocusAt(t);
-              body.current?.scrollTo(0, 0);
-            }}
-          />
-        )}
+        {d && <Messages d={d} current={focusAt} onOpen={openAt} today={today} />}
         <Files live={live} />
-        <Subagents id={id} d={d} all={allAgents || []} />
+        <Subagents d={d} liveSubs={liveSubs} />
         {d && <ModelsAndTools d={d} />}
         <Actions id={id} live={live} d={d} />
       </div>

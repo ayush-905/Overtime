@@ -1,11 +1,11 @@
 // The small parts: status pills, a count chip (tags), the providers' marks, a
 // project's dot, a status dot, the one insight a page gets, a one-line empty
-// state, a key, a placeholder while data loads, a switch, a select, and text with
-// the words searched for marked.
+// state, a key, a placeholder while data loads, a select, and text with the
+// words searched for marked. (The switch is in Switch.tsx, as only Settings and
+// its dialogs use it.)
 
 import type { ReactNode, SelectHTMLAttributes } from 'react';
 import { ChevronDown, Lightbulb, Tag } from 'lucide-react';
-import { Switch as RadixSwitch } from 'radix-ui';
 import { sourceInfo, type Source } from '@/lib/sources';
 import { projectColor } from '@/lib/format';
 import { highlightParts } from '@/lib/search';
@@ -103,19 +103,6 @@ export function Skeleton({ lines = 2, className }: { lines?: number; className?:
         <span key={i} className="h-3.5 animate-pulse rounded-sm bg-sunken" style={{ width: i === lines - 1 ? '60%' : '100%' }} />
       ))}
     </div>
-  );
-}
-
-export function Switch({ checked, onChange, label }: { checked: boolean; onChange: (on: boolean) => void; label: string }) {
-  return (
-    <RadixSwitch.Root
-      checked={checked}
-      onCheckedChange={onChange}
-      aria-label={label}
-      className="relative h-[22px] w-[38px] shrink-0 rounded-full bg-line-strong transition-colors data-[state=checked]:bg-accent"
-    >
-      <RadixSwitch.Thumb className="block size-[18px] translate-x-[2px] rounded-full bg-card shadow-card transition-transform data-[state=checked]:translate-x-[18px]" />
-    </RadixSwitch.Root>
   );
 }
 

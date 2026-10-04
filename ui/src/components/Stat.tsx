@@ -1,5 +1,6 @@
-// Figures: a stat (a label over its value, in a row of them), and the big figure
-// a card or band leads with. Figures are always tabular, so they line up.
+// Figures: a stat (a label over its value, in a row of them), the big figure a
+// card or band leads with, and a card's big figure with the line under it.
+// Figures are always tabular, so they line up.
 
 import type { ReactNode } from 'react';
 import { cx } from './cx';
@@ -32,6 +33,16 @@ export function Figure({ value, unit, size = 'figure', tone, className }: { valu
     <div className={cx('flex flex-wrap items-baseline gap-x-2', className)}>
       <span className={cx('figure', size === 'hero' ? 'text-hero tracking-[-0.03em]' : 'text-figure', color)}>{value}</span>
       {unit && <span className="text-body text-muted">{unit}</span>}
+    </div>
+  );
+}
+
+/** A card's big figure and the line under it, as the Agents and You pages' cards lead. */
+export function Hero({ value, sub, tone }: { value: ReactNode; sub?: ReactNode; tone?: 'ok' }) {
+  return (
+    <div>
+      <p className={cx('text-figure font-bold tracking-[-0.02em] tnum', tone === 'ok' && 'text-ok')}>{value}</p>
+      {sub && <p className="text-detail text-muted">{sub}</p>}
     </div>
   );
 }

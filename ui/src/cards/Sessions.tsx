@@ -2,10 +2,10 @@
 // (split by provider), and the sessions open on this Mac with the memory and CPU
 // they use. All by what you compare by (cost or tokens), except memory.
 
-import { useScope } from '@/data/scope';
-import { useChanged, useNow } from '@/data/hooks';
+import { useInsight, useOpenSessions, useProvider, useToday } from '@/data/scope';
+import { useChanged, useMinute } from '@/data/hooks';
 import { demo } from '@/data/api';
-import { ago, bytesText, compact, costText, cpuText, duration, lower, money, plural, projectName } from '@/lib/format';
+import { bytesText, compact, costText, cpuText, duration, lower, money, plural, projectName } from '@/lib/format';
 import { serverNow } from '@/lib/env';
 import { titleFor } from '@/lib/labels';
 import { providerName } from '@/lib/limits';
@@ -16,6 +16,7 @@ import { TextLink } from '@/components/Button';
 import { Empty, Insight, ProjectDot, ProviderMark, Skeleton } from '@/components/Bits';
 import { Stat, StatRow } from '@/components/Stat';
 import { SessionRow } from '@/components/SessionRow';
+import { Ago } from '@/components/Clock';
 import { cx } from '@/components/cx';
 import { ExpandButton } from './Expand';
 import { SOURCE, SOURCES, bySourceOf, type Source } from '@/lib/sources';
@@ -26,8 +27,7 @@ const linesText = (s: { added: number; removed: number }) => (s.added + s.remove
 
 export function TopSessionsCard({ expanded = false }: { expanded?: boolean }) {
   useChanged();
-  const { scope } = useScope();
-  const list = (scope?.insights as { topSessions?: Top[] } | null)?.topSessions;
+  const list = useInsight<Top[]>('topSessions');
   const tokens = byTokens();
   const head = (
     <CardHead
@@ -85,8 +85,8 @@ type Today = { id: string; source: Source; project: string | null; cost: number;
 
 export function WhereTodayCard() {
   useChanged();
-  const { scope, provider } = useScope();
-  const list = (scope?.today?.sessionList || null) as Today[] | null;
+  const provider = useProvider();
+  const list = (useToday()?.sessionList || null) as Today[] | null;
   const tokens = byTokens();
   const head = <CardHead title="Where today went" sub={`By project${provider === 'all' ? ', split by provider' : ''}`} />;
   if (!list) {
@@ -166,9 +166,9 @@ const IDLE_LONG_MS = 60 * 60_000; // an open session with nothing for this long 
 const STATUS: Record<Open['status'], string> = { needs: 'Needs you', working: 'Working', idle: 'Idle', new: 'No messages yet' };
 
 export function OpenSessionsCard({ expanded = false }: { expanded?: boolean }) {
-  useNow();
-  const { scope } = useScope();
-  const o = scope?.openSessions as { everyMs?: number; sessions: Open[]; sharedRuntimes?: Open[] } | null;
+  // "Open for", and which have been idle an hour, by the minute; "active 5s ago" counts on its own.
+  useMinute();
+  const o = useOpenSessions() as { everyMs?: number; sessions: Open[]; sharedRuntimes?: Open[] } | null;
   const now = serverNow();
   const note = `Claude Code, Codex and Pi sessions running on this Mac right now, each with the MCP servers and tools it started. Memory includes those; CPU is the share of one core. Updated every ${Math.round((o?.everyMs || 10_000) / 1000)} seconds while this page is open.`;
   const list = o?.sessions || [];
@@ -198,7 +198,7 @@ export function OpenSessionsCard({ expanded = false }: { expanded?: boolean }) {
       {list.length ? (
         <div className={cx('flex flex-col divide-y divide-line border-t border-line', !expanded && 'max-h-[320px] overflow-y-auto')}>
           {list.map((x, i) => {
-            const last = x.status === 'new' ? `opened ${ago(now - x.openedAt)} ago` : x.lastActive ? `active ${ago(Math.max(0, now - x.lastActive))} ago` : '';
+            const last = x.status === 'new' ? <>opened <Ago t={x.openedAt} /> ago</> : x.lastActive ? <>active <Ago t={x.lastActive} /> ago</> : '';
             const title = x.title || (x.status === 'new' ? 'New session' : '');
             const tip = [
               x.id ? titleFor(x.id, title) : title || 'Untitled session',

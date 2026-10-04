@@ -2,12 +2,13 @@
 // provider's colour (its subagents thinner under it), a tick for each message you
 // sent, and amber where it sat done waiting for your reply. Your own active time
 // runs along the foot, over a shading of your usual day. It runs from the hour
-// things started to now, so a quiet morning takes no room.
+// things started to now, so a quiet morning takes no room; "now" moves on by the
+// minute, a fraction of a percent across.
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Info } from 'lucide-react';
-import { useScope, useAgents, useSources } from '@/data/scope';
-import { useChanged, useNow } from '@/data/hooks';
+import { useHasInsights, useInsight, useProvider, useScopedAgents, useSources } from '@/data/scope';
+import { useChanged, useMinute } from '@/data/hooks';
 import { clip, clock, duration, hourLabel, money, plural, projectName } from '@/lib/format';
 import { serverNow } from '@/lib/env';
 import { titleFor } from '@/lib/labels';
@@ -27,7 +28,7 @@ const NOTE = "Each session that did something today. Its bar is its agent workin
 
 function Legend() {
   const sources = useSources();
-  const { provider } = useScope();
+  const provider = useProvider();
   const chip = (cls: string, text: string) => (
     <span key={text} className="inline-flex items-center gap-1.5">
       <span className={cx('h-2 w-3.5 rounded-[3px]', cls)} />
@@ -48,16 +49,20 @@ function Legend() {
 }
 
 export function TimelineCard({ expanded = false }: { expanded?: boolean }) {
-  useChanged();
-  useNow();
-  const { scope } = useScope();
-  const { agents } = useAgents();
+  const v = useChanged();
+  const minute = useMinute();
+  const agents = useScopedAgents();
+  const hasInsights = useHasInsights();
   const openSession = useUi((s) => s.openSession);
   const [showAll, setShowAll] = useState(false);
   // Narrow (a phone, the popover), each session's name sits over its bar.
   const stacked = useCompact();
-  const tl = (scope?.insights as { timeline?: TimelineData } | null)?.timeline;
-  const now = serverNow();
+  const tl = useInsight<TimelineData>('timeline');
+  // Worked out again each minute, and when the day or the agents change.
+  const [m, now] = useMemo(() => {
+    const at = serverNow();
+    return [tl ? timelineModel(tl, agents, at) : null, at] as const;
+  }, [tl, agents, minute, v]); // eslint-disable-line react-hooks/exhaustive-deps
   const title = "Today's timeline";
   const tools = (
     <>
@@ -71,11 +76,10 @@ export function TimelineCard({ expanded = false }: { expanded?: boolean }) {
     return (
       <Card aria-label={title}>
         <CardHead title={title} tools={tools} />
-        {scope?.insights ? <Empty>Restart Overtime (npm start) to see today as a timeline.</Empty> : <Skeleton lines={4} />}
+        {hasInsights ? <Empty>Restart Overtime (npm start) to see today as a timeline.</Empty> : <Skeleton lines={4} />}
       </Card>
     );
   }
-  const m = timelineModel(tl, agents, now);
   if (!m) {
     return (
       <Card aria-label={title}>

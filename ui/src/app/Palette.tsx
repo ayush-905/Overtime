@@ -27,7 +27,7 @@ import { go } from './router';
 import { useUi } from './ui';
 import { ICONS } from './sections';
 import { loadViews, viewLink } from '@/lib/sessionsView';
-import { useCompare } from './CompareDialog';
+import { useCompare } from './dialogs';
 
 type Icon = ComponentType<{ size?: number; strokeWidth?: number; className?: string }>;
 

@@ -4,12 +4,12 @@
 // sessions, with its name and colour to change. The project and range live in
 // the address (#projects?p=shop&range=7); the range and sort are remembered.
 
-import { useEffect, useMemo, useState } from 'react';
+import { memo, useEffect, useMemo, useState } from 'react';
 import { Pencil, Search } from 'lucide-react';
-import { useChanged, useMedia } from '@/data/hooks';
+import { useChanged, useMedia, useMinute } from '@/data/hooks';
 import { useSessions } from '@/data/queries';
 import { useLive } from '@/data/live';
-import { ago, calendarDay, clip, compact, costText, dayLabel, duration, money, plural, projectColor, projectName } from '@/lib/format';
+import { ago, calendarDay, clip, compact, costText, dayLabel, duration, HOUR, money, plural, projectColor, projectName } from '@/lib/format';
 import { env, serverNow } from '@/lib/env';
 import { titleFor } from '@/lib/labels';
 import { byTokens, MEASURES, measureCol, measureOf, setMeasure, something, valueShort, valueText } from '@/lib/measure';
@@ -24,19 +24,22 @@ import { IconButton, TextLink } from '@/components/Button';
 import { Empty, Insight, ProjectDot, Skeleton } from '@/components/Bits';
 import { ChartSwitch, Plot, ShareList, useChartKind } from '@/components/Chart';
 import { SessionRow } from '@/components/SessionRow';
+import { Ago } from '@/components/Clock';
 import { cx } from '@/components/cx';
 import { PageHeader } from '@/app/PageHeader';
 import { useRoute } from '@/app/router';
-import { useProjectDialog } from '@/app/ProjectDialog';
+import { useProjectDialog } from '@/app/dialogs';
 import { useCompact } from '@/app/layout';
 import { SOURCE, SOURCES } from '@/lib/sources';
 
 const saved = readProjectsView();
 
-function lastActive(t: number) {
+/** When a project was last active: "active 3m ago" within the hour (counting), else its day. */
+function LastActive({ t }: { t: number }) {
+  useMinute();
   const now = serverNow();
-  if (now - t < 60 * 60_000) return `active ${ago(Math.max(0, now - t))} ago`;
-  return calendarDay(t) === calendarDay(now) ? 'active today' : `last active ${dayLabel(t)}`;
+  if (now - t < HOUR) return <>active <Ago t={t} /> ago</>;
+  return <>{calendarDay(t) === calendarDay(now) ? 'active today' : `last active ${dayLabel(t)}`}</>;
 }
 
 const Lines = ({ added, removed }: { added: number; removed: number }) => (
@@ -81,7 +84,7 @@ function ProjectList({ list, shown, selected, sort, setSort, pick, sub, query, c
                   <span className="flex min-w-0 grow flex-col gap-1">
                     <span className="truncate font-semibold">{projectName(p.name)}</span>
                     <span className="truncate text-detail text-muted">
-                      {plural(p.sessions.length, 'session')} · {duration(p.agentMs)} of agent time · {lastActive(p.lastAt)}
+                      {plural(p.sessions.length, 'session')} · {duration(p.agentMs)} of agent time · <LastActive t={p.lastAt} />
                     </span>
                     <span className="h-1 overflow-hidden rounded-full bg-sunken">
                       <i className="block h-full rounded-full" style={{ width: `${Math.max(pct > 0 ? 1.5 : 0, pct).toFixed(1)}%`, background: projectColor(p.name) }} />
@@ -98,7 +101,8 @@ function ProjectList({ list, shown, selected, sort, setSort, pick, sub, query, c
   );
 }
 
-function Detail({ p, list, range, all }: { p: Project | null; list: Project[]; range: Range; all: ReturnType<typeof useSessions>['data'] }) {
+/** The project you picked. Drawn again when it or the list changes (the list moves on at midnight too). */
+const Detail = memo(function Detail({ p, list, range, all }: { p: Project | null; list: Project[]; range: Range; all: ReturnType<typeof useSessions>['data'] }) {
   useChanged();
   const open = useProjectDialog((s) => s.open);
   const provider = useLive((s) => s.provider);
@@ -244,10 +248,12 @@ function Detail({ p, list, range, all }: { p: Project | null; list: Project[]; r
       {tip && <Insight>{tip}</Insight>}
     </Card>
   );
-}
+});
 
 export function Projects() {
   useChanged();
+  // By the minute: when it was updated, and the range's first day at midnight.
+  useMinute();
   const params = useRoute((s) => s.params);
   const page = useRoute((s) => s.page);
   const [range, setRange] = useState<Range>(saved.range);

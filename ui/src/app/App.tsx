@@ -30,28 +30,60 @@ function Loading() {
     </Card>
   );
 }
-import { CommandDialog, useCommand } from './CommandDialog';
 import { useAlerts } from './alerts';
 import { useGlance } from './glance';
-import { ResetDialog, useReset } from './ResetDialog';
-import { ArrangeDialog, useArrange } from '@/components/PageGrid';
-import { ProjectDialog, useProjectDialog } from './ProjectDialog';
-import { CompareDialog, useCompare } from './CompareDialog';
+import { useArrange } from '@/components/PageGrid';
+import { useCommand, useCompare, useProjectDialog, useReset } from './dialogs';
 import { MAIN, startRouter, useRoute, type RoutePage } from './router';
 import { restoreScroll, startBack } from './back';
-import { useUi } from './ui';
+import { useUi, usePanelDocked } from './ui';
 import { Sidebar } from './Sidebar';
 import { CompactHeader, TabBar } from './Compact';
-import { Palette } from './Palette';
-import { KeysDialog, useShortcuts } from './keys';
+import { useShortcuts } from './keys';
 import { TooltipLayer } from './Tooltip';
 import { Toasts } from './toasts';
-import { SessionPanel, usePanelDocked } from './SessionPanel';
 import { useCompact } from './layout';
-import { CustomizeDialog } from '@/cards/Customize';
-import { DigestDialog } from '@/cards/Digest';
+import { later, loadLater } from './later';
 import { useExpand } from '@/cards/Expand';
 import { inPopover } from '@/data/desktop';
+
+// What opens only now and then loads later (later.tsx), and is only there while it's open.
+const SessionPanel = later(() => import('./SessionPanel').then((m) => m.SessionPanel));
+const Palette = later(() => import('./Palette').then((m) => m.Palette));
+const KeysDialog = later(() => import('./KeysDialog').then((m) => m.KeysDialog));
+const CommandDialog = later(() => import('./CommandDialog').then((m) => m.CommandDialog));
+const CompareDialog = later(() => import('./CompareDialog').then((m) => m.CompareDialog));
+const ProjectDialog = later(() => import('./ProjectDialog').then((m) => m.ProjectDialog));
+const ResetDialog = later(() => import('./ResetDialog').then((m) => m.ResetDialog));
+const ArrangeDialog = later(() => import('@/components/ArrangeDialog').then((m) => m.ArrangeDialog));
+const CustomizeDialog = later(() => import('@/cards/Customize').then((m) => m.CustomizeDialog));
+const DigestDialog = later(() => import('@/cards/Digest').then((m) => m.DigestDialog));
+
+/** The dialogs, each only while it's open. */
+function Dialogs() {
+  const customizing = useUi((s) => s.customizing);
+  const digest = useUi((s) => s.digest != null);
+  const palette = useUi((s) => s.paletteOpen);
+  const keys = useUi((s) => s.keysOpen);
+  const project = useProjectDialog((s) => !!s.name);
+  const compare = useCompare((s) => s.open);
+  const arranging = useArrange((s) => !!s.arranging);
+  const command = useCommand((s) => !!s.group);
+  const reset = useReset((s) => !!s.mode);
+  return (
+    <>
+      {customizing && <CustomizeDialog />}
+      {digest && <DigestDialog />}
+      {project && <ProjectDialog />}
+      {compare && <CompareDialog />}
+      {arranging && <ArrangeDialog />}
+      {command && <CommandDialog />}
+      {reset && <ResetDialog />}
+      {palette && <Palette />}
+      {keys && <KeysDialog />}
+    </>
+  );
+}
 
 /** Back closes what's over the page first: a dialog, or a session's panel floating over it. */
 function closeOver() {
@@ -81,6 +113,7 @@ export function startApp() {
   startLimits();
   startRouter();
   startBack(closeOver);
+  loadLater();
 }
 
 function PageFor({ page }: { page: RoutePage }) {
@@ -107,6 +140,15 @@ function Offline() {
   );
 }
 
+/** The tab's title, with how many need you (it shows in the tab strip, even in a background tab). On its own, so the count changing doesn't draw the page again. */
+function Title({ page }: { page: RoutePage }) {
+  const needs = useLive((s) => needsCount(s.snap));
+  useEffect(() => {
+    document.title = `${needs ? `(${needs}) ` : ''}${page !== 'overview' && page !== 'parts' ? `${TITLES[page]} · ` : ''}Overtime`;
+  }, [needs, page]);
+  return null;
+}
+
 export function App() {
   useShortcuts();
   useAlerts(MAIN);
@@ -115,16 +157,11 @@ export function App() {
   const session = useRoute((s) => s.session);
   const compact = useCompact();
   const beside = usePanelDocked();
-  const needs = useLive((s) => needsCount(s.snap));
+  const open = useUi((s) => !!s.session);
 
   useEffect(() => {
     document.documentElement.classList.toggle('compact', compact);
   }, [compact]);
-
-  // The count shows in the tab strip, even in a background tab.
-  useEffect(() => {
-    document.title = `${needs ? `(${needs}) ` : ''}${page !== 'overview' && page !== 'parts' ? `${TITLES[page]} · ` : ''}Overtime`;
-  }, [needs, page]);
 
   // Back or forward to a page: where you were on it.
   useLayoutEffect(() => {
@@ -150,6 +187,7 @@ export function App() {
 
   return (
     <>
+      <Title page={page} />
       {compact ? (
         <div className="compact-shell min-h-dvh min-w-0 pb-[var(--tabbar-h)]">
           <CompactHeader />
@@ -163,16 +201,8 @@ export function App() {
           {beside && <SessionPanel />}
         </div>
       )}
-      {!beside && <SessionPanel />}
-      <CustomizeDialog />
-      <DigestDialog />
-      <ProjectDialog />
-      <CompareDialog />
-      <ArrangeDialog />
-      <CommandDialog />
-      <ResetDialog />
-      <Palette />
-      <KeysDialog />
+      {open && !beside && <SessionPanel />}
+      <Dialogs />
       <Toasts />
       <TooltipLayer />
     </>

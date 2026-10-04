@@ -2,8 +2,8 @@
 // the mockup's popover. What needs you, each provider's plan with both its
 // windows, and today in three figures.
 
-import { useScope, useSources } from '@/data/scope';
-import { useChanged, useNow } from '@/data/hooks';
+import { useInsight, useProvider, useSources, useSpend } from '@/data/scope';
+import { useChanged, useMinute } from '@/data/hooks';
 import { activeBetween, calendarDay, compact, costText, duration } from '@/lib/format';
 import { serverNow } from '@/lib/env';
 import { byTokens } from '@/lib/measure';
@@ -15,14 +15,14 @@ import { plansIn } from '@/lib/sources';
 
 function TodayStrip() {
   useChanged();
-  useNow();
-  const { scope } = useScope();
-  const today = scope?.spend?.today;
+  // Your active time counts by the minute.
+  useMinute();
+  const today = useSpend()?.today;
+  const hours = useInsight<Parameters<typeof activeBetween>[0]>('hours');
   const now = serverNow();
   if (!today) return <Skeleton lines={2} />;
   const tokens = byTokens();
-  const insights = scope?.insights as { hours?: never } | null;
-  const active = activeBetween(insights?.hours, calendarDay(now), now);
+  const active = activeBetween(hours, calendarDay(now), now);
   const partial = (today.unpricedTokens || 0) > today.tokens * 0.01;
   return (
     <StatRow columns={3} className="[&_dd]:text-[1.125rem]">
@@ -35,7 +35,7 @@ function TodayStrip() {
 
 /** `today`: with today's three figures (the popover and /mini, where there's no Today card under it). */
 export function Summary({ today = true }: { today?: boolean }) {
-  const { provider } = useScope();
+  const provider = useProvider();
   const providers = plansIn(provider, useSources());
   return (
     <div className="flex flex-col gap-[var(--page-gap)]">

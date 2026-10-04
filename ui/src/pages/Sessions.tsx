@@ -6,12 +6,12 @@
 // The filters live in the address (lib/sessionsView), so cards elsewhere link to
 // a view of this page.
 
-import { Fragment, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
+import { Fragment, memo, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { create } from 'zustand';
 import { Bookmark, ChevronDown, Search, X } from 'lucide-react';
 import { useChanged, useMinute } from '@/data/hooks';
 import { useSessions, useSearch, type SearchResult } from '@/data/queries';
-import { useAgents } from '@/data/scope';
+import { useAllAgents } from '@/data/scope';
 import { demo } from '@/data/api';
 import { useLive } from '@/data/live';
 import { ago, calendarDay, clip, clock, compact, costText, dayLabel, duration, money, plural, projectName } from '@/lib/format';
@@ -180,7 +180,7 @@ function SearchBox() {
   );
 }
 
-function Tools({ projects }: { projects: string[] }) {
+const Tools = memo(function Tools({ projects }: { projects: string[] }) {
   useChanged();
   const view = useSessionsView((s) => s.view);
   const set = useSessionsView((s) => s.set);
@@ -210,7 +210,7 @@ function Tools({ projects }: { projects: string[] }) {
       </span>
     </>
   );
-}
+});
 
 // ── Saved views ──────────────────────────────────────────────────────────────
 
@@ -228,7 +228,7 @@ function useViews() {
   return [views, put] as const;
 }
 
-function ViewsBar() {
+const ViewsBar = memo(function ViewsBar() {
   useChanged();
   const view = useSessionsView((s) => s.view);
   const [views, put] = useViews();
@@ -305,16 +305,30 @@ function ViewsBar() {
       )}
     </div>
   );
-}
+});
 
 // ── The band: what's in view ─────────────────────────────────────────────────
 
-function Summary({ rows, live }: { rows: SessionInRange[]; live: Map<string, LiveAgent> }) {
-  const sum = (k: keyof SessionInRange) => rows.reduce((n, s) => n + ((s[k] as number) || 0), 0);
+/** How many of the sessions in view are open right now: a count, so the band redraws only when it changes. */
+function useOpenCount(rows: SessionInRange[]) {
+  const ids = useMemo(() => new Set(rows.map((s) => s.id)), [rows]);
+  return useLive((s) => (s.snap?.agents || []).filter((a) => a.kind === 'main' && ids.has(a.id)).length);
+}
+
+/** The band over the list. */
+const Summary = memo(function Summary({ rows }: { rows: SessionInRange[] }) {
+  useChanged();
+  const open = useOpenCount(rows);
+  const tokens = byTokens();
+  // Each figure added up once, not once for each place it shows.
+  const totals = useMemo(() => {
+    const t: Record<string, number> = {};
+    for (const k of ['tools', 'failed', 'tokens', 'cost', 'messages', 'agentMs', 'waitMs', 'added', 'removed'] as const) t[k] = rows.reduce((n, s) => n + ((s[k] as number) || 0), 0);
+    return t;
+  }, [rows]);
+  const sum = (k: keyof SessionInRange) => totals[k as string];
   const tools = sum('tools');
   const failed = sum('failed');
-  const open = rows.filter((s) => live.has(s.id)).length;
-  const tokens = byTokens();
   const typical = median(rows.map((s) => measureOf(s)));
   const typicalTime = median(rows.map((s) => s.agentMs));
   const partial = rows.some((s) => s.partial);
@@ -337,7 +351,7 @@ function Summary({ rows, live }: { rows: SessionInRange[]; live: Map<string, Liv
       {note && <Insight>{note}</Insight>}
     </Card>
   );
-}
+});
 
 // ── The list ─────────────────────────────────────────────────────────────────
 
@@ -368,8 +382,16 @@ function ColumnHead() {
   );
 }
 
-function GroupHead({ name, items, open, onToggle, pinned }: { name: string; items: SessionInRange[]; open: boolean; onToggle: () => void; pinned: boolean }) {
-  const sum = (k: 'messages' | 'agentMs' | 'added' | 'removed' | 'cost' | 'tokens') => items.reduce((n, s) => n + (s[k] || 0), 0);
+/** A day's heading (or the pinned sessions'), with its totals and its fold. */
+const GroupHead = memo(function GroupHead({ name, items, open, groupKey, pinned }: { name: string; items: SessionInRange[]; open: boolean; groupKey: number; pinned: boolean }) {
+  useChanged();
+  const totals = useMemo(() => {
+    const t = { messages: 0, agentMs: 0, added: 0, removed: 0, cost: 0, tokens: 0 };
+    for (const s of items) for (const k of Object.keys(t) as (keyof typeof t)[]) t[k] += s[k] || 0;
+    return t;
+  }, [items]);
+  const sum = (k: keyof typeof totals) => totals[k];
+  const onToggle = () => useSessionsView.getState().fold([groupKey], open);
   return (
     <div className={cx('flex items-center gap-3 border-b border-line pb-1.5 pt-4 text-detail', pinned && 'text-accent')}>
       <button type="button" aria-expanded={open} onClick={onToggle} className="flex min-w-0 grow items-center gap-2 text-left font-semibold text-ink hover:text-accent">
@@ -383,9 +405,11 @@ function GroupHead({ name, items, open, onToggle, pinned }: { name: string; item
       <b className={cx('shrink-0 text-right tnum', W.cost)}>{measureCol({ cost: sum('cost'), tokens: sum('tokens'), partial: items.some((s) => s.partial) })}</b>
     </div>
   );
-}
+});
 
-function Row({ s, grouped, live, hit, q }: { s: SessionInRange; grouped: boolean; live: LiveAgent | undefined; hit: SearchResult | undefined; q: string }) {
+/** A session in the list. `today` is only so it's drawn again when the day changes, as its times say "Sep 24" then. */
+const Row = memo(function Row({ s, grouped, live, hit, q }: { s: SessionInRange; grouped: boolean; live: LiveAgent | undefined; hit: SearchResult | undefined; q: string; today: number }) {
+  useChanged();
   const status = live ? liveStateOf(live) : null;
   const tip = [
     titleFor(s.id, s.title),
@@ -451,14 +475,19 @@ function Row({ s, grouped, live, hit, q }: { s: SessionInRange; grouped: boolean
       endClassName={W.cost}
     />
   );
-}
+});
 
-function List({ ranged, rows, live, inside, freshness }: { ranged: SessionInRange[]; rows: SessionInRange[]; live: Map<string, LiveAgent>; inside: ReturnType<typeof useInside>; freshness: string }) {
+function List({ ranged, rows, inside, freshness }: { ranged: SessionInRange[]; rows: SessionInRange[]; inside: ReturnType<typeof useInside>; freshness: string }) {
+  // The list, not the page, follows the live agents: a row redraws when its own agent changes.
+  const all = useAllAgents();
+  const live = useMemo(() => new Map(all.filter((a) => a.kind === 'main').map((a) => [a.id, a])), [all]);
   const view = useSessionsView((s) => s.view);
   const collapsed = useSessionsView((s) => s.collapsed);
   const shown = useSessionsView((s) => s.shown);
   const { set, fold, more } = useSessionsView.getState();
   const provider = useLive((s) => s.provider);
+  // A day at a time, worked out again only when the list or the folds change.
+  const groupedRows = useMemo(() => (view.sort === 'latest' ? groupRows(rows, collapsed, shown) : null), [rows, collapsed, shown, view.sort]);
   const scopeWord = provider === 'all' ? '' : `${SOURCE[provider].name} `;
   const when = whenText(view);
   const q = view.query.trim();
@@ -499,16 +528,17 @@ function List({ ranged, rows, live, inside, freshness }: { ranged: SessionInRang
   }
 
   const grouped = view.sort === 'latest';
-  const row = (s: SessionInRange, g: boolean) => <Row key={s.id} s={s} grouped={g} live={live.get(s.id)} hit={inside.bySession.get(s.id)} q={q} />;
+  const today = calendarDay(serverNow());
+  const row = (s: SessionInRange, g: boolean) => <Row key={s.id} s={s} grouped={g} live={live.get(s.id)} hit={inside.bySession.get(s.id)} q={q} today={today} />;
   let body: ReactNode;
   let left = 0;
   let foldButton: ReactNode = null;
-  if (grouped) {
-    const { groups, left: l } = groupRows(rows, collapsed, shown);
+  if (grouped && groupedRows) {
+    const { groups, left: l } = groupedRows;
     left = l;
     body = groups.map((g) => (
       <div key={g.key} role="group" aria-label={g.key === PINNED ? 'Pinned' : dayName(g.key)}>
-        <GroupHead name={g.key === PINNED ? 'Pinned' : dayName(g.key)} items={g.items} open={g.open} pinned={g.key === PINNED} onToggle={() => fold([g.key], g.open)} />
+        <GroupHead name={g.key === PINNED ? 'Pinned' : dayName(g.key)} items={g.items} open={g.open} pinned={g.key === PINNED} groupKey={g.key} />
         {g.shown.map((s) => row(s, g.key !== PINNED))}
       </div>
     ));
@@ -540,21 +570,20 @@ function List({ ranged, rows, live, inside, freshness }: { ranged: SessionInRang
 }
 
 export function Sessions() {
-  useChanged();
+  const v = useChanged();
   // By the minute, not the second: nothing on the list counts seconds, and it's a long list.
   useMinute();
   useFollowAddress();
   const { data, isError, refetch, dataUpdatedAt } = useSessions();
   const provider = useLive((s) => s.provider);
   const view = useSessionsView((s) => s.view);
-  const { all } = useAgents();
   const inside = useInside(view.query);
-  const live = useMemo(() => new Map(all.filter((a) => a.kind === 'main').map((a) => [a.id, a])), [all]);
   const now = serverNow();
   const [from, to] = spanOf(view, now);
   const ranged = useMemo(() => sessionsIn(data, provider, from, to), [data, provider, from, to]);
-  const rows = sortRows(ranged.filter((s) => matches(s, view, (id) => inside.bySession.has(id))), view);
-  const projects = useMemo(() => [...new Set(ranged.map((s) => s.project).filter(Boolean) as string[])].sort((a, b) => projectName(a).localeCompare(projectName(b))), [ranged]);
+  // Your names, notes and tags count in the search, so a change to one filters again.
+  const rows = useMemo(() => sortRows(ranged.filter((s) => matches(s, view, (id) => inside.bySession.has(id))), view), [ranged, view, inside.bySession, v]); // eslint-disable-line react-hooks/exhaustive-deps
+  const projects = useMemo(() => [...new Set(ranged.map((s) => s.project).filter(Boolean) as string[])].sort((a, b) => projectName(a).localeCompare(projectName(b))), [ranged, v]); // eslint-disable-line react-hooks/exhaustive-deps
   const age = Date.now() - dataUpdatedAt;
   const freshness = data && age > 45_000 ? ` · updated ${ago(age)} ago` : '';
   return (
@@ -581,8 +610,8 @@ export function Sessions() {
         )
       ) : (
         <>
-          <Summary rows={rows} live={live} />
-          <List ranged={ranged} rows={rows} live={live} inside={inside} freshness={freshness} />
+          <Summary rows={rows} />
+          <List ranged={ranged} rows={rows} inside={inside} freshness={freshness} />
         </>
       )}
     </div>
