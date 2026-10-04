@@ -113,6 +113,22 @@ test('kept history takes the settled days, leaves out today and the oldest, and 
   assert.equal(days.length, 31);
 });
 
+test("a past day whose transcripts have gone keeps what was kept for it, in the file and on the heatmap", () => {
+  const now = new Date(2026, 8, 28, 15).getTime();
+  const day = (ago) => new Date(2026, 8, 28 - ago).getTime();
+  const kept = { days: { [dayKey(day(10))]: { all: { cost: 40, tokens: 9000, messages: 12 } }, [dayKey(day(5))]: { all: { cost: 2, tokens: 100, messages: 1 } } } };
+  // Claude Code cleared day 10's sessions; day 5 went on to have more, or was priced again.
+  const fresh = { all: Array.from({ length: 30 }, (_, i) => ({ day: day(29 - i), cost: 0, tokens: 0, messages: 0 })) };
+  Object.assign(fresh.all[24], { cost: 1.5, tokens: 100, messages: 1 }); // 5 days ago
+  const { history, changed } = mergeHistory(kept, fresh, now);
+  assert.ok(changed);
+  assert.deepEqual(history.days[dayKey(day(10))].all, { cost: 40, tokens: 9000, messages: 12 });
+  assert.deepEqual(history.days[dayKey(day(5))].all, { cost: 1.5, tokens: 100, messages: 1 });
+  const shown = historyDays(history, fresh, 'all');
+  assert.equal(shown.find((d) => dayKey(d.day) === dayKey(day(10))).cost, 40);
+  assert.equal(shown.find((d) => dayKey(d.day) === dayKey(day(5))).cost, 1.5);
+});
+
 test('settings the server takes are checked, and a bad value keeps the one before', () => {
   assert.deepEqual(cleanPrefs({ workdayHour: 6 }), { workdayHour: 6, search: true });
   assert.deepEqual(cleanPrefs({ workdayHour: '0' }), { workdayHour: 0, search: true });

@@ -14,7 +14,7 @@
 // OVERTIME_DIR where it keeps settings, and OVERTIME_DEBUG=1 logs to the terminal.
 
 import { app, BrowserWindow, Menu, Notification, Tray, dialog, ipcMain, nativeImage, nativeTheme, screen, session, shell } from 'electron';
-import { createWriteStream, mkdirSync, writeFileSync } from 'node:fs';
+import { createWriteStream, mkdirSync, renameSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { loginPath } from './shell-path.js';
@@ -565,6 +565,8 @@ async function start() {
   try {
     const logs = app.getPath('logs');
     mkdirSync(logs, { recursive: true });
+    // The last run's log is kept beside this one's, so why it stopped can still be read after a relaunch.
+    try { renameSync(path.join(logs, 'overtime.log'), path.join(logs, 'overtime.old.log')); } catch {}
     logFile = createWriteStream(path.join(logs, 'overtime.log'), { flags: 'w' });
   } catch {}
   Menu.setApplicationMenu(appMenu());

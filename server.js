@@ -28,6 +28,19 @@ const ROOT = path.dirname(fileURLToPath(import.meta.url));
 const WEB_DIR = path.join(ROOT, 'web');
 const VERSION = JSON.parse(await fsp.readFile(path.join(ROOT, 'package.json'), 'utf8').catch(() => '{}')).version || '';
 
+// Something going wrong is logged and the server carries on, since every page and
+// the menu bar depend on it. The same failure over and over is said once a minute.
+const said = new Map(); // what was said → when
+function report(where, error) {
+  const message = `${where}: ${error?.stack || error}`;
+  const now = Date.now();
+  if (now - (said.get(message) || 0) < 60_000) return;
+  if (said.size > 100) said.clear();
+  said.set(message, now);
+  console.error(message);
+}
+process.on('unhandledRejection', (error) => report('Something went wrong', error));
+
 const feed = createFeed();
 // Every harness, with its transcripts' folder from the environment (CLAUDE_PROJECTS_DIR and so on).
 const harnesses = openHarnesses();
@@ -231,13 +244,28 @@ async function readJson(req, limit = 4096) {
   try { return JSON.parse(text); } catch { return null; }
 }
 
-const server = http.createServer(async (req, res) => {
+// A request that fails is answered with an error, and the server goes on.
+const server = http.createServer((req, res) => {
+  handle(req, res).catch((error) => {
+    report(`${req.method} ${req.url.split('?')[0]}`, error);
+    if (!res.headersSent) res.writeHead(500, { 'Content-Type': 'text/plain; charset=utf-8' }).end('Overtime ran into a problem with that request');
+    else res.end();
+  });
+});
+
+async function handle(req, res) {
   // Refuse DNS-rebinding requests from web pages that point a domain at 127.0.0.1.
   if (!ALLOWED_HOSTS.has(req.headers.host)) {
     res.writeHead(403).end('Forbidden');
     return;
   }
-  const url = new URL(req.url, `http://${req.headers.host}`);
+  let url;
+  try {
+    url = new URL(req.url, `http://${req.headers.host}`);
+  } catch {
+    res.writeHead(400).end('Bad request');
+    return;
+  }
   if (url.pathname === '/events') {
     res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', Connection: 'keep-alive' });
     openSessions.tick();
@@ -459,7 +487,7 @@ const server = http.createServer(async (req, res) => {
     return;
   }
   res.writeHead(200, { 'Content-Type': entry[1], 'Cache-Control': entry[2] ? 'public, max-age=31536000, immutable' : 'no-store' }).end(entry[0].endsWith('index.html') ? withSettings(body) : body);
-});
+}
 
 let lastSent = 0;
 setInterval(() => {
@@ -468,24 +496,41 @@ setInterval(() => {
   const now = Date.now();
   if (!watcher.takeDirty() && now - lastSent < 2000) return;
   lastSent = now;
-  const snap = snapshot();
-  for (const res of clients.keys()) sendTo(res, snap);
-  openSessions.tick();
+  try {
+    const snap = snapshot();
+    for (const res of clients.keys()) sendTo(res, snap);
+    openSessions.tick();
+  } catch (error) {
+    report('Making the live update', error);
+  }
 }, 250);
 
 const started = Date.now();
 ({ folders: watching, sources: present } = await watcher.onThisMac());
-await watcher.discover();
+await watcher.discover().catch((error) => report('Finding the transcripts', error));
 setInterval(() => watcher.tick(), 1000);
-setInterval(() => watcher.discover(), 4000);
+setInterval(() => watcher.discover().catch((error) => report('Finding the transcripts', error)), 4000);
 // The usage index behind the limits, spend and insights builds in the background,
 // then only reads what's new, which takes a few milliseconds.
-usageIndex.scan().then(() => { limitsComputedAt = 0; insightsComputedAt = 0; });
+usageIndex.scan().then(() => { limitsComputedAt = 0; insightsComputedAt = 0; }, (error) => report('Reading the history', error));
 setInterval(async () => {
-  await usageIndex.scan();
-  // A tool installed since: its folder appears, and with it its own view.
-  ({ folders: watching, sources: present } = await watcher.onThisMac());
+  try {
+    await usageIndex.scan();
+    // A tool installed since: its folder appears, and with it its own view.
+    ({ folders: watching, sources: present } = await watcher.onThisMac());
+  } catch (error) {
+    report('Reading the history', error);
+  }
 }, 15_000);
+
+// Asked to stop (the app quitting, or Ctrl+C in a terminal): save the settings and
+// days still waiting to be written first, but don't wait on that for long.
+for (const signal of ['SIGTERM', 'SIGINT']) {
+  process.on(signal, () => {
+    setTimeout(() => process.exit(0), 2000).unref();
+    store.flush().finally(() => process.exit(0));
+  });
+}
 
 // Started by the desktop app, the server tells it how it went; from a terminal, it says so.
 const tellApp = (message) => process.parentPort?.postMessage(message);
@@ -505,8 +550,12 @@ server.listen(PORT, HOST, () => {
   const port = server.address().port;
   ALLOWED_HOSTS = new Set([`127.0.0.1:${port}`, `localhost:${port}`]);
   tellApp({ type: 'listening', port });
-  const snap = snapshot();
   console.log(`Overtime is open at http://localhost:${port} (the pixel office is at /office/)`);
   console.log(`Watching ${watching.length > 1 ? `${watching.slice(0, -1).join(', ')} and ${watching.at(-1)}` : watching[0]} (read-only). Loaded ${watcher.agents.size} sessions in ${Date.now() - started} ms.`);
-  console.log(`${snap.agents.length} agent${snap.agents.length === 1 ? '' : 's'} in the office right now.`);
+  try {
+    const { agents } = snapshot();
+    console.log(`${agents.length} agent${agents.length === 1 ? '' : 's'} in the office right now.`);
+  } catch (error) {
+    report('Making the first update', error);
+  }
 });
