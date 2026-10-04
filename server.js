@@ -19,7 +19,7 @@ import { createSessionMonitor } from './lib/open-sessions.js';
 import { createStore, cleanPrefs, mergeHistory, historyDays, applySettings, settingsScript, DEFAULT_PREFS } from './lib/store.js';
 import { resumeOptions, resumeInTerminal } from './lib/resume.js';
 import { writeCommand } from './lib/prompts.js';
-import { isSessionId, nativeIdOf, openHarnesses } from './lib/harnesses/index.js';
+import { harness, isSessionId, nativeIdOf, openHarnesses } from './lib/harnesses/index.js';
 
 // PORT=0 takes any free port, as the desktop app does when 4777 is taken by something else.
 const PORT = /^\d{1,5}$/.test(process.env.PORT || '') ? Number(process.env.PORT) : 4777;
@@ -129,6 +129,9 @@ function snapshot() {
     const v = view(a, now);
     if (!v.present) continue;
     v.internCost = internCost.get(a.id) || 0;
+    // What picks it back up, from the start (the history has it a few seconds later).
+    const h = harness(a.source);
+    v.resumeCommand = a.kind === 'main' && h.nativeId.test(v.nativeId || '') ? h.resume.command(v.nativeId) : null;
     list.push(v);
   }
   feed.trim();

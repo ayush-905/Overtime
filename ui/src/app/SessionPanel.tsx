@@ -59,7 +59,8 @@ type Detail = {
   subagents: { count: number; list: { title: string; firstAt: number | null; calls: number; cost: number; partial: boolean }[] };
   timeline: { from: number; step: number; costs: number[] } | null;
   // What picks it back up, as its harness says: the command for Terminal, and its app's link.
-  resume?: { terminal?: boolean; command?: string; app?: { name: string; url: string } | null; appMissing?: string | null };
+  // `appMissing`: the app that would open it, and why it can't.
+  resume?: { terminal?: boolean; command?: string; app?: { name: string; url: string } | null; appMissing?: { name: string; why: string } | null };
 };
 
 type Turn = {
@@ -84,7 +85,7 @@ type Turn = {
   cwd: string | null;
 };
 
-type Live = LiveAgent & { cwd?: string; nativeId?: string; branch?: string | null; model?: string | null; modelName?: string | null; entrypoint?: string | null; startedAt?: number; cost?: number; tokens?: { total: number }; lines?: { added: number; removed: number }; turns?: number; files?: { path: string; name: string; added: number; removed: number }[] };
+type Live = LiveAgent & { cwd?: string; nativeId?: string; branch?: string | null; model?: string | null; modelName?: string | null; resumeCommand?: string | null; entrypoint?: string | null; startedAt?: number; cost?: number; tokens?: { total: number }; lines?: { added: number; removed: number }; turns?: number; files?: { path: string; name: string; added: number; removed: number }[] };
 type Proc = { id?: string; source: Source; title?: string; project?: string; lastActive?: number; openedAt: number; memBytes: number; toolsMemBytes: number; tools: number; cpuPct?: number | null; runtimeShared?: boolean };
 
 // ── Small pieces ─────────────────────────────────────────────────────────────
@@ -548,13 +549,12 @@ function ModelsAndTools({ d }: { d: Detail }) {
   );
 }
 
-function Actions({ id, live, d, proc }: { id: string; live: Live | null; d: Detail | null; proc: Proc | null }) {
+function Actions({ id, live, d }: { id: string; live: Live | null; d: Detail | null }) {
   // The folder it was started in, where Claude Code can find it to resume (the history knows it best).
   const cwd = d?.cwd || live?.cwd || null;
-  const source = live?.source || d?.source || proc?.source || 'claude';
   const r = d?.resume;
-  const resume = r?.command ? `${cwd ? `cd ${shellQuote(cwd)} && ` : ''}${r.command}` : null;
-  const appName = source === 'codex' ? 'Codex' : 'Claude';
+  const command = r?.command || live?.resumeCommand || null;
+  const resume = command ? `${cwd ? `cd ${shellQuote(cwd)} && ` : ''}${command}` : null;
   const resumeInTerminal = async () => {
     try {
       await post(`/api/resume?id=${encodeURIComponent(id)}`);
@@ -564,8 +564,8 @@ function Actions({ id, live, d, proc }: { id: string; live: Live | null; d: Deta
     }
   };
   const items = [
-    r?.terminal && (
-      <Button key="terminal" size="sm" variant="primary" icon={<Play size={13} strokeWidth={2.2} aria-hidden />} data-tip={`Opens a new Terminal window in its folder and runs ${r.command || 'its resume command'}`} onClick={resumeInTerminal}>
+    command && (
+      <Button key="terminal" size="sm" variant="primary" icon={<Play size={13} strokeWidth={2.2} aria-hidden />} data-tip={`Opens a new Terminal window in its folder and runs ${command || 'its resume command'}`} onClick={resumeInTerminal}>
         Resume in Terminal
       </Button>
     ),
@@ -575,9 +575,9 @@ function Actions({ id, live, d, proc }: { id: string; live: Live | null; d: Deta
         Open in the {r.app.name} app
       </a>
     ) : r?.appMissing ? (
-      <span key="app" aria-disabled="true" data-tip={`This session was ${r.appMissing}, so the ${appName} app can't open it. Resume it in Terminal instead.`} className="inline-flex h-7 items-center gap-1.5 rounded-control border border-line px-2.5 text-detail font-medium text-muted opacity-60">
+      <span key="app" aria-disabled="true" data-tip={`This session was ${r.appMissing.why}, so the ${r.appMissing.name} app can't open it. Resume it in Terminal instead.`} className="inline-flex h-7 items-center gap-1.5 rounded-control border border-line px-2.5 text-detail font-medium text-muted opacity-60">
         <ExternalLink size={13} strokeWidth={2} aria-hidden />
-        Open in the {appName} app
+        Open in the {r.appMissing.name} app
       </span>
     ) : null,
     resume && <CopyButton key="resume" text={resume} label="Copy resume command" />,
@@ -858,7 +858,7 @@ export function SessionPanel() {
         <Files live={live} />
         <Subagents id={id} d={d} all={allAgents || []} />
         {d && <ModelsAndTools d={d} />}
-        <Actions id={id} live={live} d={d} proc={proc} />
+        <Actions id={id} live={live} d={d} />
       </div>
     </aside>
   );

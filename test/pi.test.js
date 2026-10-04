@@ -135,6 +135,9 @@ test('the live view follows a pi turn from your message to its reply', () => {
   assert.equal(v.errors, 2);
   assert.deepEqual(v.lines, { added: 3, removed: 2 });
   assert.equal(v.snippet, 'Fixed the total; the test passes now.');
+  // Pi rewrites a whole file when it brings an old one up to date: read again, nothing counts twice.
+  for (const e of steps) applyPiEvent(feed, a, e);
+  assert.ok(Math.abs(view(a, now + 11_000).cost - 0.04) < 1e-12);
   // Esc while it works: the reply is cut short.
   applyPiEvent(feed, a, user('Another thing', 12));
   applyPiEvent(feed, a, reply([], 'aborted', 13));
@@ -193,11 +196,15 @@ test("a model's window is the one pi works with: your models.json over its catal
   // The same model through another provider isn't assumed to have the same window.
   assert.equal(piWindow('openrouter', 'gpt-6.1-sol', 50_000), 200_000);
   assert.equal(piWindow('anthropic', 'claude-sonnet-4-5', 50_000), 200_000); // not in the catalog: the price list's
-  // Your own models and overrides win.
-  await writeFile(path.join(home, 'models.json'), JSON.stringify({ providers: {
-    openai: { modelOverrides: { 'gpt-6.1-sol': { contextWindow: 1_000_000 } } },
-    ollama: { baseUrl: 'http://localhost:11434/v1', models: [{ id: 'qwen2.5-coder:7b', contextWindow: 32_768 }] },
-  } }));
+  // Your own models and overrides win, written with comments as Pi allows.
+  await writeFile(path.join(home, 'models.json'), `\uFEFF{
+  // what my plan gives
+  "providers": {
+    "openai": { "modelOverrides": { "gpt-6.1-sol": { "contextWindow": 1000000 } } },
+    /* a local server */
+    "ollama": { "baseUrl": "http://localhost:11434/v1", "models": [{ "id": "qwen2.5-coder:7b", "contextWindow": 32768 }] }
+  }
+}`);
   assert.equal(await refreshPiWindows(home), true);
   assert.equal(piWindow('openai', 'gpt-6.1-sol', 50_000), 1_000_000);
   assert.equal(piWindow('ollama', 'qwen2.5-coder:7b', 9_000), 32_768);
