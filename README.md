@@ -293,7 +293,7 @@ draws at 30 frames a second, about 5%, while its tab is showing.
   10 seconds.
 - An app opened from the Dock gets a bare `PATH`, so it asks your login shell for yours,
   which is how it finds `codex` in Homebrew's or npm's folder.
-- Its log is in `~/Library/Logs/Overtime/overtime.log` (**Help → Show the Log**).
+- Its log is in `~/Library/Logs/Overtime/overtime.log` (**Help → Show the Log**), with the run before in `overtime.old.log` beside it.
 
 ## Settings for the server and the app
 

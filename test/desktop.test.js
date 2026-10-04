@@ -1,41 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { spawn } from 'node:child_process';
 import http from 'node:http';
-import { mkdtemp, mkdir, readFile, writeFile, rm } from 'node:fs/promises';
-import os from 'node:os';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { ROOT, scratch as scratchIn, startServer } from './helpers.js';
 
-const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
-
-async function scratch(t) {
-  const dir = await mkdtemp(path.join(os.tmpdir(), 'overtime-desktop-'));
-  t.after(() => rm(dir, { recursive: true, force: true }));
-  return dir;
-}
-
-/** server.js on a port, with nothing to read; resolves once it says where it is. */
-function startServer(t, dir, port) {
-  const env = { ...process.env, PORT: String(port), OVERTIME_DIR: path.join(dir, 'data'), CLAUDE_PROJECTS_DIR: path.join(dir, 'claude'), CODEX_SESSIONS_DIR: path.join(dir, 'codex') };
-  const child = spawn(process.execPath, ['server.js'], { cwd: ROOT, env, stdio: ['ignore', 'pipe', 'pipe'] });
-  t.after(() => child.kill());
-  let out = '';
-  return new Promise((resolve, reject) => {
-    const timer = setTimeout(() => reject(new Error(`server didn't start: ${out}`)), 10_000);
-    const done = (result) => {
-      clearTimeout(timer);
-      resolve(result);
-    };
-    child.stdout.on('data', (d) => {
-      out += d;
-      const m = out.match(/open at http:\/\/localhost:(\d+)/);
-      if (m) done({ child, port: Number(m[1]) });
-    });
-    child.stderr.on('data', (d) => { out += d; });
-    child.on('exit', (code) => done({ child, code, out }));
-  });
-}
+const scratch = (t) => scratchIn(t, 'overtime-desktop-');
 
 test('the server takes any free port with PORT=0, says who it is there, and only answers to that port', async (t) => {
   const dir = await scratch(t);
@@ -67,6 +37,40 @@ test('the server takes any free port with PORT=0, says who it is there, and only
   const second = await startServer(t, dir, port);
   assert.equal(second.code, 1);
   assert.match(second.out, new RegExp(`Port ${port} is taken`));
+});
+
+test("the server keeps going after a request it can't read and a transcript line it can't make sense of", async (t) => {
+  const dir = await scratch(t);
+  await mkdir(path.join(dir, 'claude', 'project'), { recursive: true });
+  const now = new Date().toISOString();
+  const lines = [
+    { type: 'user', timestamp: now, cwd: '/work/shop', message: { content: 'Tidy the shop' } },
+    { type: 'assistant', timestamp: now, cwd: '/work/shop', message: { id: 'm1', content: [{ type: 'tool_use', id: 't1', input: {} }] } },
+  ];
+  await writeFile(path.join(dir, 'claude', 'project', '12345678-1234-1234-1234-123456789012.jsonl'), lines.map((x) => JSON.stringify(x)).join('\n') + '\n');
+  const { port, code, out } = await startServer(t, dir, 0);
+  assert.ok(port, `it started: ${code} ${out}`);
+  const status = await new Promise((resolve, reject) => {
+    http.get({ host: '127.0.0.1', port, path: '//[' }, (res) => resolve(res.statusCode)).on('error', reject);
+  });
+  assert.equal(status, 400);
+  assert.equal((await (await fetch(`http://127.0.0.1:${port}/api/hello`)).json()).app, 'overtime');
+});
+
+test('settings changed just before the server stops are saved', async (t) => {
+  const dir = await scratch(t);
+  const { child, port } = await startServer(t, dir, 0);
+  const res = await fetch(`http://127.0.0.1:${port}/api/settings`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-Overtime': '1' },
+    body: JSON.stringify({ set: { 'overtime-theme': 'dark' } }),
+  });
+  assert.equal(res.status, 204);
+  const exited = new Promise((resolve) => child.on('exit', resolve));
+  child.kill('SIGTERM');
+  assert.equal(await exited, 0);
+  const saved = JSON.parse(await readFile(path.join(dir, 'data', 'settings.json'), 'utf8'));
+  assert.equal(saved.values['overtime-theme'], 'dark');
 });
 
 test('the app knows Overtime on a port, and nothing else', async (t) => {
