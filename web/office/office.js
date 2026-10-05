@@ -383,13 +383,17 @@ function buildOffice() {
     [1, 9],
     [4, 9],
     [7, 9],
-  ].forEach(([c, r], i) => addDesk(i, c, r));
+  ].forEach(([c, r], i) => {
+    addDesk(i, c, r);
+  });
   [
     [1, 13],
     [3, 13],
     [5, 13],
     [7, 13],
-  ].forEach(([c, r], i) => addInternDesk(i, c, r));
+  ].forEach(([c, r], i) => {
+    addInternDesk(i, c, r);
+  });
 
   // Meeting table, where agents brief their subagents.
   const table = makeSprite(64, 28, (R) => {
@@ -836,8 +840,8 @@ function buildRows(view, pose, frame, blink, look) {
   let head = view === 'back' ? HEAD_BACK : view === 'side' ? HEAD_SIDE : HEAD_FRONT;
   if (blink && view !== 'back') head = head.map((row) => row.replace(/e/g, 's'));
   if (look.intern) head = head.map((row, i) => (i < 3 ? row.replace(/h/g, 'a') : row));
-  let body = view === 'side' ? [...BODY_SIDE] : [...BODY];
-  if (look.intern && view === 'front') body[1] = body[1].slice(0, 3) + 'y' + body[1].slice(4);
+  const body = view === 'side' ? [...BODY_SIDE] : [...BODY];
+  if (look.intern && view === 'front') body[1] = `${body[1].slice(0, 3)}y${body[1].slice(4)}`;
   if (pose === 'sit') {
     if (view === 'back' && frame === 'a') body[1] = 'sdccccccd.';
     if (view === 'back' && frame === 'b') body[1] = '.dccccccds';

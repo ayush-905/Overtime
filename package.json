@@ -15,15 +15,26 @@
     "dev:ui": "vite --config ui/vite.config.ts",
     "test:ui": "vitest run --config ui/vite.config.ts",
     "check:ui": "tsc -p ui/tsconfig.json",
+    "check:server": "tsc -p tsconfig.server.json",
     "app": "electron .",
     "app:build": "npm run build:ui && electron-builder --mac --publish never && rm -rf dist/mac-arm64",
     "app:icons": "node desktop/make-icons.js",
-    "app:release": "npm run build:ui && electron-builder --mac --publish always && rm -rf dist/mac-arm64",
+    "app:release": "npm run verify && npm run build:ui && electron-builder --mac --publish never && rm -rf dist/mac-arm64 && node desktop/release.js publish",
     "lint": "biome check .",
-    "format": "biome check --write ."
+    "format": "biome check --write .",
+    "verify": "npm run lint && npm test && npm run test:ui && npm run check",
+    "app:sign": "node desktop/release.js sign",
+    "check": "npm run check:ui && npm run check:server"
   },
   "engines": {
     "node": ">=18"
+  },
+  "devEngines": {
+    "runtime": {
+      "name": "node",
+      "version": ">=22.12",
+      "onFail": "warn"
+    }
   },
   "devDependencies": {
     "@biomejs/biome": "2.5.15",
@@ -62,6 +73,7 @@
       "web/**",
       "desktop/**",
       "!desktop/make-icons.js",
+      "!desktop/release.js",
       "!desktop/icons/icon.png",
       "!desktop/icons/icon.icns"
     ],
@@ -101,6 +113,13 @@
         "repo": "overtime",
         "releaseType": "draft"
       }
-    ]
+    ],
+    "electronFuses": {
+      "runAsNode": false,
+      "enableNodeOptionsEnvironmentVariable": false,
+      "enableNodeCliInspectArguments": false,
+      "onlyLoadAppFromAsar": true,
+      "grantFileProtocolExtraPrivileges": false
+    }
   }
 }

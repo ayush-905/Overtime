@@ -294,7 +294,7 @@ function createPopover() {
     e.preventDefault();
     popover.hide();
   });
-  popover.webContents.on('before-input-event', (e, input) => {
+  popover.webContents.on('before-input-event', (_e, input) => {
     if (input.type === 'keyDown' && input.key === 'Escape') popover.hide();
   });
 }
@@ -479,7 +479,7 @@ ipcMain.on('ao:glance', (e, g) => {
 });
 // From the popover: this section or session, in the window instead.
 ipcMain.on('ao:open-window', (e, hash) => {
-  if (e.sender !== popover?.webContents) return;
+  if (e.sender !== popover?.webContents || !ours(e.senderFrame?.url)) return;
   popover.hide();
   showMain(typeof hash === 'string' && /^#[\w=?&%.:-]*$/.test(hash) ? hash : '#overview');
 });
@@ -669,7 +669,9 @@ async function start() {
   session.defaultSession.setPermissionRequestHandler((wc, permission, done, details) =>
     done(allowed.has(permission) && ours(details.requestingUrl || wc.getURL())),
   );
-  session.defaultSession.setPermissionCheckHandler((wc, permission, origin) => allowed.has(permission) && ours(origin));
+  session.defaultSession.setPermissionCheckHandler(
+    (_wc, permission, origin) => allowed.has(permission) && ours(origin),
+  );
 
   // The menu bar icon comes first, so there's something to see while the server starts.
   createTray();
@@ -715,6 +717,6 @@ if (!app.requestSingleInstanceLock()) {
   });
   // Every window closed: still in the menu bar.
   app.on('window-all-closed', () => {});
-  app.on('web-contents-created', (e, wc) => wc.on('will-attach-webview', (ev) => ev.preventDefault()));
+  app.on('web-contents-created', (_e, wc) => wc.on('will-attach-webview', (ev) => ev.preventDefault()));
   app.whenReady().then(start);
 }

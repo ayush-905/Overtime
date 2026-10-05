@@ -110,6 +110,8 @@ A sidebar of sections, each a page of cards:
 - **An agent may be stuck** when its tool calls keep failing (four in a row, or most of the
   recent ones), one call runs too long, or nothing moves for a while (10 minutes, unless you
   change it).
+- **Lines changed** count the edits that went through: an edit you turned down, one that
+  failed, or one still waiting for your approval doesn't count.
 - **A session's numbers are kept per day**, so a range only counts what happened in it,
   and the Sessions page, the Projects page and the Cost tiles always add up to the same
   figures.
@@ -226,7 +228,8 @@ limits always stay separate.
 
 - Codex history covers its last 31 days, including old chats you resumed.
 - A Codex edit counts once its patch went through; edits made by shell commands can't be
-  told apart, so they aren't counted.
+  told apart, so they aren't counted. A failed command counts as a tool failure, including
+  one inside a script the Codex app ran.
 - Codex doesn't record cache rebuilds, so *Cache savings* counts those for Claude Code only.
 - The Codex app runs all its chats in one process, so *Open agent sessions* shows its memory
   once.
@@ -260,7 +263,8 @@ limits always stay separate.
   login (on by default) and to OpenAI through the Codex app (off by default). Settings, under
   *Plan limits*, says which are on. The page loads nothing from the internet.
 - The server listens on `127.0.0.1` only and refuses requests for any other host name, and
-  changes need a header other websites can't send, so no website can read or change it.
+  changes need a header other websites can't send, so no website can read or change it. Its
+  pages run only their own scripts (each page goes with a Content-Security-Policy).
 
 Delete `~/.overtime` to start over, or use **Reset everything** in Settings.
 
@@ -283,9 +287,10 @@ draws at 30 frames a second, about 5%, while its tab is showing.
 - **The Dock badge** counts the agents that need you. If it never shows, turn badges on in
   **System Settings → Notifications → Overtime**.
 - **Updates.** Half a minute after it starts, and every 6 hours (or from **Check for
-  Updates…**), it looks for a newer version on GitHub Releases. One it finds downloads in the
-  background, has to match the size and SHA-512 its release lists, and goes in when you quit,
-  or at once with **Restart to Update**. It can't update itself from the disk image, or from
+  Updates…**), it looks for a newer version on GitHub Releases. A release counts only when
+  it's signed with Overtime's release key, so nobody else can ship one. One it finds downloads
+  in the background, has to match the size and SHA-512 its signed release lists, and goes in
+  when you quit, or at once with **Restart to Update**. It can't update itself from the disk image, or from
   a folder it can't write to; then it offers the download instead.
 - **The server.** If Overtime is already running on port 4777 (`node server.js` in a
   terminal, say), the app uses that one; otherwise it runs its own, and your browser can
@@ -323,9 +328,15 @@ delete it from Applications. Then delete `~/.overtime` (your settings and histor
 
 ## Development
 
+Running the server needs Node.js 18 or later. Working on Overtime needs 22.12 or later, since the
+dashboard's build and test tools do (`.nvmrc` has the version CI uses).
+
 ```bash
 npm install
 ```
+
+[CONTRIBUTING.md](CONTRIBUTING.md) says how a change gets in, and [CHANGELOG.md](CHANGELOG.md)
+has what each release changed.
 
 | Command | What it does |
 | --- | --- |
@@ -334,7 +345,9 @@ npm install
 | `npm run build:ui` | Builds the dashboard into `web/app/` |
 | `npm test` | The server's and the Mac app's tests |
 | `npm run test:ui` | The dashboard's tests |
-| `npm run check:ui` | Type-checks the dashboard |
+| `npm run check` | The type checks |
+| `npm run lint` | Biome's lint and formatting check (`npm run format` fixes what it can) |
+| `npm run verify` | All of the above, as CI runs them on every push and pull request |
 | `npm run app` | The Mac app, from source |
 | `npm run app:build` | Builds the dashboard, then `dist/overtime-<version>-arm64.dmg` and a `.zip` |
 | `npm run app:icons` | Draws the app's and the menu bar's icons again, from the pixel art in `desktop/make-icons.js` |
@@ -350,24 +363,26 @@ London's clock whatever yours is. After a deliberate change, record new ones wit
 
 | Where | What's there |
 | --- | --- |
-| `server.js` | The server: the live feed (`/events`), the API and the pages |
-| `lib/` | Following the transcripts (`watcher.js`), the 31-day usage index and what's worked out from it (`usage-index.js`, `insights.js`), the model catalog and prices (`models.js`, `pricing.js`), plan limits, session titles, skills, prompts you repeat, open sessions, resuming, and Overtime's own files (`store.js`) |
+| `server.js` | The server: its routes (a table of what each address reads or does), the cached insights and the live snapshot, and what it checks on a timer |
+| `lib/` | Following the transcripts (`watcher.js`, `folder-watch.js`), the 31-day usage index (`usage-index.js`) and what the readers share (`readers.js`), the live feed's patches (`live-feed.js`), the pages' files and their policy (`static-files.js`, `page-policy.js`), the model catalog and prices (`models.js`, `pricing.js`), plan limits, session titles, skills, prompts you repeat, open sessions, resuming, and Overtime's own files (`store.js`) |
+| `lib/insights/` | What's worked out from the index, put together in `lib/insights.js`: days and working days (`time.js`), where the money goes (`spend.js`), stretches of work and your messages (`turns.js`), your time and your agents' (`you.js`), and the session list, a session, a turn and the digest (`sessions.js`) |
 | `lib/harnesses/` | One module per harness (Claude Code, Codex, Pi) and the list of them, each with its readers beside it in `lib/` (`claude.js` and `claude-usage.js`, and so on) |
 | `ui/` | The dashboard, in React and TypeScript with Tailwind, built with Vite: the sections (`src/pages`), the Overview's cards (`src/cards`), the building blocks (`src/components`), the shell (`src/app`), the logic without React (`src/lib`), and the live feed and queries (`src/data`) |
 | `web/app/` | The dashboard, built |
 | `web/office/` | The pixel office |
 | `web/shared/` | What the dashboard and the office share (settings sync, the live-update merger, the demo) and the office's state, theme and tooltips |
-| `desktop/` | The Mac app: Electron's main process, the server beside it, the updater and the icons |
-| `test/` | The server's and the Mac app's tests |
+| `desktop/` | The Mac app: Electron's main process, the server beside it, the updater and its key, the release script (`release.js`) and the icons |
+| `test/` | The server's and the Mac app's tests, with made-up transcripts for each harness in `test/fixtures/` |
 
 ### Adding a harness or a model
 
 **A harness** (another agent tool) is one module in `lib/harnesses/`, listed in
 `lib/harnesses/index.js`, whose comment says what a module provides: where its transcripts
 are and how to read them (live, and into the history), how to resume a session, how to
-spot its process, where its slash commands go, and which of its tools read and write files
-and run commands. Its readers sit in `lib/` (Pi's are `pi.js` and `pi-usage.js`, about 300
-lines between them, a good model). On the dashboard, give it an entry in
+spot its process, where its slash commands and skills live, and which of its tools read and
+write files and run commands. Its readers sit in `lib/` (Pi's are `pi.js` and `pi-usage.js`, a
+good model), with what the history readers share in `lib/readers.js`. Give it fixtures in
+`test/fixtures/<harness>/` and a test like `test/live-pi.test.js`. On the dashboard, give it an entry in
 `ui/src/lib/sources.ts` (its name, colour and mark, and its slash commands) and a colour in
 `ui/src/styles/tokens.css`. The watcher, the index, the API and the pages take it from there;
 `test/harnesses.test.js` checks a module has everything and the two lists agree. Plan
@@ -382,12 +397,27 @@ catalog.
 
 ### Releasing
 
-Raise `version` in `package.json`, then run
-`GH_TOKEN=$(gh auth token) npm run app:release`. It builds the app and uploads the `.dmg`,
-the `.zip` and `latest-mac.yml` (what the app checks) to a draft release tagged `v` and the
-version; publishing the draft on GitHub lets every copy find it. Then point the download
-link under [Install](#install) at the new DMG. The repo has to be public,
-since the app downloads updates without a login.
+1. Raise `version` in `package.json` and add the release to [CHANGELOG.md](CHANGELOG.md). Commit it, then push.
+2. Run `GH_TOKEN=<a token for the repo's account> npm run app:release`. It runs `npm run verify`, builds
+   the dashboard and the app, and signs `latest-mac.yml` with the release key. Then it uploads the `.dmg`,
+   the `.zip`, their blockmaps, `latest-mac.yml` and its signature, `latest-mac.yml.sig`, to one draft
+   release tagged `v` and the version.
+3. Add the notes on GitHub and publish the draft. Every copy finds it then.
+4. Point the download link under [Install](#install) at the new DMG.
+
+The repo has to be public, since the app downloads updates without a login.
+
+**The release key.** The app installs an update only when `latest-mac.yml` carries a signature that
+the public key in `desktop/update-key.js` checks. The private half lives outside the repo, in
+`~/.config/overtime/release-key.pem` (or the file `OVERTIME_RELEASE_KEY` names). Keep a backup of it
+somewhere safe. Without it, no release can be signed, and every copy would have to be updated by hand
+to one carrying a new key.
+
+To try an update before releasing it, build twice into a scratch folder:
+`npx electron-builder --mac --publish never -c.directories.output=<folder>`, the second time with
+`-c.extraMetadata.version=<a higher version>`. Sign the second with `node desktop/release.js sign
+--dist <folder>`, serve its folder on this Mac, and run the first with
+`OVERTIME_UPDATE_FEED=http://127.0.0.1:<port>/`.
 
 The build is signed ad hoc. Opening it without the step under [Install](#install) needs an
 Apple Developer ID and notarization (`mac.identity` and `notarize` in `package.json`'s

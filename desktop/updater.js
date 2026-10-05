@@ -1,9 +1,12 @@
 // Updates from GitHub Releases, installed by the app itself. It looks where the
 // build says (app-update.yml, from `publish` in package.json) half a minute
-// after it starts and every 6 hours, or when you ask. A newer version downloads
-// in the background and has to match the size and SHA-512 its release lists;
-// unpacked, it has to be this app, at that version, with its signature intact.
-// Then it replaces this one when you quit, or at once if you restart to update.
+// after it starts and every 6 hours, or when you ask. A release counts only when
+// its latest-mac.yml is signed with Overtime's release key (update-key.js), so
+// nobody else can ship one, even with the GitHub account. A newer version
+// downloads in the background and has to match the size and SHA-512 that signed
+// file lists; unpacked, it has to be this app, at that version, with its code
+// signature intact. Then it replaces this one when you quit, or at once if you
+// restart to update.
 //
 // Electron's own updater (Squirrel) only installs updates to an app signed with
 // an Apple Developer ID, so this swaps the app itself, as Sparkle does: a small
@@ -17,7 +20,8 @@ import { once } from 'node:events';
 import { accessSync, constants, createWriteStream, promises as fsp, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { Readable } from 'node:stream';
-import { SWAP_SCRIPT, isNewer, parseYaml, pickZip, updateSource } from './update-info.js';
+import { SIGNATURE_FILE, SWAP_SCRIPT, isNewer, parseYaml, pickZip, trustedFeed, updateSource } from './update-info.js';
+import { UPDATE_KEY } from './update-key.js';
 
 const FIRST_CHECK_MS = 30_000;
 const CHECK_EVERY_MS = 6 * 3_600_000;
@@ -132,13 +136,16 @@ export function createUpdater({ log = () => {}, onChange = () => {} } = {}) {
     set({ state: 'checking' });
     let info;
     try {
-      const res = await fetch(`${source.feed}latest-mac.yml`, {
-        signal: AbortSignal.timeout(20_000),
-        cache: 'no-store',
-      });
+      const get = (name) => fetch(`${source.feed}${name}`, { signal: AbortSignal.timeout(20_000), cache: 'no-store' });
+      const [res, sig] = await Promise.all([get('latest-mac.yml'), get(SIGNATURE_FILE)]);
       if (res.status === 404) throw new Error(`There's no release on ${source.where} yet.`);
       if (!res.ok) throw new Error(`${source.where} answered with ${res.status}.`);
-      info = parseYaml(await res.text());
+      // Nothing in it counts until the signature says it's Overtime's own: not even the version.
+      info = trustedFeed(await res.text(), sig.ok ? await sig.text() : '', UPDATE_KEY);
+      if (!info)
+        throw new Error(
+          `The newest release on ${source.where} isn't signed with Overtime's release key, so it won't be installed.`,
+        );
       if (!info.version) throw new Error(`The release on ${source.where} doesn't say its version.`);
     } catch (error) {
       if (error.name === 'TimeoutError') return fail(`${source.where} didn't answer.`);

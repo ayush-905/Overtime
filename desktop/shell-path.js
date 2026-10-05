@@ -34,7 +34,7 @@ function askShell(timeoutMs) {
       shell,
       ['-ilc', `printf '${MARK}%s${MARK}' "$PATH"`],
       { timeout: timeoutMs, env: { ...process.env, DISABLE_AUTO_UPDATE: 'true' } },
-      (error, stdout) => {
+      (_error, stdout) => {
         const found = String(stdout || '').split(MARK)[1];
         resolve(found || null);
       },

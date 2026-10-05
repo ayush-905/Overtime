@@ -484,7 +484,7 @@ function syncLabels(now) {
     let b = bubbleFor(a, ch, now);
     // On a small office, only the bubbles that matter: who needs you, and who you picked.
     if (scale < 1.3 && !b.cls.startsWith('needs') && ch.id !== state.selectedId) b = { text: '', cls: 'hidden' };
-    const key = b.text + '|' + b.cls;
+    const key = `${b.text}|${b.cls}`;
     if (el._bubble !== key) {
       el._parts.bubble.textContent = b.text;
       el._parts.bubble.className = `bubble ${b.cls}`;
