@@ -4,7 +4,14 @@
 // live store keep it up to date; the functions in format.ts read it, so they work
 // the same inside React and out.
 
-export type Currency = { code: string; symbol: string; rate: number; locale: string; whole: boolean; rates: Record<string, number> };
+export type Currency = {
+  code: string;
+  symbol: string;
+  rate: number;
+  locale: string;
+  whole: boolean;
+  rates: Record<string, number>;
+};
 
 export type ProjectPref = { alias?: string; hue?: number | null };
 

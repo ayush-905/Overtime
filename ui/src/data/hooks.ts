@@ -84,10 +84,17 @@ export function useMedia(query: string) {
   return matches;
 }
 
-export const MAC = typeof navigator !== 'undefined' && /mac|iphone|ipad/i.test((navigator as Navigator & { userAgentData?: { platform?: string } }).userAgentData?.platform || navigator.platform || '');
+export const MAC =
+  typeof navigator !== 'undefined' &&
+  /mac|iphone|ipad/i.test(
+    (navigator as Navigator & { userAgentData?: { platform?: string } }).userAgentData?.platform ||
+      navigator.platform ||
+      '',
+  );
 
 /** The modifier key as a label: ⌘ on a Mac, Ctrl elsewhere. */
 export const MOD = MAC ? '⌘' : 'Ctrl+';
 
 /** Whether a key press is in something you type in. */
-export const typing = (target: EventTarget | null) => !!(target as HTMLElement | null)?.closest?.('input, textarea, select, [contenteditable]');
+export const typing = (target: EventTarget | null) =>
+  !!(target as HTMLElement | null)?.closest?.('input, textarea, select, [contenteditable]');

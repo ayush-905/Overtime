@@ -13,7 +13,8 @@ import { Card } from '@/components/Card';
 
 // The Overview comes with the page; the other sections load the first time they're opened,
 // so the window and the popover start sooner.
-const section = <K extends string>(load: () => Promise<Record<K, ComponentType>>, name: K) => lazy(() => load().then((m) => ({ default: m[name] })));
+const section = <K extends string>(load: () => Promise<Record<K, ComponentType>>, name: K) =>
+  lazy(() => load().then((m) => ({ default: m[name] })));
 const Sessions = section(() => import('@/pages/Sessions'), 'Sessions');
 const Projects = section(() => import('@/pages/Projects'), 'Projects');
 const Usage = section(() => import('@/pages/Usage'), 'Usage');
@@ -133,7 +134,10 @@ function Offline() {
   const connected = useLive((s) => s.connected);
   if (connected) return null;
   return (
-    <p role="status" className="flex items-center gap-2 rounded-row border border-warn-line bg-warn-soft px-3.5 py-2.5 text-detail text-warn">
+    <p
+      role="status"
+      className="flex items-center gap-2 rounded-row border border-warn-line bg-warn-soft px-3.5 py-2.5 text-detail text-warn"
+    >
       <WifiOff size={15} strokeWidth={1.9} aria-hidden />
       Lost touch with Overtime's server. The figures stop updating until it's back; trying again.
     </p>

@@ -8,7 +8,13 @@ import { scratch, startServer } from './helpers.js';
 const A = '11111111-1111-1111-1111-111111111111';
 const B = '22222222-2222-2222-2222-222222222222';
 const line = (x) => JSON.stringify(x) + '\n';
-const ask = (text) => line({ type: 'user', timestamp: new Date().toISOString(), cwd: '/work/shop', message: { role: 'user', content: text } });
+const ask = (text) =>
+  line({
+    type: 'user',
+    timestamp: new Date().toISOString(),
+    cwd: '/work/shop',
+    message: { role: 'user', content: text },
+  });
 
 /** The live feed's messages, as they come. */
 async function follow(t, port) {
@@ -51,7 +57,20 @@ test('the live feed sends an agent again only when it changed, and the page puts
   const b = snap.agents.find((a) => a.id === B);
 
   // A works on: the next update with agents in it has A alone.
-  await appendFile(fileA, line({ type: 'assistant', timestamp: new Date().toISOString(), cwd: '/work/shop', message: { id: 'm1', model: 'claude-sonnet-4-5', usage: { input_tokens: 10, output_tokens: 5 }, content: [{ type: 'tool_use', id: 't1', name: 'Read', input: { file_path: '/work/shop/till.txt' } }] } }));
+  await appendFile(
+    fileA,
+    line({
+      type: 'assistant',
+      timestamp: new Date().toISOString(),
+      cwd: '/work/shop',
+      message: {
+        id: 'm1',
+        model: 'claude-sonnet-4-5',
+        usage: { input_tokens: 10, output_tokens: 5 },
+        content: [{ type: 'tool_use', id: 't1', name: 'Read', input: { file_path: '/work/shop/till.txt' } }],
+      },
+    }),
+  );
   let update;
   for (let i = 0; i < 40 && !update; i++) {
     const { msg } = await next();
@@ -61,9 +80,15 @@ test('the live feed sends an agent again only when it changed, and the page puts
   assert.ok(update, 'an update with agents in it came');
   const [, order, items] = update;
   assert.equal(order, null);
-  assert.deepEqual(items.map((a) => a.id), [A]);
+  assert.deepEqual(
+    items.map((a) => a.id),
+    [A],
+  );
   assert.equal(snap.agents.find((a) => a.id === A).tool.name, 'Read');
-  assert.equal(snap.agents.find((a) => a.id === B), b);
+  assert.equal(
+    snap.agents.find((a) => a.id === B),
+    b,
+  );
   // Nothing new: the heartbeat after it changes nothing.
   for (let i = 0; i < 20; i++) {
     const { msg } = await next();

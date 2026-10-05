@@ -68,7 +68,10 @@ async function fetchCodex(force = false) {
 
 export function setExact(on: boolean, { save = true } = {}) {
   useLimits.setState({ exactOn: on });
-  if (save) try { localStorage.setItem(EXACT_KEY, on ? '1' : '0'); } catch {}
+  if (save)
+    try {
+      localStorage.setItem(EXACT_KEY, on ? '1' : '0');
+    } catch {}
   clearInterval(exactTimer);
   exactTimer = undefined;
   if (on && !demo) {
@@ -82,7 +85,10 @@ export function setExact(on: boolean, { save = true } = {}) {
 
 export function setCodexExact(on: boolean, { save = true } = {}) {
   useLimits.setState({ codexExactOn: on });
-  if (save) try { localStorage.setItem(CODEX_EXACT_KEY, on ? '1' : '0'); } catch {}
+  if (save)
+    try {
+      localStorage.setItem(CODEX_EXACT_KEY, on ? '1' : '0');
+    } catch {}
   clearInterval(codexTimer);
   codexTimer = undefined;
   if (on && !demo) {

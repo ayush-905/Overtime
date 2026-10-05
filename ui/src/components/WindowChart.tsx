@@ -26,7 +26,13 @@ export function WindowChart({ c, height = 190 }: { c: Model; height?: number }) 
   const dot = (Math.min(c.nowValue, top) / top) * 100;
   const tone = c.level === 'crit' ? 'var(--bad-fill)' : c.level === 'warn' ? 'var(--warn-fill)' : 'var(--claude)';
   const gridline = (bottom: number, label: string, strong?: boolean) => (
-    <div className={cx('pointer-events-none absolute inset-x-0 border-t', strong ? 'border-line-strong' : 'border-dashed border-line')} style={{ bottom: `${bottom}%` }}>
+    <div
+      className={cx(
+        'pointer-events-none absolute inset-x-0 border-t',
+        strong ? 'border-line-strong' : 'border-dashed border-line',
+      )}
+      style={{ bottom: `${bottom}%` }}
+    >
       <span className="absolute -top-2.5 right-0 bg-card pl-1 text-[10px] leading-none text-muted">{label}</span>
     </div>
   );
@@ -41,16 +47,45 @@ export function WindowChart({ c, height = 190 }: { c: Model; height?: number }) 
         ) : (
           gridline((c.total / top) * 100, `≈ ${money(c.total)}`)
         )}
-        <svg viewBox={`0 0 1000 ${H}`} preserveAspectRatio="none" className="absolute inset-0 size-full overflow-visible" aria-hidden>
+        <svg
+          viewBox={`0 0 1000 ${H}`}
+          preserveAspectRatio="none"
+          className="absolute inset-0 size-full overflow-visible"
+          aria-hidden
+        >
           <path d={area} fill={tone} opacity={0.16} />
-          <path d={line} fill="none" stroke={tone} strokeWidth={2} vectorEffect="non-scaling-stroke" strokeLinejoin="round" />
-          {proj && <path d={proj} fill="none" stroke={tone} strokeWidth={2} strokeDasharray="5 4" vectorEffect="non-scaling-stroke" opacity={0.8} />}
+          <path
+            d={line}
+            fill="none"
+            stroke={tone}
+            strokeWidth={2}
+            vectorEffect="non-scaling-stroke"
+            strokeLinejoin="round"
+          />
+          {proj && (
+            <path
+              d={proj}
+              fill="none"
+              stroke={tone}
+              strokeWidth={2}
+              strokeDasharray="5 4"
+              vectorEffect="non-scaling-stroke"
+              opacity={0.8}
+            />
+          )}
         </svg>
         <i className="absolute inset-y-0 w-px bg-line-strong" style={{ left: `${leftPct.toFixed(2)}%` }} />
-        <i className="absolute size-2.5 -translate-x-1/2 translate-y-1/2 rounded-full border-2 border-card" style={{ left: `${leftPct.toFixed(2)}%`, bottom: `${dot.toFixed(2)}%`, background: tone }} />
+        <i
+          className="absolute size-2.5 -translate-x-1/2 translate-y-1/2 rounded-full border-2 border-card"
+          style={{ left: `${leftPct.toFixed(2)}%`, bottom: `${dot.toFixed(2)}%`, background: tone }}
+        />
         <div className="absolute inset-0 flex">
           {c.cols.map((col) => (
-            <span key={col.a} data-tip={col.tip || undefined} className={cx('h-full flex-1', col.tip && 'hover:bg-ink/[0.04]')} />
+            <span
+              key={col.a}
+              data-tip={col.tip || undefined}
+              className={cx('h-full flex-1', col.tip && 'hover:bg-ink/[0.04]')}
+            />
           ))}
         </div>
       </div>

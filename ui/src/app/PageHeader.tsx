@@ -21,7 +21,11 @@ function Steps() {
       onClick={dir === 'back' ? goBack : goForward}
       className="grid size-7 place-items-center rounded-[7px] text-muted hover:bg-[color-mix(in_srgb,var(--ink)_8%,transparent)] hover:text-ink disabled:opacity-30 disabled:hover:bg-transparent"
     >
-      {dir === 'back' ? <ChevronLeft size={17} strokeWidth={2.1} aria-hidden /> : <ChevronRight size={17} strokeWidth={2.1} aria-hidden />}
+      {dir === 'back' ? (
+        <ChevronLeft size={17} strokeWidth={2.1} aria-hidden />
+      ) : (
+        <ChevronRight size={17} strokeWidth={2.1} aria-hidden />
+      )}
     </button>
   );
   return (
@@ -32,7 +36,17 @@ function Steps() {
   );
 }
 
-export function PageHeader({ title, sub, tools, id }: { title: string; sub?: ReactNode; tools?: ReactNode; id?: string }) {
+export function PageHeader({
+  title,
+  sub,
+  tools,
+  id,
+}: {
+  title: string;
+  sub?: ReactNode;
+  tools?: ReactNode;
+  id?: string;
+}) {
   return (
     <header className="flex flex-wrap items-center gap-x-3.5 gap-y-3">
       <div className="flex min-w-0 items-center gap-2.5">

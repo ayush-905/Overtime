@@ -9,8 +9,15 @@ const KEY = 'overtime-plans';
 
 /** Monthly prices in US dollars, as listed when this was written; any amount works. */
 export const PLAN_PRESETS: Record<'claude' | 'codex', [string, string, number][]> = {
-  claude: [['pro', 'Pro', 20], ['max5', 'Max 5×', 100], ['max20', 'Max 20×', 200]],
-  codex: [['plus', 'ChatGPT Plus', 20], ['pro', 'ChatGPT Pro', 200]],
+  claude: [
+    ['pro', 'Pro', 20],
+    ['max5', 'Max 5×', 100],
+    ['max20', 'Max 20×', 200],
+  ],
+  codex: [
+    ['plus', 'ChatGPT Plus', 20],
+    ['pro', 'ChatGPT Pro', 200],
+  ],
 };
 
 export type Plan = { usd: number; plan: string };
@@ -19,7 +26,8 @@ export const plans: Record<'claude' | 'codex', Plan | null> = { claude: null, co
 function load() {
   try {
     const saved = JSON.parse(localStorage.getItem(KEY) || '{}') || {};
-    for (const p of ['claude', 'codex'] as const) plans[p] = saved[p]?.usd > 0 ? { usd: Number(saved[p].usd), plan: String(saved[p].plan || 'custom') } : null;
+    for (const p of ['claude', 'codex'] as const)
+      plans[p] = saved[p]?.usd > 0 ? { usd: Number(saved[p].usd), plan: String(saved[p].plan || 'custom') } : null;
   } catch {}
 }
 load();
@@ -62,7 +70,13 @@ export function monthOf(spend: ProviderSpend, now: number) {
   return { cost: m.cost, partial: m.partial, projected: m.cost + pace * left, lastDay: end.getTime() - DAY, left };
 }
 
-export type PlanBlock = { provider: 'claude' | 'codex'; p: Plan; ratio: number | null; last30: number | null; mo: ReturnType<typeof monthOf> };
+export type PlanBlock = {
+  provider: 'claude' | 'codex';
+  p: Plan;
+  ratio: number | null;
+  last30: number | null;
+  mo: ReturnType<typeof monthOf>;
+};
 
 export function planBlock(provider: 'claude' | 'codex', spend: ProviderSpend, now: number): PlanBlock {
   const p = plans[provider]!;
@@ -80,9 +94,12 @@ export function planInsight(blocks: PlanBlock[], name: (p: string) => string) {
   }
   const top = [...blocks].sort((a, b) => (b.ratio || 0) - (a.ratio || 0))[0];
   let tip = '';
-  if (top.ratio != null && top.ratio >= 1.2) tip = `At API prices, the last 30 days would have cost ≈ ${money(top.last30! - top.p.usd)} more than your ${name(top.provider)} plan.`;
-  else if (top.ratio != null && top.ratio < 1) tip = `You used less than your plan's price at API rates (≈ ${money(top.last30)} of ${money(top.p.usd)}). A smaller plan, or paying per token, could cost less.`;
+  if (top.ratio != null && top.ratio >= 1.2)
+    tip = `At API prices, the last 30 days would have cost ≈ ${money(top.last30! - top.p.usd)} more than your ${name(top.provider)} plan.`;
+  else if (top.ratio != null && top.ratio < 1)
+    tip = `You used less than your plan's price at API rates (≈ ${money(top.last30)} of ${money(top.p.usd)}). A smaller plan, or paying per token, could cost less.`;
   const pace = blocks.find((b) => b.mo && b.mo.projected > b.p.usd * 5 && b.mo.left > 3);
-  if (!tip && pace) tip = `At your pace this month, ${name(pace.provider)} usage lands around ${times(pace.mo!.projected / pace.p.usd)} your plan.`;
+  if (!tip && pace)
+    tip = `At your pace this month, ${name(pace.provider)} usage lands around ${times(pace.mo!.projected / pace.p.usd)} your plan.`;
   return { together, tip };
 }

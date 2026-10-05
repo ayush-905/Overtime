@@ -42,9 +42,18 @@ export function ExpandDialog({ cards }: { cards: Record<string, { name: string; 
   const c = card ? cards[card] : null;
   if (!c) return null;
   return (
-    <Dialog open onOpenChange={(open) => !open && set(null)} title={c.name} wide bare className="max-w-[1200px] bg-card">
+    <Dialog
+      open
+      onOpenChange={(open) => !open && set(null)}
+      title={c.name}
+      wide
+      bare
+      className="max-w-[1200px] bg-card"
+    >
       {/* The card is the dialog: no second border, and its tools clear the close button. */}
-      <div className="[&>section]:rounded-none [&>section]:border-0 [&>section]:shadow-none [&>section>header:first-child]:pr-10">{c.render()}</div>
+      <div className="[&>section]:rounded-none [&>section]:border-0 [&>section]:shadow-none [&>section>header:first-child]:pr-10">
+        {c.render()}
+      </div>
     </Dialog>
   );
 }

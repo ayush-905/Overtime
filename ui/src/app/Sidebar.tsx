@@ -6,7 +6,16 @@
 // dragging comes with SortableSections.tsx, which loads once the page is up
 // (later.tsx); until then the sections are plain links, and Alt+↑/↓ works on them.
 
-import { forwardRef, useLayoutEffect, useMemo, useRef, type AnchorHTMLAttributes, type KeyboardEvent, type PointerEvent, type ReactNode } from 'react';
+import {
+  forwardRef,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  type AnchorHTMLAttributes,
+  type KeyboardEvent,
+  type PointerEvent,
+  type ReactNode,
+} from 'react';
 import { Search } from 'lucide-react';
 import logo from '@/assets/favicon.svg';
 import { GROUPS, TITLES, groupOf, moveSection, type Page } from '@/lib/nav';
@@ -26,7 +35,10 @@ import { later } from './later';
 
 type LinkProps = { page: Page; folded: boolean; dragging?: boolean } & AnchorHTMLAttributes<HTMLAnchorElement>;
 
-export const NavLink = forwardRef<HTMLAnchorElement, LinkProps>(function NavLink({ page, folded, dragging, className, style, ...rest }, ref) {
+export const NavLink = forwardRef<HTMLAnchorElement, LinkProps>(function NavLink(
+  { page, folded, dragging, className, style, ...rest },
+  ref,
+) {
   const current = useRoute((s) => s.page) === page;
   const Icon = ICONS[page];
   return (
@@ -64,13 +76,25 @@ export const moveKeys = (page: Page) => (e: KeyboardEvent<HTMLAnchorElement>) =>
 };
 
 /** The sections in their groups, each drawn by `item`. */
-export function SectionList({ shown, folded, item }: { shown: Page[]; folded: boolean; item: (page: Page) => ReactNode }) {
+export function SectionList({
+  shown,
+  folded,
+  item,
+}: {
+  shown: Page[];
+  folded: boolean;
+  item: (page: Page) => ReactNode;
+}) {
   return shown.map((page, i) => {
     const group = GROUPS[page];
     const heading = group && group !== groupOf(shown[i - 1] || '') ? group : null;
     return (
       <div key={page} className="relative flex shrink-0 flex-col">
-        {heading && !folded && <span className="px-2.5 pb-1 pt-3.5 text-group font-semibold uppercase tracking-[0.06em] text-muted">{heading}</span>}
+        {heading && !folded && (
+          <span className="px-2.5 pb-1 pt-3.5 text-group font-semibold uppercase tracking-[0.06em] text-muted">
+            {heading}
+          </span>
+        )}
         {heading && folded && <span className="mx-auto my-2 h-px w-5 bg-line" aria-hidden />}
         {item(page)}
       </div>
@@ -94,10 +118,19 @@ function PlainSections({ shown, folded }: { shown: Page[]; folded: boolean }) {
   useLayoutEffect(() => {
     focused = null;
     return () => {
-      if (!folded) focused = (document.activeElement as HTMLElement | null)?.closest?.(`${LIST} a`)?.getAttribute('href') || null;
+      if (!folded)
+        focused = (document.activeElement as HTMLElement | null)?.closest?.(`${LIST} a`)?.getAttribute('href') || null;
     };
   }, [folded]);
-  return <SectionList shown={shown} folded={folded} item={(page) => (folded ? <NavLink page={page} folded /> : <NavLink page={page} folded={false} onKeyDown={moveKeys(page)} />)} />;
+  return (
+    <SectionList
+      shown={shown}
+      folded={folded}
+      item={(page) =>
+        folded ? <NavLink page={page} folded /> : <NavLink page={page} folded={false} onKeyDown={moveKeys(page)} />
+      }
+    />
+  );
 }
 
 const SortableSections = later(() => import('./SortableSections').then((m) => m.SortableSections), PlainSections);
@@ -105,10 +138,13 @@ const SortableSections = later(() => import('./SortableSections').then((m) => m.
 /** The provider filter: all of them, or one on its own. */
 function useProviders(): [Provider, string, string][] {
   const sources = useSources();
-  return useMemo(() => [
-    ['all', 'All', `${andList(sources.map((s) => SOURCE[s].name))} together`],
-    ...sources.map((s): [Provider, string, string] => [s, SOURCE[s].short, `${SOURCE[s].name} only`]),
-  ], [sources]);
+  return useMemo(
+    () => [
+      ['all', 'All', `${andList(sources.map((s) => SOURCE[s].name))} together`],
+      ...sources.map((s): [Provider, string, string] => [s, SOURCE[s].short, `${SOURCE[s].name} only`]),
+    ],
+    [sources],
+  );
 }
 
 function ProviderSwitch({ folded }: { folded: boolean }) {
@@ -119,17 +155,29 @@ function ProviderSwitch({ folded }: { folded: boolean }) {
   if (PROVIDERS.length < 3) return null;
   if (folded) {
     // Folded, it shows the provider in view; a click moves to the next.
-    const i = Math.max(0, PROVIDERS.findIndex(([p]) => p === provider));
+    const i = Math.max(
+      0,
+      PROVIDERS.findIndex(([p]) => p === provider),
+    );
     const [, label, tip] = PROVIDERS[i];
     const next = PROVIDERS[(i + 1) % PROVIDERS.length];
     return (
-      <button type="button" onClick={() => setProvider(next[0])} data-tip={`Showing: ${tip}. Click for ${next[2].toLowerCase()}.`} className="h-7 rounded-[7px] bg-sunken text-label font-semibold">
+      <button
+        type="button"
+        onClick={() => setProvider(next[0])}
+        data-tip={`Showing: ${tip}. Click for ${next[2].toLowerCase()}.`}
+        className="h-7 rounded-[7px] bg-sunken text-label font-semibold"
+      >
         {label}
       </button>
     );
   }
   return (
-    <div role="group" aria-label="Provider" className="grid auto-cols-fr grid-flow-col gap-0.5 rounded-[9px] bg-sunken p-[3px]">
+    <div
+      role="group"
+      aria-label="Provider"
+      className="grid auto-cols-fr grid-flow-col gap-0.5 rounded-[9px] bg-sunken p-[3px]"
+    >
       {PROVIDERS.map(([p, label, tip]) => (
         <button
           key={p}
@@ -137,7 +185,10 @@ function ProviderSwitch({ folded }: { folded: boolean }) {
           aria-pressed={provider === p}
           data-tip={tip}
           onClick={() => setProvider(p)}
-          className={cx('h-7 rounded-[7px] text-detail', provider === p ? 'bg-card font-semibold text-ink shadow-card' : 'text-muted hover:text-ink')}
+          className={cx(
+            'h-7 rounded-[7px] text-detail',
+            provider === p ? 'bg-card font-semibold text-ink shadow-card' : 'text-muted hover:text-ink',
+          )}
         >
           {label}
         </button>
@@ -218,7 +269,13 @@ export function Sidebar() {
       className="sticky top-0 flex h-dvh shrink-0 flex-col gap-4 border-r border-line bg-side px-3.5 pb-4 pt-5"
       style={{ width: folded ? 'var(--rail-w)' : 'var(--side-w)', paddingInline: folded ? 10 : undefined }}
     >
-      <a href={pageLink('overview')} className={cx('flex shrink-0 items-center gap-2.5 px-1.5 text-ink no-underline', folded && 'justify-center px-0')}>
+      <a
+        href={pageLink('overview')}
+        className={cx(
+          'flex shrink-0 items-center gap-2.5 px-1.5 text-ink no-underline',
+          folded && 'justify-center px-0',
+        )}
+      >
         <img src={logo} alt="" width={28} height={28} className="size-7 rounded-[7px]" />
         {!folded && <span className="text-[15px] font-bold tracking-[-0.01em]">Overtime</span>}
       </a>
@@ -228,7 +285,10 @@ export function Sidebar() {
         aria-keyshortcuts="Meta+K Control+K"
         data-tip={folded ? `Search (${MOD}K)` : undefined}
         aria-label="Search"
-        className={cx('flex h-[34px] shrink-0 items-center gap-2 rounded-[9px] border border-line bg-card px-2.5 text-detail text-muted', folded && 'justify-center px-0')}
+        className={cx(
+          'flex h-[34px] shrink-0 items-center gap-2 rounded-[9px] border border-line bg-card px-2.5 text-detail text-muted',
+          folded && 'justify-center px-0',
+        )}
       >
         <Search size={16} strokeWidth={1.8} aria-hidden />
         {!folded && (

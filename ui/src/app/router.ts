@@ -46,7 +46,8 @@ export const useRoute = create<RouteState>((set) => ({
   sessionHandled: () => set({ session: null }),
 }));
 
-const isPage = (p: string): p is RoutePage => (PAGES as readonly string[]).includes(p) || (HIDDEN_PAGES as readonly string[]).includes(p);
+const isPage = (p: string): p is RoutePage =>
+  (PAGES as readonly string[]).includes(p) || (HIDDEN_PAGES as readonly string[]).includes(p);
 
 function route() {
   const hash = location.hash.replace('#', '');
@@ -69,7 +70,10 @@ function show(page: RoutePage, params: Params) {
   const was = useRoute.getState().page;
   env.page = page;
   useRoute.setState({ page, params });
-  if (MAIN && page !== 'parts') try { localStorage.setItem(PAGE_KEY, page); } catch {}
+  if (MAIN && page !== 'parts')
+    try {
+      localStorage.setItem(PAGE_KEY, page);
+    } catch {}
   if (page !== was) window.scrollTo(0, 0);
 }
 

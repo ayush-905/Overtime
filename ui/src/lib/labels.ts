@@ -18,7 +18,11 @@ let notes: Record<string, string> = {};
 let tags: Record<string, string[]> = {};
 
 function read<T>(key: string, fallback: T): T {
-  try { return (JSON.parse(localStorage.getItem(key) || 'null') as T) ?? fallback; } catch { return fallback; }
+  try {
+    return (JSON.parse(localStorage.getItem(key) || 'null') as T) ?? fallback;
+  } catch {
+    return fallback;
+  }
 }
 
 export function loadLabels() {
@@ -38,7 +42,8 @@ function save(key: string, value: unknown, empty = false) {
 
 // A title made from your first message reads better without the greeting.
 // A greeting only counts when it's clearly one: followed by a comma, a name, or the request itself.
-const GREETING = /^(?:hi+|hey+|hello|yo|hiya)(?:\s*[,!.]+|\s+(?:bro|there|claude|codex|pi|buddy|man|team)\b[\s,!.]*|(?=\s+(?:i|i'm|im|so|can|could|would|please|kindly|pls|we|need|let's|lets)\b))\s*/i;
+const GREETING =
+  /^(?:hi+|hey+|hello|yo|hiya)(?:\s*[,!.]+|\s+(?:bro|there|claude|codex|pi|buddy|man|team)\b[\s,!.]*|(?=\s+(?:i|i'm|im|so|can|could|would|please|kindly|pls|we|need|let's|lets)\b))\s*/i;
 const ASKING = /^(?:(?:can|could|would|will) you\s+(?:please\s+|kindly\s+|pls\s+)?|(?:please|kindly|pls)\s+)/i;
 
 /** A title without "hi bro", "can you please" and the like in front, when enough is left. */
@@ -60,7 +65,10 @@ export const isPinned = (id: string) => pins.has(id);
 
 /** Give a session a name, or clear it with an empty one. */
 export function rename(id: string, name: string) {
-  const clean = String(name || '').replace(/\s+/g, ' ').trim().slice(0, 120);
+  const clean = String(name || '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 120);
   if (clean) names[id] = clean;
   else delete names[id];
   save(NAMES_KEY, names);
@@ -78,7 +86,11 @@ export const noteFor = (id: string | null | undefined) => (id && notes[id]) || '
 
 /** Write a note on a session, or clear it with an empty one. */
 export function setNote(id: string, text: string) {
-  const clean = String(text || '').replace(/\r/g, '').replace(/[ \t]+$/gm, '').trim().slice(0, MAX_NOTE);
+  const clean = String(text || '')
+    .replace(/\r/g, '')
+    .replace(/[ \t]+$/gm, '')
+    .trim()
+    .slice(0, MAX_NOTE);
   if (clean === noteFor(id)) return;
   if (clean) notes[id] = clean;
   else delete notes[id];
@@ -89,7 +101,12 @@ export function setNote(id: string, text: string) {
 export const tagsFor = (id: string | null | undefined) => (id && tags[id]) || [];
 
 /** A tag as it's kept: a short label, no commas, spaces tidied. */
-export const cleanTag = (tag: string) => String(tag || '').replace(/[,#]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 24);
+export const cleanTag = (tag: string) =>
+  String(tag || '')
+    .replace(/[,#]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 24);
 
 /** Every tag you've used, the most used first, with how many sessions have it. */
 export function allTags(): [string, number][] {
@@ -115,4 +132,5 @@ export function setTags(id: string, list: string[]) {
   changed('labels');
 }
 
-export const hasTag = (id: string, tag: string) => tagsFor(id).some((t) => t.toLowerCase() === String(tag).toLowerCase());
+export const hasTag = (id: string, tag: string) =>
+  tagsFor(id).some((t) => t.toLowerCase() === String(tag).toLowerCase());

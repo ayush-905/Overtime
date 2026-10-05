@@ -66,7 +66,8 @@ export function useSteps() {
   );
 }
 
-export const stepTip = (dir: 'back' | 'forward', to: Page | null) => (to ? `${dir === 'back' ? 'Back to' : 'Forward to'} ${TITLES[to]} (⌘${dir === 'back' ? '[' : ']'})` : '');
+export const stepTip = (dir: 'back' | 'forward', to: Page | null) =>
+  to ? `${dir === 'back' ? 'Back to' : 'Forward to'} ${TITLES[to]} (⌘${dir === 'back' ? '[' : ']'})` : '';
 
 /** Only the Mac app has the arrows and shortcuts; a browser has its own. `close` shuts what's over the page and says whether there was anything. */
 export function startBack(close: () => boolean) {

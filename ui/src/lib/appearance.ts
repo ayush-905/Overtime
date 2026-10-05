@@ -17,25 +17,78 @@ export type Palette = { theme: string; accent?: string; chart?: string };
 
 /** The presets. Classic is how the dashboard has always looked. */
 export const THEMES: Theme[] = [
-  { id: 'classic', name: 'Classic', light: { accent: '#c8671d', chart: '#2a78d6', side: '#ebe6db' }, dark: { accent: '#f0a35e', chart: '#3987e5', side: '#111316' } },
-  { id: 'aubergine', name: 'Aubergine', light: { accent: '#b0306a', chart: '#6b3fa0', side: '#ece3ee' }, dark: { accent: '#f06ea9', chart: '#b18ae6', side: '#1b1320' } },
-  { id: 'ocean', name: 'Ocean', light: { accent: '#0e7490', chart: '#2563eb', side: '#e3ebf0' }, dark: { accent: '#22c3e6', chart: '#60a5fa', side: '#0e161c' } },
-  { id: 'forest', name: 'Forest', light: { accent: '#9a3412', chart: '#15803d', side: '#e5ebe1' }, dark: { accent: '#fb923c', chart: '#4ade80', side: '#101a12' } },
-  { id: 'sunset', name: 'Sunset', light: { accent: '#ea580c', chart: '#c026d3', side: '#f3e6e0' }, dark: { accent: '#fb923c', chart: '#e879f9', side: '#1c1412' } },
-  { id: 'graphite', name: 'Graphite', light: { accent: '#1f2937', chart: '#475569', side: '#e6e6e3' }, dark: { accent: '#f3f4f6', chart: '#cbd5e1', side: '#121314' } },
-  { id: 'clear', name: 'Colour-blind safe', note: 'Vermillion and blue, which stay apart for most kinds of colour blindness', light: { accent: '#d55e00', chart: '#0072b2', side: '#ebe6db' }, dark: { accent: '#f28b3c', chart: '#56b4e9', side: '#111316' } },
+  {
+    id: 'classic',
+    name: 'Classic',
+    light: { accent: '#c8671d', chart: '#2a78d6', side: '#ebe6db' },
+    dark: { accent: '#f0a35e', chart: '#3987e5', side: '#111316' },
+  },
+  {
+    id: 'aubergine',
+    name: 'Aubergine',
+    light: { accent: '#b0306a', chart: '#6b3fa0', side: '#ece3ee' },
+    dark: { accent: '#f06ea9', chart: '#b18ae6', side: '#1b1320' },
+  },
+  {
+    id: 'ocean',
+    name: 'Ocean',
+    light: { accent: '#0e7490', chart: '#2563eb', side: '#e3ebf0' },
+    dark: { accent: '#22c3e6', chart: '#60a5fa', side: '#0e161c' },
+  },
+  {
+    id: 'forest',
+    name: 'Forest',
+    light: { accent: '#9a3412', chart: '#15803d', side: '#e5ebe1' },
+    dark: { accent: '#fb923c', chart: '#4ade80', side: '#101a12' },
+  },
+  {
+    id: 'sunset',
+    name: 'Sunset',
+    light: { accent: '#ea580c', chart: '#c026d3', side: '#f3e6e0' },
+    dark: { accent: '#fb923c', chart: '#e879f9', side: '#1c1412' },
+  },
+  {
+    id: 'graphite',
+    name: 'Graphite',
+    light: { accent: '#1f2937', chart: '#475569', side: '#e6e6e3' },
+    dark: { accent: '#f3f4f6', chart: '#cbd5e1', side: '#121314' },
+  },
+  {
+    id: 'clear',
+    name: 'Colour-blind safe',
+    note: 'Vermillion and blue, which stay apart for most kinds of colour blindness',
+    light: { accent: '#d55e00', chart: '#0072b2', side: '#ebe6db' },
+    dark: { accent: '#f28b3c', chart: '#56b4e9', side: '#111316' },
+  },
 ];
 
 /** What Custom picks from: no red, green or amber, which mean something already. */
 export const SWATCHES: [string, string][] = [
-  ['#4f46e5', 'Indigo'], ['#2563eb', 'Blue'], ['#0284c7', 'Sky'], ['#0e7490', 'Cyan'], ['#0d9488', 'Teal'],
-  ['#7c3aed', 'Violet'], ['#9333ea', 'Purple'], ['#c026d3', 'Fuchsia'], ['#db2777', 'Pink'], ['#c2410c', 'Rust'],
-  ['#475569', 'Slate'], ['#1f2937', 'Ink'],
+  ['#4f46e5', 'Indigo'],
+  ['#2563eb', 'Blue'],
+  ['#0284c7', 'Sky'],
+  ['#0e7490', 'Cyan'],
+  ['#0d9488', 'Teal'],
+  ['#7c3aed', 'Violet'],
+  ['#9333ea', 'Purple'],
+  ['#c026d3', 'Fuchsia'],
+  ['#db2777', 'Pink'],
+  ['#c2410c', 'Rust'],
+  ['#475569', 'Slate'],
+  ['#1f2937', 'Ink'],
 ];
 const ROLES = ['accent', 'chart'] as const;
 
-export const TEXT_SIZES: [string, string][] = [['small', 'Small'], ['default', 'Default'], ['large', 'Large'], ['larger', 'Larger']];
-export const DENSITIES: [string, string][] = [['comfortable', 'Comfortable'], ['compact', 'Compact']];
+export const TEXT_SIZES: [string, string][] = [
+  ['small', 'Small'],
+  ['default', 'Default'],
+  ['large', 'Large'],
+  ['larger', 'Larger'],
+];
+export const DENSITIES: [string, string][] = [
+  ['comfortable', 'Comfortable'],
+  ['compact', 'Compact'],
+];
 const DEFAULTS = { text: 'default', density: 'comfortable' } as const;
 const ALLOWED = { text: TEXT_SIZES.map((t) => t[0]), density: DENSITIES.map((d) => d[0]) };
 
@@ -44,7 +97,14 @@ const current = { text: 'default', density: 'comfortable', palette: { theme: 'cl
 // ── Colour sums ──────────────────────────────────────────────────────────────
 
 const rgb = (hex: string) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
-const hex = (c: number[]) => `#${c.map((v) => Math.round(Math.max(0, Math.min(255, v))).toString(16).padStart(2, '0')).join('')}`;
+const hex = (c: number[]) =>
+  `#${c
+    .map((v) =>
+      Math.round(Math.max(0, Math.min(255, v)))
+        .toString(16)
+        .padStart(2, '0'),
+    )
+    .join('')}`;
 const mix = (a: string, b: string, t: number) => hex(rgb(a).map((v, i) => v + (rgb(b)[i] - v) * t));
 
 function luminance(color: string) {
@@ -71,16 +131,24 @@ export function resolve(palette: Palette): Record<string, string> {
   if (palette.theme === 'custom') {
     const base = THEMES[0];
     light = { accent: palette.accent!, chart: palette.chart!, side: mix(base.light.side, palette.accent!, 0.07) };
-    dark = { accent: forDark(palette.accent!), chart: forDark(palette.chart!), side: mix(base.dark.side, palette.accent!, 0.08) };
+    dark = {
+      accent: forDark(palette.accent!),
+      chart: forDark(palette.chart!),
+      side: mix(base.dark.side, palette.accent!, 0.08),
+    };
   } else {
     const t = THEMES.find((x) => x.id === palette.theme) || THEMES[0];
     ({ light, dark } = t);
   }
   return {
-    '--p-accent': light.accent, '--p-accent-d': dark.accent,
-    '--p-on-accent': textOn(light.accent), '--p-on-accent-d': textOn(dark.accent),
-    '--p-chart': light.chart, '--p-chart-d': dark.chart,
-    '--p-side': light.side, '--p-side-d': dark.side,
+    '--p-accent': light.accent,
+    '--p-accent-d': dark.accent,
+    '--p-on-accent': textOn(light.accent),
+    '--p-on-accent-d': textOn(dark.accent),
+    '--p-chart': light.chart,
+    '--p-chart-d': dark.chart,
+    '--p-side': light.side,
+    '--p-side-d': dark.side,
   };
 }
 
@@ -91,12 +159,17 @@ const isColor = (c: unknown) => typeof c === 'string' && /^#[0-9a-f]{6}$/i.test(
 export function loadAppearance() {
   for (const what of ['text', 'density'] as const) {
     let v: string | null = null;
-    try { v = localStorage.getItem(KEYS[what]); } catch {}
+    try {
+      v = localStorage.getItem(KEYS[what]);
+    } catch {}
     current[what] = v && ALLOWED[what].includes(v) ? v : DEFAULTS[what];
   }
   let saved: Palette | null = null;
-  try { saved = JSON.parse(localStorage.getItem(KEYS.palette) || 'null'); } catch {}
-  if (saved?.theme === 'custom' && isColor(saved.accent) && isColor(saved.chart)) current.palette = { theme: 'custom', accent: saved.accent, chart: saved.chart };
+  try {
+    saved = JSON.parse(localStorage.getItem(KEYS.palette) || 'null');
+  } catch {}
+  if (saved?.theme === 'custom' && isColor(saved.accent) && isColor(saved.chart))
+    current.palette = { theme: 'custom', accent: saved.accent, chart: saved.chart };
   else if (THEMES.some((t) => t.id === saved?.theme)) current.palette = { theme: saved!.theme };
   else current.palette = { theme: 'classic' };
 }
@@ -125,7 +198,8 @@ export function applyAppearance() {
   }
 }
 
-export const appearance = (what: 'text' | 'density' | 'palette') => (what === 'palette' ? current.palette.theme : current[what]);
+export const appearance = (what: 'text' | 'density' | 'palette') =>
+  what === 'palette' ? current.palette.theme : current[what];
 export const palette = () => ({ ...current.palette });
 
 /** Change the text size or density, and save it; the default is saved as nothing at all. */

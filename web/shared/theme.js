@@ -12,7 +12,8 @@ function apply(choice) {
   current = choice === 'light' || choice === 'dark' ? choice : 'auto';
   if (current === 'auto') delete document.documentElement.dataset.theme;
   else document.documentElement.dataset.theme = current;
-  for (const b of buttons?.querySelectorAll('[data-theme-choice]') || []) b.setAttribute('aria-pressed', String(b.dataset.themeChoice === current));
+  for (const b of buttons?.querySelectorAll('[data-theme-choice]') || [])
+    b.setAttribute('aria-pressed', String(b.dataset.themeChoice === current));
 }
 
 /** Light, dark or auto (the same as the system), saved. */
@@ -40,7 +41,9 @@ export function toggleTheme() {
 export function initTheme(group) {
   buttons = group;
   let choice = 'auto';
-  try { choice = localStorage.getItem(KEY) || 'auto'; } catch {}
+  try {
+    choice = localStorage.getItem(KEY) || 'auto';
+  } catch {}
   apply(choice);
   group?.addEventListener('click', (e) => {
     const next = e.target.closest('[data-theme-choice]')?.dataset.themeChoice;
@@ -53,5 +56,12 @@ export function initTheme(group) {
 
 /** T, anywhere but a field you're typing in, switches between light and dark. */
 export function isThemeKey(e) {
-  return e.key?.toLowerCase() === 't' && !e.metaKey && !e.ctrlKey && !e.altKey && !e.shiftKey && !e.target.closest?.('input, textarea, select, [contenteditable]');
+  return (
+    e.key?.toLowerCase() === 't' &&
+    !e.metaKey &&
+    !e.ctrlKey &&
+    !e.altKey &&
+    !e.shiftKey &&
+    !e.target.closest?.('input, textarea, select, [contenteditable]')
+  );
 }

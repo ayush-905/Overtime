@@ -15,7 +15,8 @@ import { ProviderMark } from '@/components/Bits';
 import { cx } from '@/components/cx';
 
 const leftOf = (w: QuotaItem) => (w.limited ? 0 : w.usedPercent == null ? null : Math.max(0, 100 - w.usedPercent));
-const valueOf = (w: QuotaItem) => (w.limited ? 'Limit' : w.usedPercent == null ? '—' : `${Math.round(100 - w.usedPercent)}%`);
+const valueOf = (w: QuotaItem) =>
+  w.limited ? 'Limit' : w.usedPercent == null ? '—' : `${Math.round(100 - w.usedPercent)}%`;
 const toneText = { ok: 'text-ink', warn: 'text-warn', bad: 'text-bad' };
 
 function resetOf(w: QuotaItem) {
@@ -46,12 +47,24 @@ export function SideUsage({ folded }: { folded: boolean }) {
   if (provider !== 'all' && !hasPlan(provider)) return null;
 
   if (!items.length) {
-    return <a href={pageLink('usage')} aria-label="Usage left, open Usage" className="shrink-0 rounded-row px-2.5 py-2 text-label text-muted no-underline hover:bg-sunken">{folded ? '—' : 'Usage left · no reading yet'}</a>;
+    return (
+      <a
+        href={pageLink('usage')}
+        aria-label="Usage left, open Usage"
+        className="shrink-0 rounded-row px-2.5 py-2 text-label text-muted no-underline hover:bg-sunken"
+      >
+        {folded ? '—' : 'Usage left · no reading yet'}
+      </a>
+    );
   }
 
   if (folded) {
     return (
-      <a href={pageLink('usage')} aria-label="Usage left, open Usage" className="flex max-h-[32dvh] shrink-0 flex-col items-center gap-2.5 overflow-y-auto rounded-row py-1.5 text-ink no-underline hover:bg-sunken">
+      <a
+        href={pageLink('usage')}
+        aria-label="Usage left, open Usage"
+        className="flex max-h-[32dvh] shrink-0 flex-col items-center gap-2.5 overflow-y-auto rounded-row py-1.5 text-ink no-underline hover:bg-sunken"
+      >
         {list.map(([provider, windows]) => {
           const known = windows.filter((w) => leftOf(w) != null);
           const low = known.length ? known.reduce((a, b) => (leftOf(b)! < leftOf(a)! ? b : a)) : null;
@@ -59,7 +72,9 @@ export function SideUsage({ folded }: { folded: boolean }) {
           return (
             <span key={provider} className="flex flex-col items-center gap-1" data-tip={windows.map(tipOf).join('\n')}>
               <ProviderMark source={provider} size={16} />
-              <b className={cx('text-label tnum', left == null ? 'text-muted' : toneText[toneFor(left)])}>{low ? valueOf(low) : '—'}</b>
+              <b className={cx('text-label tnum', left == null ? 'text-muted' : toneText[toneFor(left)])}>
+                {low ? valueOf(low) : '—'}
+              </b>
             </span>
           );
         })}
@@ -68,20 +83,32 @@ export function SideUsage({ folded }: { folded: boolean }) {
   }
 
   return (
-    <a href={pageLink('usage')} aria-label="Usage left, open Usage" className="flex max-h-[32dvh] shrink-0 flex-col gap-2 overflow-y-auto rounded-row px-2.5 py-2 text-ink no-underline hover:bg-sunken">
+    <a
+      href={pageLink('usage')}
+      aria-label="Usage left, open Usage"
+      className="flex max-h-[32dvh] shrink-0 flex-col gap-2 overflow-y-auto rounded-row px-2.5 py-2 text-ink no-underline hover:bg-sunken"
+    >
       <span className="text-group font-semibold uppercase tracking-[0.06em] text-muted">Usage left</span>
       <span className="grid grid-cols-[14px_auto_minmax(24px,1fr)_auto] items-center gap-x-2 gap-y-2 text-label">
-        {list.flatMap(([, windows]) => windows).map((w) => {
-          const left = leftOf(w);
-          return (
-            <span key={`${w.provider}-${w.id}`} data-tip={tipOf(w)} className={cx('col-span-4 grid grid-cols-subgrid items-center', left == null && 'opacity-70')}>
-              <ProviderMark source={w.provider} size={14} />
-              <span className="truncate text-muted">{w.label}</span>
-              <Meter left={left} size="sm" label={`${providerName(w.provider)} ${w.label.toLowerCase()} left`} />
-              <b className={cx('min-w-[3ch] text-right tnum', left == null ? 'text-muted' : toneText[toneFor(left)])}>{valueOf(w)}</b>
-            </span>
-          );
-        })}
+        {list
+          .flatMap(([, windows]) => windows)
+          .map((w) => {
+            const left = leftOf(w);
+            return (
+              <span
+                key={`${w.provider}-${w.id}`}
+                data-tip={tipOf(w)}
+                className={cx('col-span-4 grid grid-cols-subgrid items-center', left == null && 'opacity-70')}
+              >
+                <ProviderMark source={w.provider} size={14} />
+                <span className="truncate text-muted">{w.label}</span>
+                <Meter left={left} size="sm" label={`${providerName(w.provider)} ${w.label.toLowerCase()} left`} />
+                <b className={cx('min-w-[3ch] text-right tnum', left == null ? 'text-muted' : toneText[toneFor(left)])}>
+                  {valueOf(w)}
+                </b>
+              </span>
+            );
+          })}
       </span>
     </a>
   );

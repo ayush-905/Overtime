@@ -23,11 +23,20 @@ export function KeysDialog() {
   const open = useUi((s) => s.keysOpen);
   const setOpen = useUi((s) => s.setKeysOpen);
   return (
-    <Dialog open={open} onOpenChange={setOpen} title="Keyboard shortcuts" description="Anywhere on the dashboard, except while you're typing">
+    <Dialog
+      open={open}
+      onOpenChange={setOpen}
+      title="Keyboard shortcuts"
+      description="Anywhere on the dashboard, except while you're typing"
+    >
       <dl className="grid gap-2.5">
         {KEYS.map(([keys, what]) => (
           <div key={what} className="grid grid-cols-[120px_minmax(0,1fr)] items-center gap-3">
-            <dt className="flex gap-1">{keys.map((k) => <Kbd key={k}>{k}</Kbd>)}</dt>
+            <dt className="flex gap-1">
+              {keys.map((k) => (
+                <Kbd key={k}>{k}</Kbd>
+              ))}
+            </dt>
             <dd className="text-detail">{what}</dd>
           </div>
         ))}

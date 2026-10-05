@@ -18,12 +18,15 @@
     "app": "electron .",
     "app:build": "npm run build:ui && electron-builder --mac --publish never && rm -rf dist/mac-arm64",
     "app:icons": "node desktop/make-icons.js",
-    "app:release": "npm run build:ui && electron-builder --mac --publish always && rm -rf dist/mac-arm64"
+    "app:release": "npm run build:ui && electron-builder --mac --publish always && rm -rf dist/mac-arm64",
+    "lint": "biome check .",
+    "format": "biome check --write ."
   },
   "engines": {
     "node": ">=18"
   },
   "devDependencies": {
+    "@biomejs/biome": "2.5.15",
     "@dnd-kit/core": "^6.3.1",
     "@dnd-kit/sortable": "^10.0.0",
     "@dnd-kit/utilities": "^3.2.2",

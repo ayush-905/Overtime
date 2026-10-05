@@ -17,7 +17,18 @@ function SortableNavItem({ page }: { page: Page }) {
   const aria: Record<string, unknown> = { ...attributes };
   delete aria.role;
   delete aria.tabIndex;
-  return <NavLink ref={setNodeRef} page={page} folded={false} dragging={isDragging} onKeyDown={moveKeys(page)} {...aria} {...listeners} style={{ transform: CSS.Translate.toString(transform), transition }} />;
+  return (
+    <NavLink
+      ref={setNodeRef}
+      page={page}
+      folded={false}
+      dragging={isDragging}
+      onKeyDown={moveKeys(page)}
+      {...aria}
+      {...listeners}
+      style={{ transform: CSS.Translate.toString(transform), transition }}
+    />
+  );
 }
 
 export function SortableSections({ shown }: { shown: Page[]; folded: boolean }) {

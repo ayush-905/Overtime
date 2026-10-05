@@ -12,7 +12,15 @@ import { useLimits } from '@/data/limits';
 import { demo } from '@/data/api';
 import { env } from '@/lib/env';
 import { quotaItems, type LimitsInput } from '@/lib/limits';
-import { checkDigest, checkLimits, checkNeeds, checkStuck, checkWaiting, readAlertPrefs, type Alert } from '@/lib/alerts';
+import {
+  checkDigest,
+  checkLimits,
+  checkNeeds,
+  checkStuck,
+  checkWaiting,
+  readAlertPrefs,
+  type Alert,
+} from '@/lib/alerts';
 import type { LiveAgent } from '@/lib/agents';
 import { alertNote } from './toasts';
 
@@ -37,7 +45,12 @@ export function chime(notes = [880, 1318.5]) {
   } catch {}
 }
 
-const TONES: Record<Alert['level'], number[]> = { info: [880, 1318.5], warn: [660, 880], crit: [523.25, 659.25, 523.25], good: [880, 1318.5] };
+const TONES: Record<Alert['level'], number[]> = {
+  info: [880, 1318.5],
+  warn: [660, 880],
+  crit: [523.25, 659.25, 523.25],
+  good: [880, 1318.5],
+};
 
 /** Chime, then a note on the page if you're looking at it, or a notification if you're not. */
 export function deliver({ title, body = '', tag, level = 'info' }: Alert) {
@@ -62,7 +75,15 @@ export async function askPermission() {
 function inputNow(): LimitsInput {
   const snap = useLive.getState().snap;
   const l = useLimits.getState();
-  return { now: Date.now() - env.timeOffset, limits: (snap?.limits || null) as LimitsInput['limits'], exactOn: l.exactOn, exact: l.exact as LimitsInput['exact'], codexRecorded: (snap?.codexLimits || null) as LimitsInput['codexRecorded'], codexExactOn: l.codexExactOn, codexExact: l.codexExact as LimitsInput['codexExact'] };
+  return {
+    now: Date.now() - env.timeOffset,
+    limits: (snap?.limits || null) as LimitsInput['limits'],
+    exactOn: l.exactOn,
+    exact: l.exact as LimitsInput['exact'],
+    codexRecorded: (snap?.codexLimits || null) as LimitsInput['codexRecorded'],
+    codexExactOn: l.codexExactOn,
+    codexExact: l.codexExact as LimitsInput['codexExact'],
+  };
 }
 
 /** Run the checks now (after a switch is turned on, or a threshold changes). */

@@ -34,16 +34,21 @@ test('a model the catalog lacks keeps its whole name, and stays unpriced', () =>
   assert.equal(modelName('claude-opus-6-1'), 'Opus 6.1'); // a Claude version the table doesn't list yet
   assert.equal(modelName('unknown'), 'unknown');
   assert.equal(modelName(null), 'unknown');
-  for (const id of ['gemini-2.5-pro', 'claude-opus-6-1', 'gpt-6.2-sol']) assert.equal(usageCost(id, { input_tokens: 1000 }), null, id);
+  for (const id of ['gemini-2.5-pro', 'claude-opus-6-1', 'gpt-6.2-sol'])
+    assert.equal(usageCost(id, { input_tokens: 1000 }), null, id);
 });
 
 test('every row is complete for its pricing rule, and no id belongs to two families', () => {
-  const need = { openai: ['input', 'cacheRead', 'output', 'longFrom'], anthropic: ['input', 'output', 'cacheRead', 'window'] };
+  const need = {
+    openai: ['input', 'cacheRead', 'output', 'longFrom'],
+    anthropic: ['input', 'output', 'cacheRead', 'window'],
+  };
   const keys = new Set();
   for (const family of FAMILIES) {
     for (const row of family.models) {
       assert.ok(row.name, row.key);
-      for (const column of need[family.rule]) assert.ok(Number.isFinite(row[column]) || row[column] === Infinity, `${row.key} ${column}`);
+      for (const column of need[family.rule])
+        assert.ok(Number.isFinite(row[column]) || row[column] === Infinity, `${row.key} ${column}`);
       assert.ok(!keys.has(row.key), row.key);
       keys.add(row.key);
       assert.equal(findModel(row.key)?.row, row, row.key);

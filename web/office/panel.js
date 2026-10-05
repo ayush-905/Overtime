@@ -3,7 +3,19 @@
 
 import { lookFor, portrait } from './office.js';
 import {
-  state, emit, select, setFilter, matchesFilter, serverNow, ago, compact, money, esc, waitLevel, projectHue, projectName,
+  state,
+  emit,
+  select,
+  setFilter,
+  matchesFilter,
+  serverNow,
+  ago,
+  compact,
+  money,
+  esc,
+  waitLevel,
+  projectHue,
+  projectName,
 } from '/shared/state.js';
 
 export const ACTIVITY = [
@@ -19,7 +31,14 @@ export const ACTIVITY = [
 ];
 const ACTIVITY_LABEL = Object.fromEntries(ACTIVITY.map(([k, label]) => [k, label]));
 const ENTRY = { 'claude-desktop': 'Desktop', 'claude-vscode': 'VS Code', cli: 'CLI', codex: 'Codex', pi: 'Pi' };
-const COUNT_ICONS = [['edit', '⌨️', 'edits'], ['read', '📖', 'reads'], ['search', '🔎', 'searches'], ['bash', '💻', 'commands'], ['web', '🌐', 'web'], ['delegate', '📞', 'subagents']];
+const COUNT_ICONS = [
+  ['edit', '⌨️', 'edits'],
+  ['read', '📖', 'reads'],
+  ['search', '🔎', 'searches'],
+  ['bash', '💻', 'commands'],
+  ['web', '🌐', 'web'],
+  ['delegate', '📞', 'subagents'],
+];
 
 let els;
 const portraits = new Map();
@@ -49,19 +68,32 @@ function portraitUrl(a) {
 
 function statusText(a) {
   const tool = a.tool;
-  const action = tool ? (tool.category === 'other' ? `Using ${tool.name}${tool.detail && tool.detail !== tool.name ? ` · ${tool.detail}` : ''}` : `${tool.verb} ${tool.detail || ''}`.trim()) : '';
+  const action = tool
+    ? tool.category === 'other'
+      ? `Using ${tool.name}${tool.detail && tool.detail !== tool.name ? ` · ${tool.detail}` : ''}`
+      : `${tool.verb} ${tool.detail || ''}`.trim()
+    : '';
   switch (a.needsYou) {
-    case 'turn': return a.endReason === 'interrupted' ? '✋ Stopped, waiting for you' : '✅ Done, waiting for you';
-    case 'question': return `❓ Has a question: ${tool?.detail || ''}`;
-    case 'plan': return '📝 Plan ready for your review';
-    case 'approval': return `✋ Probably waiting for your approval · ${action}`;
+    case 'turn':
+      return a.endReason === 'interrupted' ? '✋ Stopped, waiting for you' : '✅ Done, waiting for you';
+    case 'question':
+      return `❓ Has a question: ${tool?.detail || ''}`;
+    case 'plan':
+      return '📝 Plan ready for your review';
+    case 'approval':
+      return `✋ Probably waiting for your approval · ${action}`;
   }
   switch (a.status) {
-    case 'working': return `${tool?.icon || '⚙️'} ${action}`;
-    case 'thinking': return '🤔 Thinking…';
-    case 'replying': return '💬 Writing a reply';
-    case 'done': return '📄 Finished, handing in results';
-    case 'idle': return '💤 Idle';
+    case 'working':
+      return `${tool?.icon || '⚙️'} ${action}`;
+    case 'thinking':
+      return '🤔 Thinking…';
+    case 'replying':
+      return '💬 Writing a reply';
+    case 'done':
+      return '📄 Finished, handing in results';
+    case 'idle':
+      return '💤 Idle';
   }
   return '';
 }
@@ -95,16 +127,20 @@ function timelineHtml(a) {
   if (!cells.some(Boolean)) return '';
   const now = serverNow();
   const size = 3600000 / cells.length;
-  const html = cells.map((s, i) => {
-    const t0 = now - 3600000 + i * size;
-    const tip = s ? `${time(t0)}–${time(t0 + size)} · ${ACTIVITY_LABEL[s] || s}` : `${time(t0)} · nothing yet`;
-    return `<i class="act-${s || 'none'}" data-tip="${esc(tip)}"></i>`;
-  }).join('');
+  const html = cells
+    .map((s, i) => {
+      const t0 = now - 3600000 + i * size;
+      const tip = s ? `${time(t0)}–${time(t0 + size)} · ${ACTIVITY_LABEL[s] || s}` : `${time(t0)} · nothing yet`;
+      return `<i class="act-${s || 'none'}" data-tip="${esc(tip)}"></i>`;
+    })
+    .join('');
   return `<div class="timeline" role="img" aria-label="Activity over the last hour"><div class="tl-cells">${html}</div><div class="tl-axis"><span>1h ago</span><span>now</span></div></div>`;
 }
 
 function countsHtml(counts) {
-  const parts = COUNT_ICONS.filter(([k]) => counts?.[k]).map(([k, icon, label]) => `<span data-tip="${counts[k]} ${label}">${icon} ${counts[k]}</span>`);
+  const parts = COUNT_ICONS.filter(([k]) => counts?.[k]).map(
+    ([k, icon, label]) => `<span data-tip="${counts[k]} ${label}">${icon} ${counts[k]}</span>`,
+  );
   return parts.length ? `<div class="counts">${parts.join('')}</div>` : '';
 }
 
@@ -132,16 +168,23 @@ function detailsHtml(a) {
     </dl>`;
   const snippet = a.snippet ? `<blockquote>${esc(a.snippet)}</blockquote>` : '';
   const recent = a.recent?.length
-    ? `<div class="section"><h3>Recent</h3><ol class="recent">${[...a.recent].reverse().map((r) => `<li><time>${timeSec(r.t)}</time><span>${esc(r.icon)} ${esc(r.text)}</span></li>`).join('')}</ol></div>`
+    ? `<div class="section"><h3>Recent</h3><ol class="recent">${[...a.recent]
+        .reverse()
+        .map((r) => `<li><time>${timeSec(r.t)}</time><span>${esc(r.icon)} ${esc(r.text)}</span></li>`)
+        .join('')}</ol></div>`
     : '';
-  const open = a.cwd && a.project !== 'No folder'
-    ? `<div class="actions"><a href="vscode://file/${esc(encodeURI(a.cwd))}" data-tip="${esc(a.cwd)}">Open folder in VS Code</a></div>`
-    : '';
+  const open =
+    a.cwd && a.project !== 'No folder'
+      ? `<div class="actions"><a href="vscode://file/${esc(encodeURI(a.cwd))}" data-tip="${esc(a.cwd)}">Open folder in VS Code</a></div>`
+      : '';
   return `<div class="details">${totals}${files}${snippet}${recent}${open}</div>`;
 }
 
 function cardHtml(a, subs) {
-  const meta = [a.project && projectName(a.project), a.branch, a.modelName || a.model].filter(Boolean).map(esc).join(' · ');
+  const meta = [a.project && projectName(a.project), a.branch, a.modelName || a.model]
+    .filter(Boolean)
+    .map(esc)
+    .join(' · ');
   const entry = ENTRY[a.entrypoint] || (a.background ? 'Background' : a.entrypoint?.startsWith('sdk') ? 'SDK' : '');
   const selected = a.id === state.selectedId;
   const age = waitLevel(a);
@@ -175,9 +218,16 @@ function renderChips() {
   }
   if (state.filter && !counts.has(state.filter)) counts.set(state.filter, 0);
   const chips = [...counts.entries()].sort((x, y) => y[1] - x[1]);
-  const html = chips.length > 1 || state.filter
-    ? `<button type="button" class="chip${state.filter ? '' : ' on'}" data-project="">All</button>` + chips.map(([name, n]) => `<button type="button" class="chip${state.filter === name ? ' on' : ''}" data-project="${esc(name)}"><i class="pdot" style="--h:${projectHue(name)}"></i>${esc(projectName(name))}<span>${n}</span></button>`).join('')
-    : '';
+  const html =
+    chips.length > 1 || state.filter
+      ? `<button type="button" class="chip${state.filter ? '' : ' on'}" data-project="">All</button>` +
+        chips
+          .map(
+            ([name, n]) =>
+              `<button type="button" class="chip${state.filter === name ? ' on' : ''}" data-project="${esc(name)}"><i class="pdot" style="--h:${projectHue(name)}"></i>${esc(projectName(name))}<span>${n}</span></button>`,
+          )
+          .join('')
+      : '';
   setHtml(els.chips, 'chips', html);
   els.chips.hidden = !html;
 }
@@ -187,21 +237,38 @@ function renderAgents() {
   const mains = list.filter((a) => a.kind === 'main' || !state.agents.has(a.parentId));
   const subsOf = (id) => list.filter((s) => s.kind === 'sub' && s.parentId === id);
   const needs = mains.filter((a) => a.needsYou).sort((x, y) => (sinceFor(x) || 0) - (sinceFor(y) || 0));
-  const working = mains.filter((a) => !a.needsYou && ['thinking', 'working', 'replying', 'done'].includes(a.status)).sort((x, y) => y.lastActivity - x.lastActivity);
+  const working = mains
+    .filter((a) => !a.needsYou && ['thinking', 'working', 'replying', 'done'].includes(a.status))
+    .sort((x, y) => y.lastActivity - x.lastActivity);
   const idle = mains.filter((a) => !needs.includes(a) && !working.includes(a));
-  const group = (title, items, cls = '') => items.length
-    ? `<section class="group ${cls}"><h2>${title}<span class="count">${items.length}</span></h2>${items.map((a) => cardHtml(a, subsOf(a.id))).join('')}</section>`
-    : '';
+  const group = (title, items, cls = '') =>
+    items.length
+      ? `<section class="group ${cls}"><h2>${title}<span class="count">${items.length}</span></h2>${items.map((a) => cardHtml(a, subsOf(a.id))).join('')}</section>`
+      : '';
   const html = group('Needs you', needs, 'group-needs') + group('Working', working) + group('Idle', idle);
-  setHtml(els.list, 'agents', html || `<p class="none">${state.filter ? `No agents in ${esc(state.filter)} right now.` : 'No agents right now. Sessions active in the last 30 minutes show up here.'}</p>`);
+  setHtml(
+    els.list,
+    'agents',
+    html ||
+      `<p class="none">${state.filter ? `No agents in ${esc(state.filter)} right now.` : 'No agents right now. Sessions active in the last 30 minutes show up here.'}</p>`,
+  );
   tickElapsed();
 }
 
 function renderFeed() {
   const items = state.feed.slice(-14).reverse();
-  setHtml(els.feed, 'feed', items.length
-    ? items.map((f) => `<li><time>${timeSec(f.t)}</time><i style="--c: hsl(${(f.seed ?? 0) % 360} 55% 55%)"></i><b>${f.kind === 'sub' ? '🧢 ' : ''}${esc(f.who)}</b><span>${esc(f.icon)} ${esc(f.text)}</span></li>`).join('')
-    : '<li class="none">Nothing yet. Activity shows up here as your agents work.</li>');
+  setHtml(
+    els.feed,
+    'feed',
+    items.length
+      ? items
+          .map(
+            (f) =>
+              `<li><time>${timeSec(f.t)}</time><i style="--c: hsl(${(f.seed ?? 0) % 360} 55% 55%)"></i><b>${f.kind === 'sub' ? '🧢 ' : ''}${esc(f.who)}</b><span>${esc(f.icon)} ${esc(f.text)}</span></li>`,
+          )
+          .join('')
+      : '<li class="none">Nothing yet. Activity shows up here as your agents work.</li>',
+  );
 }
 
 /** Hide status chips, least useful first, until the rest fit beside the name. */
@@ -215,7 +282,10 @@ function fitStatus() {
     const chip = chips.find((c) => c.classList.contains(kind));
     if (chip) chip.hidden = true;
   }
-  el.classList.toggle('bare', chips.every((c) => c.hidden));
+  el.classList.toggle(
+    'bare',
+    chips.every((c) => c.hidden),
+  );
 }
 
 function renderSummary() {
@@ -225,7 +295,9 @@ function renderSummary() {
   // Status chips in the header: who's in and who needs you. Plan limits live on the dashboard.
   const chips = [];
   const people = mains.length ? `${mains.length} agent${mains.length === 1 ? '' : 's'}` : 'Office empty';
-  chips.push(`<span class="chip people"${interns ? ` data-tip="${interns} intern${interns === 1 ? '' : 's'} helping out"` : ''}>${people}${interns ? `<small>+${interns}</small>` : ''}</span>`);
+  chips.push(
+    `<span class="chip people"${interns ? ` data-tip="${interns} intern${interns === 1 ? '' : 's'} helping out"` : ''}>${people}${interns ? `<small>+${interns}</small>` : ''}</span>`,
+  );
   if (needs) chips.push(`<span class="chip hot">${needs} need${needs === 1 ? 's' : ''} you</span>`);
   setHtml(els.summary, 'summary', chips.join(''));
   fitStatus();
@@ -233,7 +305,9 @@ function renderSummary() {
 }
 
 function renderLegend() {
-  els.legend.innerHTML = ACTIVITY.map(([key, label, where]) => `<span><i class="act-${key}"></i>${esc(label)} <em>${esc(where)}</em></span>`).join('');
+  els.legend.innerHTML = ACTIVITY.map(
+    ([key, label, where]) => `<span><i class="act-${key}"></i>${esc(label)} <em>${esc(where)}</em></span>`,
+  ).join('');
 }
 
 /** Update every "how long" counter without re-rendering the cards. */

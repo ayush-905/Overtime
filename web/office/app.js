@@ -11,12 +11,21 @@ import { initPanel, renderPanel, tickElapsed, scrollToCard } from './panel.js';
 const $ = (id) => document.getElementById(id);
 startSettingsSync();
 state.demo = new URLSearchParams(location.search).has('demo');
-try { state.filter = localStorage.getItem('overtime-filter') || null; } catch {}
+try {
+  state.filter = localStorage.getItem('overtime-filter') || null;
+} catch {}
 
 initTooltip($('tip'));
 initTheme($('theme'));
 initFloor({ canvas: $('office'), stage: $('stage'), wrap: $('wrap'), labelsEl: $('labels') });
-initPanel({ chips: $('chips'), list: $('agents'), feed: $('feed'), summary: $('summary'), watching: $('watching'), legend: $('legend') });
+initPanel({
+  chips: $('chips'),
+  list: $('agents'),
+  feed: $('feed'),
+  summary: $('summary'),
+  watching: $('watching'),
+  legend: $('legend'),
+});
 setFloorActive(true);
 
 on('select', (id) => {
@@ -75,12 +84,18 @@ if (state.demo) {
   // The server sends what changed; this keeps the whole picture.
   const merge = createMerger();
   source.onmessage = (e) => {
-    try { applySnapshot(merge(JSON.parse(e.data))); } catch (error) { console.error(error); }
+    try {
+      applySnapshot(merge(JSON.parse(e.data)));
+    } catch (error) {
+      console.error(error);
+    }
   };
 }
 
 const clock = $('clock');
-const paintClock = () => { clock.textContent = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }); };
+const paintClock = () => {
+  clock.textContent = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+};
 paintClock();
 setInterval(() => {
   if (document.hidden) return;

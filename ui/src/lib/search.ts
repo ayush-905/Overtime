@@ -4,7 +4,9 @@
 /** A query as the words (or "quoted phrases") every match must have, as the server reads it. */
 export function queryTerms(q: string | null | undefined) {
   const terms: string[] = [];
-  for (const m of String(q || '').toLowerCase().matchAll(/"([^"]+)"|(\S+)/g)) {
+  for (const m of String(q || '')
+    .toLowerCase()
+    .matchAll(/"([^"]+)"|(\S+)/g)) {
     const term = (m[1] ?? m[2]).trim();
     if (term) terms.push(term);
   }
@@ -18,7 +20,8 @@ export function highlightParts(text: string | null | undefined, terms: string[])
   const lower = t.toLowerCase();
   const marks: [number, number][] = [];
   for (const term of terms) {
-    for (let i = lower.indexOf(term); i !== -1; i = lower.indexOf(term, i + term.length)) marks.push([i, i + term.length]);
+    for (let i = lower.indexOf(term); i !== -1; i = lower.indexOf(term, i + term.length))
+      marks.push([i, i + term.length]);
   }
   marks.sort((a, b) => a[0] - b[0]);
   const out: { text: string; mark: boolean }[] = [];

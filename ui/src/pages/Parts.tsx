@@ -8,13 +8,49 @@ import { Button, IconButton, TextLink } from '@/components/Button';
 import { Seg } from '@/components/Seg';
 import { Figure, Stat, StatRow } from '@/components/Stat';
 import { Meter, toneFor, toneWords } from '@/components/Meter';
-import { Avatar, Empty, Insight, Kbd, LiveDot, Pill, ProjectDot, ProviderMark, Select, Skeleton, TagCount } from '@/components/Bits';
+import {
+  Avatar,
+  Empty,
+  Insight,
+  Kbd,
+  LiveDot,
+  Pill,
+  ProjectDot,
+  ProviderMark,
+  Select,
+  Skeleton,
+  TagCount,
+} from '@/components/Bits';
 import { Switch } from '@/components/Switch';
 import { Dialog } from '@/components/Dialog';
 import { offerUndo, note } from '@/app/toasts';
 import { PageHeader } from '@/app/PageHeader';
 
-const SWATCHES = ['page', 'side', 'card', 'sunken', 'line', 'line-strong', 'ink', 'muted', 'faint', 'accent', 'ok', 'ok-fill', 'ok-soft', 'warn', 'warn-fill', 'warn-soft', 'bad', 'bad-fill', 'bad-soft', 'claude', 'codex', 'pi', 'you'];
+const SWATCHES = [
+  'page',
+  'side',
+  'card',
+  'sunken',
+  'line',
+  'line-strong',
+  'ink',
+  'muted',
+  'faint',
+  'accent',
+  'ok',
+  'ok-fill',
+  'ok-soft',
+  'warn',
+  'warn-fill',
+  'warn-soft',
+  'bad',
+  'bad-fill',
+  'bad-soft',
+  'claude',
+  'codex',
+  'pi',
+  'you',
+];
 const VARS: Record<string, string> = { page: '--bg', 'line-strong': '--line-strong' };
 
 export function Parts() {
@@ -23,14 +59,21 @@ export function Parts() {
   const [open, setOpen] = useState(false);
   return (
     <div className="flex flex-col gap-[var(--page-gap)]">
-      <PageHeader title="Parts" sub="Every token and component of the design" tools={<Button icon={<CalendarDays size={15} strokeWidth={1.8} aria-hidden />}>Your week</Button>} />
+      <PageHeader
+        title="Parts"
+        sub="Every token and component of the design"
+        tools={<Button icon={<CalendarDays size={15} strokeWidth={1.8} aria-hidden />}>Your week</Button>}
+      />
 
       <Card>
         <CardHead title="Colour" sub="The tokens, as this theme has them" />
         <div className="grid grid-cols-[repeat(auto-fill,minmax(150px,1fr))] gap-3">
           {SWATCHES.map((s) => (
             <div key={s} className="flex items-center gap-2">
-              <span className="size-8 shrink-0 rounded-[7px] border border-line" style={{ background: `var(${VARS[s] || `--${s}`})` }} />
+              <span
+                className="size-8 shrink-0 rounded-[7px] border border-line"
+                style={{ background: `var(${VARS[s] || `--${s}`})` }}
+              />
               <span className="text-label font-semibold">{s}</span>
             </div>
           ))}
@@ -50,7 +93,10 @@ export function Parts() {
             <span className="whitespace-nowrap text-detail font-semibold text-warn tnum">5h 43m</span>
           </div>
         </div>
-        {[['claude', 99], ['codex', 22]].map(([source, left]) => (
+        {[
+          ['claude', 99],
+          ['codex', 22],
+        ].map(([source, left]) => (
           <div key={source} className="flex flex-col gap-3">
             <div className="flex items-center gap-2">
               <ProviderMark source={source as 'claude' | 'codex'} size={18} />
@@ -58,7 +104,12 @@ export function Parts() {
             </div>
             <Figure size="hero" value={`${left}%`} unit="left in this 5-hour window" />
             <Meter left={left as number} label="5-hour window left" />
-            <p className="text-detail text-muted">Resets 03:00 · in 4h 47m · <span className={`font-semibold ${toneFor(left as number) === 'ok' ? 'text-ok' : 'text-warn'}`}>{toneWords[toneFor(left as number)]}</span></p>
+            <p className="text-detail text-muted">
+              Resets 03:00 · in 4h 47m ·{' '}
+              <span className={`font-semibold ${toneFor(left as number) === 'ok' ? 'text-ok' : 'text-warn'}`}>
+                {toneWords[toneFor(left as number)]}
+              </span>
+            </p>
           </div>
         ))}
       </Card>
@@ -69,7 +120,14 @@ export function Parts() {
           <StatRow columns={3}>
             <Stat label="Active" value="4h 56m" />
             <Stat label="Sessions" value="6" sub="2 open" />
-            <Stat label="Lines changed" value={<><span className="text-ok">+5.2K</span> <span className="text-bad">−31</span></>} />
+            <Stat
+              label="Lines changed"
+              value={
+                <>
+                  <span className="text-ok">+5.2K</span> <span className="text-bad">−31</span>
+                </>
+              }
+            />
           </StatRow>
           <div className="mt-4 flex flex-col gap-3">
             {[64, 22, 6, null].map((v, i) => (
@@ -87,9 +145,19 @@ export function Parts() {
             <IconButton label="Refresh">
               <RefreshCw size={15} strokeWidth={1.8} aria-hidden />
             </IconButton>
-            <Button variant="primary" onClick={() => setOpen(true)}>Open a dialog</Button>
+            <Button variant="primary" onClick={() => setOpen(true)}>
+              Open a dialog
+            </Button>
             <Button variant="quiet">Quiet</Button>
-            <Seg label="Compare by" value={seg} onChange={setSeg} options={[['cost', 'Cost'], ['tokens', 'Tokens']]} />
+            <Seg
+              label="Compare by"
+              value={seg}
+              onChange={setSeg}
+              options={[
+                ['cost', 'Cost'],
+                ['tokens', 'Tokens'],
+              ]}
+            />
             <Switch checked={on} onChange={setOn} label="An example switch" />
             <Select aria-label="Project" defaultValue="">
               <option value="">All projects</option>
@@ -98,7 +166,9 @@ export function Parts() {
           </div>
           <div className="mt-4 flex flex-wrap items-center gap-2">
             <Pill tone="needs">Needs you</Pill>
-            <Pill tone="working" dot>Working</Pill>
+            <Pill tone="working" dot>
+              Working
+            </Pill>
             <Pill tone="idle">Idle</Pill>
             <TagCount tags={['dashboard', 'ui', 'polish']} />
             <LiveDot />
@@ -107,24 +177,38 @@ export function Parts() {
             <Kbd>K</Kbd>
           </div>
           <div className="mt-4 flex flex-wrap gap-2">
-            <Button size="sm" onClick={() => offerUndo('Hid Projects from the sidebar', () => note('Put it back'))}>Offer undo</Button>
-            <Button size="sm" onClick={() => note('Saved')}>Note</Button>
-            <Button size="sm" onClick={() => note('Couldn’t reach the server', { level: 'warn' })}>Warning</Button>
+            <Button size="sm" onClick={() => offerUndo('Hid Projects from the sidebar', () => note('Put it back'))}>
+              Offer undo
+            </Button>
+            <Button size="sm" onClick={() => note('Saved')}>
+              Note
+            </Button>
+            <Button size="sm" onClick={() => note('Couldn’t reach the server', { level: 'warn' })}>
+              Warning
+            </Button>
           </div>
         </Card>
       </div>
 
       <Card>
         <CardHead title="A session row" sub="Its title, one line of detail, its figure" />
-        <a href="#parts" data-row className="flex items-center gap-3 border-t border-line py-[var(--row-py)] text-ink no-underline">
+        <a
+          href="#parts"
+          data-row
+          className="flex items-center gap-3 border-t border-line py-[var(--row-py)] text-ink no-underline"
+        >
           <Avatar source="claude" status="working" />
           <span className="flex min-w-0 grow flex-col">
             <span className="flex min-w-0 items-center gap-2">
               <span className="truncate font-semibold">Timezone localization notifications architecture</span>
-              <span className="shrink-0 rounded-sm bg-warn-soft px-1.5 text-label font-semibold text-warn">82% full</span>
+              <span className="shrink-0 rounded-sm bg-warn-soft px-1.5 text-label font-semibold text-warn">
+                82% full
+              </span>
               <TagCount tags={['bug', 'release']} />
             </span>
-            <span className="truncate text-detail text-muted">Thrive Backend API · Opus 5.5 · 26 Sept, 17:52 · 5 messages · 2h of agent time</span>
+            <span className="truncate text-detail text-muted">
+              Thrive Backend API · Opus 5.5 · 26 Sept, 17:52 · 5 messages · 2h of agent time
+            </span>
           </span>
           <span className="font-semibold tnum">₹29,374</span>
         </a>
@@ -133,7 +217,12 @@ export function Parts() {
         <Skeleton className="mt-3" />
       </Card>
 
-      <Dialog open={open} onOpenChange={setOpen} title="A dialog" description="Radix underneath: focus stays inside, Esc closes it">
+      <Dialog
+        open={open}
+        onOpenChange={setOpen}
+        title="A dialog"
+        description="Radix underneath: focus stays inside, Esc closes it"
+      >
         <p>Dialogs get the raised surface and the deeper shadow.</p>
       </Dialog>
     </div>

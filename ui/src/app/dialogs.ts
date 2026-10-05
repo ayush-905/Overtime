@@ -13,7 +13,13 @@ export const useCommand = create<{ group: Repeat | null; open: (g: Repeat) => vo
   close: () => set({ group: null }),
 }));
 
-type CompareState = { picks: [string | null, string | null]; picking: 0 | 1 | null; open: boolean; show: (a?: string | null, b?: string | null) => void; close: () => void };
+type CompareState = {
+  picks: [string | null, string | null];
+  picking: 0 | 1 | null;
+  open: boolean;
+  show: (a?: string | null, b?: string | null) => void;
+  close: () => void;
+};
 
 /** Two sessions side by side (CompareDialog.tsx). */
 export const useCompare = create<CompareState>((set) => ({
@@ -28,15 +34,33 @@ export const useCompare = create<CompareState>((set) => ({
 }));
 
 /** A project's name and colour (ProjectDialog.tsx). */
-export const useProjectDialog = create<{ name: string | null; open: (name: string) => void; close: () => void }>((set) => ({
-  name: null,
-  open: (name) => set({ name }),
-  close: () => set({ name: null }),
-}));
+export const useProjectDialog = create<{ name: string | null; open: (name: string) => void; close: () => void }>(
+  (set) => ({
+    name: null,
+    open: (name) => set({ name }),
+    close: () => set({ name: null }),
+  }),
+);
 
 /** A saved copy of your settings, as a file. */
-export type SettingsCopy = { app: string; version?: number; savedAt?: string; settings: Record<string, unknown>; prefs?: Record<string, unknown> };
-type ResetState = { mode: 'reset' | 'restore' | null; copy: SettingsCopy | null; open: (mode: 'reset' | 'restore', copy?: SettingsCopy) => void; close: () => void };
+export type SettingsCopy = {
+  app: string;
+  version?: number;
+  savedAt?: string;
+  settings: Record<string, unknown>;
+  prefs?: Record<string, unknown>;
+};
+type ResetState = {
+  mode: 'reset' | 'restore' | null;
+  copy: SettingsCopy | null;
+  open: (mode: 'reset' | 'restore', copy?: SettingsCopy) => void;
+  close: () => void;
+};
 
 /** Resetting everything, or putting a saved copy back (ResetDialog.tsx). */
-export const useReset = create<ResetState>((set) => ({ mode: null, copy: null, open: (mode, copy) => set({ mode, copy: copy || null }), close: () => set({ mode: null, copy: null }) }));
+export const useReset = create<ResetState>((set) => ({
+  mode: null,
+  copy: null,
+  open: (mode, copy) => set({ mode, copy: copy || null }),
+  close: () => set({ mode: null, copy: null }),
+}));

@@ -36,20 +36,29 @@ export function sinceFor(a: LiveAgent) {
 /** What an agent is doing, in a few words. */
 export function doingText(a: LiveAgent) {
   switch (a.needsYou) {
-    case 'turn': return a.endReason === 'interrupted' ? 'Stopped, waiting for you' : 'Done, waiting for you';
-    case 'question': return 'Has a question for you';
-    case 'plan': return 'Plan ready for your review';
-    case 'approval': return 'Waiting for your approval';
+    case 'turn':
+      return a.endReason === 'interrupted' ? 'Stopped, waiting for you' : 'Done, waiting for you';
+    case 'question':
+      return 'Has a question for you';
+    case 'plan':
+      return 'Plan ready for your review';
+    case 'approval':
+      return 'Waiting for your approval';
   }
   const tool = a.tool;
-  if (a.status === 'working' && tool) return tool.category === 'other' ? `Using ${tool.name}` : `${tool.verb} ${tool.detail || ''}`.trim();
-  return ({ thinking: 'Thinking', replying: 'Writing a reply', done: 'Finished' } as Record<string, string>)[a.status] || 'Idle';
+  if (a.status === 'working' && tool)
+    return tool.category === 'other' ? `Using ${tool.name}` : `${tool.verb} ${tool.detail || ''}`.trim();
+  return (
+    ({ thinking: 'Thinking', replying: 'Writing a reply', done: 'Finished' } as Record<string, string>)[a.status] ||
+    'Idle'
+  );
 }
 
 export type LiveState = 'needs' | 'working' | 'idle';
 
 /** Needs you, working, or open and idle. */
-export const liveStateOf = (a: LiveAgent): LiveState => (a.needsYou ? 'needs' : WORKING.includes(a.status) ? 'working' : 'idle');
+export const liveStateOf = (a: LiveAgent): LiveState =>
+  a.needsYou ? 'needs' : WORKING.includes(a.status) ? 'working' : 'idle';
 
 /** Agents waiting for you right now, longest first. */
 export function waitingNow(agents: LiveAgent[], now: number) {

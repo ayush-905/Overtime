@@ -50,19 +50,33 @@
   color-scheme: dark;
 }
 
-* { box-sizing: border-box; }
+* {
+  box-sizing: border-box;
+}
 
 body {
   margin: 0;
   background: var(--bg);
   color: var(--ink);
-  font: calc(14px * var(--text, 1))/1.45 ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  font:
+    calc(14px * var(--text, 1)) / 1.45 ui-sans-serif,
+    system-ui,
+    -apple-system,
+    "Segoe UI",
+    Roboto,
+    sans-serif;
   -webkit-font-smoothing: antialiased;
 }
 
-h1, h2 { margin: 0; }
+h1,
+h2 {
+  margin: 0;
+}
 
-.card:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.card:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
 
 /* ── Data colors ──────────────────────────────────────────────────────────
    Activity hues follow the validated categorical order (slots 1-7); thinking
@@ -128,16 +142,36 @@ h1, h2 { margin: 0; }
   --bad-text: #ff8a80;
 }
 
-.act-edit { background: var(--act-edit); }
-.act-bash { background: var(--act-bash); }
-.act-web { background: var(--act-web); }
-.act-read { background: var(--act-read); }
-.act-delegate { background: var(--act-delegate); }
-.act-other { background: var(--act-other); }
-.act-plan { background: var(--act-plan); }
-.act-think { background: var(--act-think); }
-.act-wait { background: var(--act-wait); }
-.act-none { background: var(--act-none); }
+.act-edit {
+  background: var(--act-edit);
+}
+.act-bash {
+  background: var(--act-bash);
+}
+.act-web {
+  background: var(--act-web);
+}
+.act-read {
+  background: var(--act-read);
+}
+.act-delegate {
+  background: var(--act-delegate);
+}
+.act-other {
+  background: var(--act-other);
+}
+.act-plan {
+  background: var(--act-plan);
+}
+.act-think {
+  background: var(--act-think);
+}
+.act-wait {
+  background: var(--act-wait);
+}
+.act-none {
+  background: var(--act-none);
+}
 
 .pdot {
   display: inline-block;
@@ -148,8 +182,14 @@ h1, h2 { margin: 0; }
   flex-shrink: 0;
 }
 
-.add { color: var(--good-text); font-variant-numeric: tabular-nums; }
-.del { color: var(--bad-text); font-variant-numeric: tabular-nums; }
+.add {
+  color: var(--good-text);
+  font-variant-numeric: tabular-nums;
+}
+.del {
+  color: var(--bad-text);
+  font-variant-numeric: tabular-nums;
+}
 
 /* ── Tooltip ── */
 .tip {
@@ -168,10 +208,21 @@ h1, h2 { margin: 0; }
   pointer-events: none;
   box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
 }
-.tip[hidden] { display: none; }
+.tip[hidden] {
+  display: none;
+}
 
 /* ── Icons, the live connection pill and the theme switch ── */
-svg.ico { width: 16px; height: 16px; flex-shrink: 0; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+svg.ico {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
 .conn {
   display: inline-flex;
   align-items: center;
@@ -186,33 +237,99 @@ svg.ico { width: 16px; height: 16px; flex-shrink: 0; fill: none; stroke: current
   font-weight: 600;
   cursor: help;
 }
-.conn i { width: 7px; height: 7px; border-radius: 50%; background: var(--muted); }
+.conn i {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--muted);
+}
 /* Three pulses when the connection comes up, then still: an endless animation repaints
    the page 60 times a second, which was most of the dashboard's idle CPU. */
-.conn.live i { background: var(--live); box-shadow: 0 0 0 3px color-mix(in srgb, var(--live) 22%, transparent); animation: live-pulse 2.4s ease-out 3; }
-.conn.down { color: var(--down); }
-.conn.down i { background: var(--down); }
-.conn time { padding-left: 9px; border-left: 1px solid var(--line); color: var(--ink); font-variant-numeric: tabular-nums; }
+.conn.live i {
+  background: var(--live);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--live) 22%, transparent);
+  animation: live-pulse 2.4s ease-out 3;
+}
+.conn.down {
+  color: var(--down);
+}
+.conn.down i {
+  background: var(--down);
+}
+.conn time {
+  padding-left: 9px;
+  border-left: 1px solid var(--line);
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
 @keyframes live-pulse {
-  0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--live) 45%, transparent); }
-  70%, 100% { box-shadow: 0 0 0 6px color-mix(in srgb, var(--live) 0%, transparent); }
+  0% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--live) 45%, transparent);
+  }
+  70%,
+  100% {
+    box-shadow: 0 0 0 6px color-mix(in srgb, var(--live) 0%, transparent);
+  }
 }
 
-.theme { display: inline-flex; gap: 2px; padding: 3px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel-2); }
-.theme button { display: grid; place-items: center; width: 28px; height: 26px; padding: 0; border: 0; border-radius: 7px; background: transparent; color: var(--muted); cursor: pointer; }
-.theme button:hover { color: var(--ink); }
-.theme button[aria-pressed="true"] { background: var(--panel); color: var(--ink); box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08), 0 0 0 1px var(--line); }
-.theme button:focus-visible { outline: 2px solid var(--accent); outline-offset: -1px; }
-@media (prefers-reduced-motion: reduce) { .conn.live i { animation: none; } }
+.theme {
+  display: inline-flex;
+  gap: 2px;
+  padding: 3px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--panel-2);
+}
+.theme button {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 26px;
+  padding: 0;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+.theme button:hover {
+  color: var(--ink);
+}
+.theme button[aria-pressed="true"] {
+  background: var(--panel);
+  color: var(--ink);
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.08),
+    0 0 0 1px var(--line);
+}
+.theme button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -1px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .conn.live i {
+    animation: none;
+  }
+}
 
 /* Hidden means hidden, whatever display a class gives it. */
-[hidden] { display: none !important; }
+[hidden] {
+  display: none !important;
+}
 
 /* ── Text size and colour themes (Settings → Appearance) ── */
-:root { --text: 1; }
-:root[data-text="small"] { --text: 0.92; }
-:root[data-text="large"] { --text: 1.1; }
-:root[data-text="larger"] { --text: 1.2; }
+:root {
+  --text: 1;
+}
+:root[data-text="small"] {
+  --text: 0.92;
+}
+:root[data-text="large"] {
+  --text: 1.1;
+}
+:root[data-text="larger"] {
+  --text: 1.2;
+}
 /* A theme sets --p-* on <html> (see ui/src/lib/appearance.ts); the rest follows from them. */
 :root[data-palette] {
   --accent: var(--p-accent);

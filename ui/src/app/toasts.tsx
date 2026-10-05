@@ -8,7 +8,14 @@ import { create } from 'zustand';
 import { Bell, Check, X, CircleAlert, Info } from 'lucide-react';
 import { MAC, MOD, typing } from '@/data/hooks';
 
-type Toast = { id: number; text: string; body?: string; level: 'undo' | 'good' | 'warn' | 'info' | 'crit' | 'alert'; undo?: () => void; ms: number };
+type Toast = {
+  id: number;
+  text: string;
+  body?: string;
+  level: 'undo' | 'good' | 'warn' | 'info' | 'crit' | 'alert';
+  undo?: () => void;
+  ms: number;
+};
 
 type ToastState = { toasts: Toast[] };
 export const useToasts = create<ToastState>(() => ({ toasts: [] }));
@@ -18,17 +25,24 @@ const remove = (id: number) => useToasts.setState((s) => ({ toasts: s.toasts.fil
 
 /** Say what just changed, with a way to put it back. A newer change replaces the note. */
 export function offerUndo(text: string, undo: () => void) {
-  useToasts.setState((s) => ({ toasts: [{ id: nextId++, text, level: 'undo', undo, ms: 7000 }, ...s.toasts.filter((t) => t.level !== 'undo')] }));
+  useToasts.setState((s) => ({
+    toasts: [{ id: nextId++, text, level: 'undo', undo, ms: 7000 }, ...s.toasts.filter((t) => t.level !== 'undo')],
+  }));
 }
 
 /** A short note that goes away by itself. */
-export function note(text: string, { level = 'good', ms = 4500 }: { level?: 'good' | 'warn' | 'info'; ms?: number } = {}) {
+export function note(
+  text: string,
+  { level = 'good', ms = 4500 }: { level?: 'good' | 'warn' | 'info'; ms?: number } = {},
+) {
   useToasts.setState((s) => ({ toasts: [{ id: nextId++, text, level, ms }, ...s.toasts].slice(0, 4) }));
 }
 
 /** An alert on the page: what happened, and a line about it (alerts.ts chimes and picks this or a notification). */
 export function alertNote(title: string, body: string, level: 'alert' | 'warn' | 'crit' | 'good') {
-  useToasts.setState((s) => ({ toasts: [{ id: nextId++, text: title, body, level, ms: 9000 }, ...s.toasts].slice(0, 4) }));
+  useToasts.setState((s) => ({
+    toasts: [{ id: nextId++, text: title, body, level, ms: 9000 }, ...s.toasts].slice(0, 4),
+  }));
 }
 
 /** ⌘Z: the latest change's Undo, while its note is showing. */
@@ -50,8 +64,24 @@ function ToastItem({ t }: { t: Toast }) {
     arm();
     return () => clearTimeout(timer.current);
   }, []);
-  const Icon = t.level === 'warn' || t.level === 'crit' ? CircleAlert : t.level === 'info' ? Info : t.level === 'alert' ? Bell : Check;
-  const tone = t.level === 'warn' ? 'text-warn' : t.level === 'crit' ? 'text-bad' : t.level === 'info' ? 'text-muted' : t.level === 'alert' ? 'text-ink' : 'text-ok';
+  const Icon =
+    t.level === 'warn' || t.level === 'crit'
+      ? CircleAlert
+      : t.level === 'info'
+        ? Info
+        : t.level === 'alert'
+          ? Bell
+          : Check;
+  const tone =
+    t.level === 'warn'
+      ? 'text-warn'
+      : t.level === 'crit'
+        ? 'text-bad'
+        : t.level === 'info'
+          ? 'text-muted'
+          : t.level === 'alert'
+            ? 'text-ink'
+            : 'text-ok';
   return (
     <div
       role="status"
@@ -77,7 +107,12 @@ function ToastItem({ t }: { t: Toast }) {
           Undo
         </button>
       )}
-      <button type="button" aria-label="Dismiss" onClick={() => remove(t.id)} className="grid size-7 place-items-center rounded-control text-muted hover:bg-sunken hover:text-ink">
+      <button
+        type="button"
+        aria-label="Dismiss"
+        onClick={() => remove(t.id)}
+        className="grid size-7 place-items-center rounded-control text-muted hover:bg-sunken hover:text-ink"
+      >
         <X size={14} strokeWidth={2} aria-hidden />
       </button>
     </div>
@@ -88,14 +123,18 @@ export function Toasts() {
   const toasts = useToasts((s) => s.toasts);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key.toLowerCase() !== 'z' || !(MAC ? e.metaKey : e.ctrlKey) || e.shiftKey || e.altKey || typing(e.target)) return;
+      if (e.key.toLowerCase() !== 'z' || !(MAC ? e.metaKey : e.ctrlKey) || e.shiftKey || e.altKey || typing(e.target))
+        return;
       if (undoLatest()) e.preventDefault();
     };
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
   }, []);
   return (
-    <div className="pointer-events-none fixed bottom-4 right-4 z-[4000] flex flex-col items-end gap-2 [.compact_&]:bottom-[calc(var(--tabbar-h)+12px)] [.compact_&]:left-3 [.compact_&]:right-3" aria-live="polite">
+    <div
+      className="pointer-events-none fixed bottom-4 right-4 z-[4000] flex flex-col items-end gap-2 [.compact_&]:bottom-[calc(var(--tabbar-h)+12px)] [.compact_&]:left-3 [.compact_&]:right-3"
+      aria-live="polite"
+    >
       {toasts.map((t) => (
         <ToastItem key={t.id} t={t} />
       ))}

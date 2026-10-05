@@ -24,21 +24,60 @@ import { useCompare } from './dialogs';
 import type { Source } from '@/lib/sources';
 
 type Detail = {
-  source?: Source; title?: string; project?: string; firstAt?: number; lastAt?: number; models?: { name: string }[];
-  cost?: number; partial?: boolean; subCost?: number; agentMs?: number; waitMs?: number; compactions?: number;
-  messages?: { count: number; interrupts?: number }; lines?: { added: number; removed: number }; tools?: { calls: number; failed: number };
-  tokens?: { total: number; cacheRead: number }; subagents?: { count: number };
+  source?: Source;
+  title?: string;
+  project?: string;
+  firstAt?: number;
+  lastAt?: number;
+  models?: { name: string }[];
+  cost?: number;
+  partial?: boolean;
+  subCost?: number;
+  agentMs?: number;
+  waitMs?: number;
+  compactions?: number;
+  messages?: { count: number; interrupts?: number };
+  lines?: { added: number; removed: number };
+  tools?: { calls: number; failed: number };
+  tokens?: { total: number; cacheRead: number };
+  subagents?: { count: number };
 };
 
 type Figures = {
-  id: string; source: Source; title: string; project: string | null; startedAt: number | null; lastAt: number | null; models: string[];
-  cost: number | null; partial: boolean; subCost: number | null; messages: number | null; agentMs: number | null; waitMs: number | null;
-  added: number | null; removed: number | null; tools: number | null; failed: number | null; tokens: number | null; cacheShare: number | null;
-  subagents: number | null; compactions: number | null; interrupts: number | null; loading: boolean; status: ReturnType<typeof liveStateOf> | null;
+  id: string;
+  source: Source;
+  title: string;
+  project: string | null;
+  startedAt: number | null;
+  lastAt: number | null;
+  models: string[];
+  cost: number | null;
+  partial: boolean;
+  subCost: number | null;
+  messages: number | null;
+  agentMs: number | null;
+  waitMs: number | null;
+  added: number | null;
+  removed: number | null;
+  tools: number | null;
+  failed: number | null;
+  tokens: number | null;
+  cacheShare: number | null;
+  subagents: number | null;
+  compactions: number | null;
+  interrupts: number | null;
+  loading: boolean;
+  status: ReturnType<typeof liveStateOf> | null;
 };
 
 /** One session's figures, from the list, with its details where they've arrived. */
-function figures(id: string, s: Session | null, live: LiveAgent | undefined, d: Detail | null | undefined, loading: boolean): Figures {
+function figures(
+  id: string,
+  s: Session | null,
+  live: LiveAgent | undefined,
+  d: Detail | null | undefined,
+  loading: boolean,
+): Figures {
   const t = s ? totalsFrom(s, 0) : null;
   const ok = d || null;
   return {
@@ -49,16 +88,16 @@ function figures(id: string, s: Session | null, live: LiveAgent | undefined, d: 
     startedAt: s?.startedAt ?? ok?.firstAt ?? null,
     lastAt: s?.lastAt ?? ok?.lastAt ?? null,
     models: s?.models?.map((m) => m.name) || ok?.models?.map((m) => m.name) || [],
-    cost: t ? t.cost : ok?.cost ?? null,
+    cost: t ? t.cost : (ok?.cost ?? null),
     partial: t ? t.partial : !!ok?.partial,
-    subCost: t ? t.subCost : ok?.subCost ?? null,
-    messages: t ? t.messages : ok?.messages?.count ?? null,
-    agentMs: t ? t.agentMs : ok?.agentMs ?? null,
-    waitMs: t ? t.waitMs : ok?.waitMs ?? null,
-    added: t ? t.added : ok?.lines?.added ?? null,
-    removed: t ? t.removed : ok?.lines?.removed ?? null,
-    tools: t ? t.tools : ok?.tools?.calls ?? null,
-    failed: t ? t.failed : ok?.tools?.failed ?? null,
+    subCost: t ? t.subCost : (ok?.subCost ?? null),
+    messages: t ? t.messages : (ok?.messages?.count ?? null),
+    agentMs: t ? t.agentMs : (ok?.agentMs ?? null),
+    waitMs: t ? t.waitMs : (ok?.waitMs ?? null),
+    added: t ? t.added : (ok?.lines?.added ?? null),
+    removed: t ? t.removed : (ok?.lines?.removed ?? null),
+    tools: t ? t.tools : (ok?.tools?.calls ?? null),
+    failed: t ? t.failed : (ok?.tools?.failed ?? null),
     tokens: ok?.tokens?.total ?? (t ? t.tokens : null),
     cacheShare: ok?.tokens?.total ? ok.tokens.cacheRead / ok.tokens.total : null,
     subagents: ok?.subagents?.count ?? s?.subagents ?? null,
@@ -79,28 +118,68 @@ const lines = (f: Figures) => (
 
 // What's compared, in order: a name, how to read it from a session's figures, how to show it.
 const ROWS: Row[] = [
-  ['Cost', (f) => f.cost, (v, f) => `≈ ${money(v)}${f.partial ? '+' : ''}`, 'At API list prices, subagents included, over the last 30 days'],
-  ['Cost per message', (f) => (f.messages && f.cost != null ? f.cost / f.messages : null), (v) => `≈ ${money(v)}`, 'Its cost, divided by the messages you sent'],
+  [
+    'Cost',
+    (f) => f.cost,
+    (v, f) => `≈ ${money(v)}${f.partial ? '+' : ''}`,
+    'At API list prices, subagents included, over the last 30 days',
+  ],
+  [
+    'Cost per message',
+    (f) => (f.messages && f.cost != null ? f.cost / f.messages : null),
+    (v) => `≈ ${money(v)}`,
+    'Its cost, divided by the messages you sent',
+  ],
   ['Your messages', (f) => f.messages, (v) => compact(v)],
   ['Agent time', (f) => f.agentMs, (v) => duration(v), 'How long the agent worked on your messages'],
-  ['Agent time per message', (f) => (f.messages && f.agentMs != null ? f.agentMs / f.messages : null), (v) => duration(v)],
-  ['Waited for you', (f) => f.waitMs, (v) => duration(v), "From the agent's last reply to your next message, leaving out breaks over 30 minutes"],
+  [
+    'Agent time per message',
+    (f) => (f.messages && f.agentMs != null ? f.agentMs / f.messages : null),
+    (v) => duration(v),
+  ],
+  [
+    'Waited for you',
+    (f) => f.waitMs,
+    (v) => duration(v),
+    "From the agent's last reply to your next message, leaving out breaks over 30 minutes",
+  ],
   ['Lines changed', (f) => (f.added ?? 0) + (f.removed ?? 0), (_v, f) => lines(f)],
-  ['Lines per dollar', (f) => (f.cost != null && f.cost > 0.05 ? ((f.added ?? 0) + (f.removed ?? 0)) / f.cost : null), (v) => (v >= 10 ? String(Math.round(v)) : v.toFixed(1))],
-  ['Tool calls', (f) => f.tools, (v, f) => (
-    <>
-      {compact(v)}
-      {f.failed ? <small className="ml-1 text-muted">{Math.round((f.failed / Math.max(1, v)) * 100)}% failed</small> : null}
-    </>
-  )],
+  [
+    'Lines per dollar',
+    (f) => (f.cost != null && f.cost > 0.05 ? ((f.added ?? 0) + (f.removed ?? 0)) / f.cost : null),
+    (v) => (v >= 10 ? String(Math.round(v)) : v.toFixed(1)),
+  ],
+  [
+    'Tool calls',
+    (f) => f.tools,
+    (v, f) => (
+      <>
+        {compact(v)}
+        {f.failed ? (
+          <small className="ml-1 text-muted">{Math.round((f.failed / Math.max(1, v)) * 100)}% failed</small>
+        ) : null}
+      </>
+    ),
+  ],
   ['Tokens', (f) => f.tokens, (v) => compact(v)],
-  ['From the cache', (f) => f.cacheShare, (v) => `${Math.round(v * 100)}%`, 'How much of what it read came from the prompt cache'],
-  ['Subagents', (f) => f.subagents, (v, f) => (
-    <>
-      {v}
-      {f.subCost != null && f.subCost > 0.005 ? <small className="ml-1 text-muted">≈ {money(f.subCost)}</small> : null}
-    </>
-  )],
+  [
+    'From the cache',
+    (f) => f.cacheShare,
+    (v) => `${Math.round(v * 100)}%`,
+    'How much of what it read came from the prompt cache',
+  ],
+  [
+    'Subagents',
+    (f) => f.subagents,
+    (v, f) => (
+      <>
+        {v}
+        {f.subCost != null && f.subCost > 0.005 ? (
+          <small className="ml-1 text-muted">≈ {money(f.subCost)}</small>
+        ) : null}
+      </>
+    ),
+  ],
   ['Compactions', (f) => f.compactions, (v) => String(v), 'Times the conversation was summarised to make room'],
   ['Interruptions', (f) => f.interrupts, (v) => String(v)],
 ];
@@ -109,7 +188,12 @@ const ROWS: Row[] = [
 function rows(): Row[] {
   if (!byTokens()) return ROWS;
   const tokens = ROWS.find(([name]) => name === 'Tokens')!;
-  const perMessage: Row = ['Tokens per message', (f) => (f.messages && f.tokens != null ? f.tokens / f.messages : null), (v) => compact(v), 'Its tokens, divided by the messages you sent'];
+  const perMessage: Row = [
+    'Tokens per message',
+    (f) => (f.messages && f.tokens != null ? f.tokens / f.messages : null),
+    (v) => compact(v),
+    'Its tokens, divided by the messages you sent',
+  ];
   return [tokens, perMessage, ...ROWS.filter((r) => r !== tokens)];
 }
 
@@ -124,22 +208,35 @@ export function takeaway(a: Figures, b: Figures) {
   if (times < 1.3) return tokens ? 'They used about as many tokens.' : 'They cost about the same.';
   const per = (f: Figures) => (f.messages ? v(f) / f.messages : null);
   const n = times >= 10 ? Math.round(times) : times.toFixed(1);
-  const bits = [tokens ? `“${clip(hi.title, 40)}” used ${n}× the tokens` : `“${clip(hi.title, 40)}” cost ${n}× as much`];
+  const bits = [
+    tokens ? `“${clip(hi.title, 40)}” used ${n}× the tokens` : `“${clip(hi.title, 40)}” cost ${n}× as much`,
+  ];
   if (per(hi) && per(lo) && hi.messages && lo.messages) {
     const msgs = hi.messages / lo.messages;
-    bits.push(msgs >= 1.3 ? `with ${msgs.toFixed(1)}× the messages` : `for ${msgs < 0.8 ? 'fewer' : 'about as many'} messages, so each one ${tokens ? 'used' : 'cost'} ${(per(hi)! / per(lo)!).toFixed(1)}× more`);
+    bits.push(
+      msgs >= 1.3
+        ? `with ${msgs.toFixed(1)}× the messages`
+        : `for ${msgs < 0.8 ? 'fewer' : 'about as many'} messages, so each one ${tokens ? 'used' : 'cost'} ${(per(hi)! / per(lo)!).toFixed(1)}× more`,
+    );
   }
-  if (!tokens && hi.subCost != null && hi.cost != null && hi.subCost > hi.cost * 0.3) bits.push(`and ${Math.round((hi.subCost / hi.cost) * 100)}% of it went to subagents`);
-  else if ((hi.compactions || 0) > (lo.compactions || 0) + 1) bits.push(`and its conversation had to be compacted ${plural(hi.compactions!, 'time')}`);
+  if (!tokens && hi.subCost != null && hi.cost != null && hi.subCost > hi.cost * 0.3)
+    bits.push(`and ${Math.round((hi.subCost / hi.cost) * 100)}% of it went to subagents`);
+  else if ((hi.compactions || 0) > (lo.compactions || 0) + 1)
+    bits.push(`and its conversation had to be compacted ${plural(hi.compactions!, 'time')}`);
   return `${bits.join(' ')}.`;
 }
 
 function Side({ f, side, change }: { f: Figures; side: number; change: () => void }) {
   const openSession = useUi((s) => s.openSession);
   const close = useCompare((s) => s.close);
-  const span = f.startedAt ? `${dayLabel(f.startedAt)}${f.lastAt && dayLabel(f.lastAt) !== dayLabel(f.startedAt) ? ` – ${dayLabel(f.lastAt)}` : ''}` : '';
+  const span = f.startedAt
+    ? `${dayLabel(f.startedAt)}${f.lastAt && dayLabel(f.lastAt) !== dayLabel(f.startedAt) ? ` – ${dayLabel(f.lastAt)}` : ''}`
+    : '';
   return (
-    <div className="flex min-w-0 items-start gap-2.5 rounded-row border border-line bg-sunken/40 p-3" aria-label={side ? 'Right' : 'Left'}>
+    <div
+      className="flex min-w-0 items-start gap-2.5 rounded-row border border-line bg-sunken/40 p-3"
+      aria-label={side ? 'Right' : 'Left'}
+    >
       <Avatar source={f.source} status={f.status} size={22} />
       <div className="flex min-w-0 grow flex-col">
         <b className="truncate">{clip(f.title, 70)}</b>
@@ -154,7 +251,16 @@ function Side({ f, side, change }: { f: Figures; side: number; change: () => voi
           {span}
         </small>
       </div>
-      <IconButton size="sm" variant="quiet" label="Open this session" tip="Open its panel" onClick={() => { close(); openSession(f.id); }}>
+      <IconButton
+        size="sm"
+        variant="quiet"
+        label="Open this session"
+        tip="Open its panel"
+        onClick={() => {
+          close();
+          openSession(f.id);
+        }}
+      >
         <ExternalLink size={14} strokeWidth={2} aria-hidden />
       </IconButton>
       <IconButton size="sm" variant="quiet" label="Pick another session" tip="Pick another" onClick={change}>
@@ -164,14 +270,32 @@ function Side({ f, side, change }: { f: Figures; side: number; change: () => voi
   );
 }
 
-function Picker({ side, other, list, live, pick }: { side: 0 | 1; other: string | null; list: Session[] | undefined; live: Map<string, LiveAgent>; pick: (id: string) => void }) {
+function Picker({
+  side,
+  other,
+  list,
+  live,
+  pick,
+}: {
+  side: 0 | 1;
+  other: string | null;
+  list: Session[] | undefined;
+  live: Map<string, LiveAgent>;
+  pick: (id: string) => void;
+}) {
   const [query, setQuery] = useState('');
   const field = useRef<HTMLInputElement>(null);
   useEffect(() => field.current?.focus(), [side]);
   const q = query.trim().toLowerCase();
   const matches = (list || [])
     .filter((s) => s.id !== other)
-    .filter((s) => !q || [titleFor(s.id, s.title), s.title, s.project, s.project && projectName(s.project), s.model].some((x) => x?.toLowerCase().includes(q)))
+    .filter(
+      (s) =>
+        !q ||
+        [titleFor(s.id, s.title), s.title, s.project, s.project && projectName(s.project), s.model].some((x) =>
+          x?.toLowerCase().includes(q),
+        ),
+    )
     .slice(0, 12);
   return (
     <div className="flex min-w-0 flex-col gap-2">
@@ -205,11 +329,23 @@ function Picker({ side, other, list, live, pick }: { side: 0 | 1; other: string 
             const a = live.get(s.id);
             return (
               <li key={s.id}>
-                <button type="button" onClick={() => pick(s.id)} className="flex w-full items-center gap-2.5 rounded-row px-2 py-1.5 text-left hover:bg-sunken">
+                <button
+                  type="button"
+                  onClick={() => pick(s.id)}
+                  className="flex w-full items-center gap-2.5 rounded-row px-2 py-1.5 text-left hover:bg-sunken"
+                >
                   <Avatar source={s.source} status={a ? liveStateOf(a) : null} size={18} />
                   <span className="flex min-w-0 flex-col">
                     <b className="truncate text-detail font-semibold">{clip(titleFor(s.id, s.title), 60)}</b>
-                    <small className="truncate text-label text-muted">{[s.project && projectName(s.project), whenText(s.lastAt), byTokens() ? `${compact(t.tokens)} tokens` : `≈ ${money(t.cost)}`].filter(Boolean).join(' · ')}</small>
+                    <small className="truncate text-label text-muted">
+                      {[
+                        s.project && projectName(s.project),
+                        whenText(s.lastAt),
+                        byTokens() ? `${compact(t.tokens)} tokens` : `≈ ${money(t.cost)}`,
+                      ]
+                        .filter(Boolean)
+                        .join(' · ')}
+                    </small>
                   </span>
                 </button>
               </li>
@@ -231,7 +367,10 @@ function Table({ a, b }: { a: Figures; b: Figures }) {
       <td className="px-2 py-1.5">
         <span className="block font-semibold tnum">{show(v, f)}</span>
         <span className="mt-1 block h-1 overflow-hidden rounded-full bg-sunken">
-          <i className="block h-full rounded-full bg-s1" style={{ width: `${max > 0 ? Math.max(2, (v / max) * 100).toFixed(1) : 0}%` }} />
+          <i
+            className="block h-full rounded-full bg-s1"
+            style={{ width: `${max > 0 ? Math.max(2, (v / max) * 100).toFixed(1) : 0}%` }}
+          />
         </span>
       </td>
     );
@@ -241,9 +380,15 @@ function Table({ a, b }: { a: Figures; b: Figures }) {
         <thead className="text-label text-muted">
           <tr>
             <th />
-            <th scope="col" className="px-2 py-1 text-left font-semibold">Left</th>
-            <th scope="col" className="px-2 py-1 text-left font-semibold">Right</th>
-            <th scope="col" className="px-2 py-1 text-right font-semibold">Right vs left</th>
+            <th scope="col" className="px-2 py-1 text-left font-semibold">
+              Left
+            </th>
+            <th scope="col" className="px-2 py-1 text-left font-semibold">
+              Right
+            </th>
+            <th scope="col" className="px-2 py-1 text-right font-semibold">
+              Right vs left
+            </th>
           </tr>
         </thead>
         <tbody>
@@ -254,10 +399,17 @@ function Table({ a, b }: { a: Figures; b: Figures }) {
             const max = Math.max(va || 0, vb || 0);
             // How the right one compares, when both have a figure worth comparing.
             const ratio = va! > 0 && vb! > 0 ? vb! / va! : null;
-            const diff = ratio == null || Math.abs(ratio - 1) < 0.05 ? '' : ratio >= 1 ? `${ratio >= 10 ? Math.round(ratio) : ratio.toFixed(1)}×` : `${1 / ratio >= 10 ? Math.round(1 / ratio) : (1 / ratio).toFixed(1)}× less`;
+            const diff =
+              ratio == null || Math.abs(ratio - 1) < 0.05
+                ? ''
+                : ratio >= 1
+                  ? `${ratio >= 10 ? Math.round(ratio) : ratio.toFixed(1)}×`
+                  : `${1 / ratio >= 10 ? Math.round(1 / ratio) : (1 / ratio).toFixed(1)}× less`;
             return (
               <tr key={name} data-tip={tip} className="border-t border-line">
-                <th scope="row" className="w-44 px-2 py-1.5 text-left font-normal text-muted">{name}</th>
+                <th scope="row" className="w-44 px-2 py-1.5 text-left font-normal text-muted">
+                  {name}
+                </th>
                 {cell(va, a, max, show)}
                 {cell(vb, b, max, show)}
                 <td className="px-2 py-1.5 text-right text-muted tnum">{diff}</td>
@@ -265,7 +417,9 @@ function Table({ a, b }: { a: Figures; b: Figures }) {
             );
           })}
           <tr className="border-t border-line">
-            <th scope="row" className="px-2 py-1.5 text-left font-normal text-muted">Models</th>
+            <th scope="row" className="px-2 py-1.5 text-left font-normal text-muted">
+              Models
+            </th>
             <td className="px-2 py-1.5">{a.models.join(', ') || '—'}</td>
             <td className="px-2 py-1.5">{b.models.join(', ') || '—'}</td>
             <td />
@@ -283,12 +437,23 @@ export function CompareDialog() {
   const all = useAllAgents();
   const live = useMemo(() => new Map(all.filter((a) => a.kind === 'main').map((a) => [a.id, a])), [all]);
   const details = useQueries({
-    queries: picks.map((id) => ({ queryKey: ['session', id], queryFn: () => getJson<Detail>(`/api/session?id=${encodeURIComponent(id!)}`), enabled: open && !!id && !demo, staleTime: 10_000 })),
+    queries: picks.map((id) => ({
+      queryKey: ['session', id],
+      queryFn: () => getJson<Detail>(`/api/session?id=${encodeURIComponent(id!)}`),
+      enabled: open && !!id && !demo,
+      staleTime: 10_000,
+    })),
   });
   const fig = (i: 0 | 1) => {
     const id = picks[i];
     if (!id) return null;
-    return figures(id, list?.find((s) => s.id === id) || null, live.get(id), details[i].data, !demo && details[i].isPending);
+    return figures(
+      id,
+      list?.find((s) => s.id === id) || null,
+      live.get(id),
+      details[i].data,
+      !demo && details[i].isPending,
+    );
   };
   const a = fig(0);
   const b = fig(1);
@@ -298,7 +463,12 @@ export function CompareDialog() {
     useCompare.setState({ picks: next, picking: next[0] ? (next[1] ? null : 1) : 0 });
   };
   const change = (side: 0 | 1) => useCompare.setState({ picking: side });
-  const side = (i: 0 | 1, f: Figures | null) => (picking === i || !f ? <Picker side={i} other={picks[1 - i]} list={list} live={live} pick={(id) => setPick(i, id)} /> : <Side f={f} side={i} change={() => change(i)} />);
+  const side = (i: 0 | 1, f: Figures | null) =>
+    picking === i || !f ? (
+      <Picker side={i} other={picks[1 - i]} list={list} live={live} pick={(id) => setPick(i, id)} />
+    ) : (
+      <Side f={f} side={i} change={() => change(i)} />
+    );
   const tip = a && b ? takeaway(a, b) : '';
   return (
     <Dialog
@@ -309,7 +479,11 @@ export function CompareDialog() {
       description={a && b ? 'Over the last 30 days, at API list prices' : 'Pick two sessions to see them side by side'}
       tools={
         a && b ? (
-          <Button size="sm" icon={<ArrowLeftRight size={13} strokeWidth={2} aria-hidden />} onClick={() => useCompare.setState({ picks: [picks[1], picks[0]] })}>
+          <Button
+            size="sm"
+            icon={<ArrowLeftRight size={13} strokeWidth={2} aria-hidden />}
+            onClick={() => useCompare.setState({ picks: [picks[1], picks[0]] })}
+          >
             Swap
           </Button>
         ) : null

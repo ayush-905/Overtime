@@ -53,14 +53,31 @@ export const total = (list: Span[]) => list.reduce((n, [a, b]) => n + b - a, 0);
 
 /** The server's lanes, brought up to now with what the live agents are doing. */
 export function lanesNow(tl: TimelineData, agents: LiveAgent[], now: number): (Lane & { busyMs: number })[] {
-  const lanes: Lane[] = tl.lanes.map((l) => ({ ...l, work: l.work.map((x) => [...x] as Span), waits: l.waits.map((x) => [...x] as Span) }));
+  const lanes: Lane[] = tl.lanes.map((l) => ({
+    ...l,
+    work: l.work.map((x) => [...x] as Span),
+    waits: l.waits.map((x) => [...x] as Span),
+  }));
   for (const a of agents) {
     if (a.kind !== 'main') continue;
     const working = WORKING.includes(a.status) && !a.needsYou;
     if (!working && !a.needsYou) continue;
     let lane = lanes.find((l) => l.id === a.id);
     if (!lane) {
-      lane = { id: a.id, source: a.source, title: a.title, project: a.project, work: [], sub: [], waits: [], messages: [], cost: 0, tokens: 0, partial: false, first: now };
+      lane = {
+        id: a.id,
+        source: a.source,
+        title: a.title,
+        project: a.project,
+        work: [],
+        sub: [],
+        waits: [],
+        messages: [],
+        cost: 0,
+        tokens: 0,
+        partial: false,
+        first: now,
+      };
       lanes.push(lane);
     }
     if (working) {
@@ -79,7 +96,17 @@ export function lanesNow(tl: TimelineData, agents: LiveAgent[], now: number): (L
 
 /** The most sessions working at once today, and when. */
 export function peak(lanes: Lane[]) {
-  const edges = lanes.flatMap((l) => merge([...l.work, ...l.sub]).flatMap(([a, b]) => [[a, 1], [b, -1]] as [number, number][])).sort((x, y) => x[0] - y[0] || x[1] - y[1]);
+  const edges = lanes
+    .flatMap((l) =>
+      merge([...l.work, ...l.sub]).flatMap(
+        ([a, b]) =>
+          [
+            [a, 1],
+            [b, -1],
+          ] as [number, number][],
+      ),
+    )
+    .sort((x, y) => x[0] - y[0] || x[1] - y[1]);
   let at = 0;
   let best: { count: number; t: number | null } = { count: 0, t: null };
   for (const [t, step] of edges) {
@@ -103,7 +130,11 @@ export function timelineModel(tl: TimelineData, agents: LiveAgent[], now: number
   const usualFrom = usual ? usual.slots.findIndex((v, k) => k >= dayFrom && v >= 0.34) : -1;
   const usualStart = usualFrom >= 0 ? tl.from + usualFrom * SLOT_MS : null;
   // From the hour the first thing happened (or you usually start) to now, at least two hours wide.
-  const first = Math.min(...lanes.map((l) => l.first), ...you.map((x) => x[0]), usualStart != null && usualStart < now ? usualStart : Infinity);
+  const first = Math.min(
+    ...lanes.map((l) => l.first),
+    ...you.map((x) => x[0]),
+    usualStart != null && usualStart < now ? usualStart : Infinity,
+  );
   const start = Math.floor(first / HOUR) * HOUR;
   const end = Math.max(now + (now - start) * 0.02, start + 2 * HOUR);
   const span = end - start;
@@ -153,5 +184,25 @@ export function timelineModel(tl: TimelineData, agents: LiveAgent[], now: number
   const summary = `Today · ${plural(lanes.length, 'session')} · agents worked ${duration(busy)}${waited ? ` · waited ${duration(waited)} for you` : ''}`;
   /** "12:02–now", "12:02–13:40". */
   const spanText = (a: number, b: number) => `${clock(a)}–${b >= now - 30_000 ? 'now' : clock(b)}`;
-  return { lanes, you, usual, usualStart, shade, start, end, x, w, ticks, activeMs, busy, waited, peak: p, tip, tipKind, summary, spanText, others: tl.others };
+  return {
+    lanes,
+    you,
+    usual,
+    usualStart,
+    shade,
+    start,
+    end,
+    x,
+    w,
+    ticks,
+    activeMs,
+    busy,
+    waited,
+    peak: p,
+    tip,
+    tipKind,
+    summary,
+    spanText,
+    others: tl.others,
+  };
 }

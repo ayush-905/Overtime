@@ -2,7 +2,15 @@
 
 import { Switch as RadixSwitch } from 'radix-ui';
 
-export function Switch({ checked, onChange, label }: { checked: boolean; onChange: (on: boolean) => void; label: string }) {
+export function Switch({
+  checked,
+  onChange,
+  label,
+}: {
+  checked: boolean;
+  onChange: (on: boolean) => void;
+  label: string;
+}) {
   return (
     <RadixSwitch.Root
       checked={checked}

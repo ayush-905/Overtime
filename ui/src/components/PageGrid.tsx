@@ -31,18 +31,28 @@ export function readOrder(page: string, usual: string[]): string[] {
 export function saveOrder(page: string, order: string[], cards: { id: string; span: number }[]) {
   try {
     if (order.join() === cards.map((c) => c.id).join()) localStorage.removeItem(key(page));
-    else localStorage.setItem(key(page), JSON.stringify(order.map((slot) => ({ slot, span: cards.find((c) => c.id === slot)?.span ?? 6 }))));
+    else
+      localStorage.setItem(
+        key(page),
+        JSON.stringify(order.map((slot) => ({ slot, span: cards.find((c) => c.id === slot)?.span ?? 6 }))),
+      );
   } catch {}
   changed('layout');
 }
 
 export type Arranging = { page: string; title: string; cards: { id: string; name: string; span: number }[] } | null;
-export const useArrange = create<{ arranging: Arranging; open: (a: Arranging) => void }>((set) => ({ arranging: null, open: (arranging) => set({ arranging }) }));
+export const useArrange = create<{ arranging: Arranging; open: (a: Arranging) => void }>((set) => ({
+  arranging: null,
+  open: (arranging) => set({ arranging }),
+}));
 
 /** The page's cards in its 12-column grid, in your order. */
 export function PageGrid({ page, cards }: { page: string; cards: GridCard[] }) {
   useChanged();
-  const order = readOrder(page, cards.map((c) => c.id));
+  const order = readOrder(
+    page,
+    cards.map((c) => c.id),
+  );
   return (
     <div className="grid grid-cols-12 items-start gap-[var(--page-gap)]">
       {order.map((id) => {
@@ -63,7 +73,11 @@ export function ArrangeButton({ page, title, cards }: { page: string; title: str
   // In the popover and on a phone it would sit on a row of its own; arranging is for the window.
   if (useCompact()) return null;
   return (
-    <Button icon={<LayoutGrid size={15} strokeWidth={1.8} aria-hidden />} onClick={() => open({ page, title, cards: cards.map(({ id, name, span }) => ({ id, name, span })) })} data-tip="Put this page's cards in the order you like">
+    <Button
+      icon={<LayoutGrid size={15} strokeWidth={1.8} aria-hidden />}
+      onClick={() => open({ page, title, cards: cards.map(({ id, name, span }) => ({ id, name, span })) })}
+      data-tip="Put this page's cards in the order you like"
+    >
       Arrange
     </Button>
   );

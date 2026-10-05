@@ -10,7 +10,8 @@ export const DAY = 86_400_000;
 
 export const workdayHour = () => env.workdayHour;
 
-export const hourLabel = (h: number) => (env.clock24 ? `${String(h).padStart(2, '0')}:00` : `${h % 12 || 12}${h < 12 ? 'am' : 'pm'}`);
+export const hourLabel = (h: number) =>
+  env.clock24 ? `${String(h).padStart(2, '0')}:00` : `${h % 12 || 12}${h < 12 ? 'am' : 'pm'}`;
 
 export const dayLabel = (t: number) => new Date(t).toLocaleDateString([], { month: 'short', day: 'numeric' });
 
@@ -19,7 +20,9 @@ export const weekday = (t: number) => new Date(t).toLocaleDateString([], { weekd
 export function clock(t: number) {
   const d = new Date(t);
   const m = String(d.getMinutes()).padStart(2, '0');
-  return env.clock24 ? `${String(d.getHours()).padStart(2, '0')}:${m}` : `${d.getHours() % 12 || 12}:${m}${d.getHours() < 12 ? 'am' : 'pm'}`;
+  return env.clock24
+    ? `${String(d.getHours()).padStart(2, '0')}:${m}`
+    : `${d.getHours() % 12 || 12}:${m}${d.getHours() < 12 ? 'am' : 'pm'}`;
 }
 
 export function whenText(t: number | null | undefined) {
@@ -38,7 +41,8 @@ export function workDay(t: number, days = 0) {
 }
 
 /** How a working day reads in a note: "from 4am to 4am", or "midnight to midnight". */
-export const dayRuns = () => (workdayHour() ? `from ${hourLabel(workdayHour())} to ${hourLabel(workdayHour())}` : 'from midnight to midnight');
+export const dayRuns = () =>
+  workdayHour() ? `from ${hourLabel(workdayHour())} to ${hourLabel(workdayHour())}` : 'from midnight to midnight';
 
 /** A label under each day of a run: its initial for two weeks or less; for more, the date every fifth day back from today. */
 export function dayTicks(starts: number[]) {
@@ -104,7 +108,8 @@ export const pctOf = (n: number, d: number) => {
   return v > 0 && v < 1 ? v.toFixed(1) : String(Math.round(v));
 };
 
-export const longDate = (t: number) => new Date(t).toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' });
+export const longDate = (t: number) =>
+  new Date(t).toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' });
 
 export const plural = (n: number, word: string, many = `${word}s`) => `${n} ${n === 1 ? word : many}`;
 
@@ -122,14 +127,16 @@ export function bytesText(n: number | null | undefined) {
   return `${(n / 1024 ** 3).toFixed(1)} GB`;
 }
 
-export const cpuText = (pct: number | null | undefined) => (pct == null ? '—' : `${pct < 10 ? pct.toFixed(1) : Math.round(pct)}%`);
+export const cpuText = (pct: number | null | undefined) =>
+  pct == null ? '—' : `${pct < 10 ? pct.toFixed(1) : Math.round(pct)}%`;
 
 type Hours = { days?: { stretches?: [number, number][] }[] } | null | undefined;
 
 /** Active time between two moments, from the working-hours stretches. */
 export function activeBetween(hours: Hours, from: number, to: number) {
   let ms = 0;
-  for (const d of hours?.days || []) for (const [a, b] of d.stretches || []) ms += Math.max(0, Math.min(b, to) - Math.max(a, from));
+  for (const d of hours?.days || [])
+    for (const [a, b] of d.stretches || []) ms += Math.max(0, Math.min(b, to) - Math.max(a, from));
   return ms;
 }
 
@@ -181,7 +188,8 @@ export function moneyCol(n: number | null | undefined) {
 }
 
 /** A cost with "+" when some prices were missing, so it's what the rest cost. */
-export const costText = (cost: number | null | undefined, partial?: boolean) => (cost == null ? '—' : `${money(cost)}${partial ? '+' : ''}`);
+export const costText = (cost: number | null | undefined, partial?: boolean) =>
+  cost == null ? '—' : `${money(cost)}${partial ? '+' : ''}`;
 
 export const costCol = (cost: number | null | undefined, partial?: boolean) => `${moneyCol(cost)}${partial ? '+' : ''}`;
 

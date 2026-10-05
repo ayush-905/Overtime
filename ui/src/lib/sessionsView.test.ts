@@ -2,7 +2,19 @@
 // the day groups and the page's budget, sorting, and names for saved views.
 
 import { beforeEach, describe, expect, test } from 'vitest';
-import { addressOf, groupKeys, groupRows, isPlain, paramsOf, PINNED, sortRows, spanOf, suggestName, viewFromParams, viewLink } from './sessionsView';
+import {
+  addressOf,
+  groupKeys,
+  groupRows,
+  isPlain,
+  paramsOf,
+  PINNED,
+  sortRows,
+  spanOf,
+  suggestName,
+  viewFromParams,
+  viewLink,
+} from './sessionsView';
 import { loadLabels, togglePin } from './labels';
 import { calendarDay } from './format';
 import type { SessionInRange } from './sessions';
@@ -10,7 +22,30 @@ import type { SessionInRange } from './sessions';
 const DAY = 86_400_000;
 const today = calendarDay(Date.now());
 const row = (id: string, lastDay: number, extra: Partial<SessionInRange> = {}): SessionInRange =>
-  ({ id, source: 'claude', title: id, project: 'p', model: null, startedAt: lastDay, lastAt: lastDay + 1000, days: [], lastDay, cost: 1, subCost: 0, tokens: 10, messages: 1, agentMs: 1, waitMs: 0, waits: 0, added: 0, removed: 0, tools: 0, failed: 0, partial: false, ...extra }) as SessionInRange;
+  ({
+    id,
+    source: 'claude',
+    title: id,
+    project: 'p',
+    model: null,
+    startedAt: lastDay,
+    lastAt: lastDay + 1000,
+    days: [],
+    lastDay,
+    cost: 1,
+    subCost: 0,
+    tokens: 10,
+    messages: 1,
+    agentMs: 1,
+    waitMs: 0,
+    waits: 0,
+    added: 0,
+    removed: 0,
+    tools: 0,
+    failed: 0,
+    partial: false,
+    ...extra,
+  }) as SessionInRange;
 
 beforeEach(() => {
   localStorage.clear();
@@ -19,18 +54,40 @@ beforeEach(() => {
 
 describe('the address', () => {
   test('opens with the remembered range and sort where it says nothing', () => {
-    expect(viewFromParams({}, { range: '7', sort: 'cost', dir: 'asc' })).toEqual({ day: null, range: '7', sort: 'cost', dir: 'asc', project: '', tag: '', query: '' });
+    expect(viewFromParams({}, { range: '7', sort: 'cost', dir: 'asc' })).toEqual({
+      day: null,
+      range: '7',
+      sort: 'cost',
+      dir: 'asc',
+      project: '',
+      tag: '',
+      query: '',
+    });
   });
   test('says a sort without a direction means newest or most first', () => {
     expect(viewFromParams({ sort: 'lines' }, { range: '30', sort: 'latest', dir: 'asc' }).dir).toBe('desc');
   });
   test('ignores what it doesn’t know', () => {
-    const v = viewFromParams({ range: '90', sort: 'nope', day: 'yesterday' }, { range: '30', sort: 'latest', dir: 'desc' });
+    const v = viewFromParams(
+      { range: '90', sort: 'nope', day: 'yesterday' },
+      { range: '30', sort: 'latest', dir: 'desc' },
+    );
     expect([v.range, v.sort, v.day]).toEqual(['30', 'latest', null]);
   });
   test('writes back only what differs from the defaults, and a day instead of a range', () => {
-    const v = viewFromParams({ day: '2026-09-24', project: 'shop', q: ' bug ' }, { range: '7', sort: 'latest', dir: 'desc' });
-    expect(addressOf(v, () => '2026-09-24')).toEqual({ day: '2026-09-24', range: null, project: 'shop', tag: '', q: 'bug', sort: null, dir: null });
+    const v = viewFromParams(
+      { day: '2026-09-24', project: 'shop', q: ' bug ' },
+      { range: '7', sort: 'latest', dir: 'desc' },
+    );
+    expect(addressOf(v, () => '2026-09-24')).toEqual({
+      day: '2026-09-24',
+      range: null,
+      project: 'shop',
+      tag: '',
+      q: 'bug',
+      sort: null,
+      dir: null,
+    });
   });
   test('a day spans that day; a range ends today', () => {
     const d = today - 3 * DAY;
@@ -42,7 +99,11 @@ describe('the address', () => {
 
 describe('the list', () => {
   test('sorts by the column, newest first among equals', () => {
-    const rows = [row('a', today, { messages: 2 }), row('b', today - DAY, { messages: 5 }), row('c', today, { messages: 2, lastAt: today + 5000 })];
+    const rows = [
+      row('a', today, { messages: 2 }),
+      row('b', today - DAY, { messages: 5 }),
+      row('c', today, { messages: 2, lastAt: today + 5000 }),
+    ];
     expect(sortRows(rows, { sort: 'messages', dir: 'desc' }).map((r) => r.id)).toEqual(['b', 'c', 'a']);
     expect(sortRows(rows, { sort: 'messages', dir: 'asc' }).map((r) => r.id)).toEqual(['c', 'a', 'b']);
   });
@@ -66,7 +127,9 @@ describe('the list', () => {
 
 describe('saved views', () => {
   test('are named from what they show', () => {
-    expect(suggestName({ q: 'timezone', project: 'shop', tag: 'bug', range: '7', sort: 'cost' })).toBe('“timezone” · shop · bug · 7 days · priciest');
+    expect(suggestName({ q: 'timezone', project: 'shop', tag: 'bug', range: '7', sort: 'cost' })).toBe(
+      '“timezone” · shop · bug · 7 days · priciest',
+    );
     expect(suggestName({ range: '30', sort: 'latest' })).toBe('My view');
   });
   test('the plain view isn’t worth saving', () => {
@@ -74,7 +137,9 @@ describe('saved views', () => {
     expect(isPlain(paramsOf(viewFromParams({ tag: 'x' }, { range: '30', sort: 'latest', dir: 'desc' })))).toBe(false);
   });
   test('open the address the rest of the dashboard links to', () => {
-    const v = { params: { range: '7' as const, project: 'shop', tag: '', q: 'x', sort: 'cost' as const, dir: 'asc' as const } };
+    const v = {
+      params: { range: '7' as const, project: 'shop', tag: '', q: 'x', sort: 'cost' as const, dir: 'asc' as const },
+    };
     expect(viewLink(v)).toBe('#sessions?range=7&project=shop&q=x&sort=cost&dir=asc');
   });
 });

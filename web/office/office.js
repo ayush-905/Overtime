@@ -19,13 +19,15 @@ function spot(zone, c, r, face, pose, extra = {}) {
   return { zone, x: c * T + 8, y: r * T + 12, face, pose, approach: [c, r], owner: null, ...extra };
 }
 
-const DIRS = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+const DIRS = [
+  [1, 0],
+  [-1, 0],
+  [0, 1],
+  [0, -1],
+];
 
 export function tileOf(x, y) {
-  return [
-    Math.max(0, Math.min(COLS - 1, Math.floor(x / T))),
-    Math.max(0, Math.min(ROWS - 1, Math.floor((y - 1) / T))),
-  ];
+  return [Math.max(0, Math.min(COLS - 1, Math.floor(x / T))), Math.max(0, Math.min(ROWS - 1, Math.floor((y - 1) / T)))];
 }
 
 export function isOpen(c, r) {
@@ -64,7 +66,8 @@ export function findPath([sc, sr], [tc, tr]) {
   }
   if (prev[goal] === -1) return null;
   const path = [];
-  for (let cur = goal; cur !== start; cur = prev[cur]) path.push({ x: (cur % COLS) * T + 8, y: ((cur / COLS) | 0) * T + 12 });
+  for (let cur = goal; cur !== start; cur = prev[cur])
+    path.push({ x: (cur % COLS) * T + 8, y: ((cur / COLS) | 0) * T + 12 });
   return path.reverse();
 }
 
@@ -182,16 +185,30 @@ function addDesk(i, c, r) {
     R(27, 14, 3, 1, '#cfc8b6');
   });
   const desk = {
-    i, c, r,
+    i,
+    c,
+    r,
     screen: { x: c * T + 9, y: r * T - 5, w: 14, h: 8 },
     seat: spot('desk', c, r + 1, 'up', 'sit', { x: (c + 1) * T, y: (r + 1) * T + 12, approach: [c, r + 1], desk: i }),
   };
   DESKS.push(desk);
-  FURNITURE.push({ img, x: c * T, y: r * T - 6, baseY: r * T + 16, dyn: (g, now, scene) => drawScreen(g, desk.screen, scene.desks[i], now, i) });
+  FURNITURE.push({
+    img,
+    x: c * T,
+    y: r * T - 6,
+    baseY: r * T + 16,
+    dyn: (g, now, scene) => drawScreen(g, desk.screen, scene.desks[i], now, i),
+  });
   addSeatChair(desk.seat.x, desk.seat.y, true);
   // A paper bin that fills up as the agent's context window does.
   desk.bin = { x: c * T + 26, y: (r + 1) * T + 4 };
-  FURNITURE.push({ img: binImg, x: desk.bin.x, y: desk.bin.y, baseY: desk.bin.y + 7, dyn: (g, now, scene) => drawBin(g, desk.bin, scene.desks[i]) });
+  FURNITURE.push({
+    img: binImg,
+    x: desk.bin.x,
+    y: desk.bin.y,
+    baseY: desk.bin.y + 7,
+    dyn: (g, now, scene) => drawBin(g, desk.bin, scene.desks[i]),
+  });
   block(c, r, 2, 1);
 }
 
@@ -209,7 +226,17 @@ function drawBin(g, bin, state) {
   if (!pct) return;
   // Paper balls stack inside the bin and start piling over the rim past 85%.
   const balls = Math.min(9, Math.ceil(pct / 11));
-  const spots = [[1, 6], [3, 6], [2, 5], [1, 4], [3, 4], [2, 3], [1, 1], [3, 0], [2, -1]];
+  const spots = [
+    [1, 6],
+    [3, 6],
+    [2, 5],
+    [1, 4],
+    [3, 4],
+    [2, 3],
+    [1, 1],
+    [3, 0],
+    [2, -1],
+  ];
   for (let k = 0; k < balls; k++) {
     const [dx, dy] = spots[k];
     rect(g, bin.x + dx, bin.y + dy, 2, 2, PAPER[k % PAPER.length]);
@@ -231,12 +258,20 @@ function addInternDesk(i, c, r) {
     R(13, 17, 2, 1, '#6b4a30');
   });
   const desk = {
-    i, c, r,
+    i,
+    c,
+    r,
     screen: { x: c * T + 4, y: r * T, w: 8, h: 5 },
     seat: spot('desk', c, r + 1, 'up', 'sit', { intern: i }),
   };
   INTERN_DESKS.push(desk);
-  FURNITURE.push({ img, x: c * T, y: r * T - 2, baseY: r * T + 16, dyn: (g, now, scene) => drawScreen(g, desk.screen, scene.interns[i], now, i + 7) });
+  FURNITURE.push({
+    img,
+    x: c * T,
+    y: r * T - 2,
+    baseY: r * T + 16,
+    dyn: (g, now, scene) => drawScreen(g, desk.screen, scene.interns[i], now, i + 7),
+  });
   FURNITURE.push({ img: stool, x: desk.seat.x - 5, y: desk.seat.y - 4, baseY: desk.seat.y - 1 });
   block(c, r);
 }
@@ -256,7 +291,14 @@ function drawScreen(g, s, state, now, seed) {
       const n = scroll + k + seed * 3;
       const indent = n % 3;
       const len = 2 + ((n * 7919) % Math.max(3, s.w - 4 - indent));
-      rect(g, s.x + 1 + indent, s.y + 1 + k * 2, Math.min(len, s.w - 2 - indent), 1, CODE_COLORS[(n + seed) % CODE_COLORS.length]);
+      rect(
+        g,
+        s.x + 1 + indent,
+        s.y + 1 + k * 2,
+        Math.min(len, s.w - 2 - indent),
+        1,
+        CODE_COLORS[(n + seed) % CODE_COLORS.length],
+      );
     }
   } else if (mode === 'thinking') {
     rect(g, s.x + 1, s.y + 1, Math.floor(s.w * 0.6), 1, '#4b6a88');
@@ -264,7 +306,14 @@ function drawScreen(g, s, state, now, seed) {
     if (Math.floor(now / 450) % 2) rect(g, s.x + 1 + Math.floor(s.w * 0.4) + 1, s.y + 3, 1, 1, '#e8eef5');
   } else if (mode === 'waiting') {
     const t = now / 900;
-    rect(g, s.x + Math.round((Math.sin(t) + 1) * (s.w - 3) / 2) + 1, s.y + Math.round((Math.cos(t * 1.3) + 1) * (s.h - 3) / 2) + 1, 1, 1, '#f4d35e');
+    rect(
+      g,
+      s.x + Math.round(((Math.sin(t) + 1) * (s.w - 3)) / 2) + 1,
+      s.y + Math.round(((Math.cos(t * 1.3) + 1) * (s.h - 3)) / 2) + 1,
+      1,
+      1,
+      '#f4d35e',
+    );
   } else {
     rect(g, s.x + Math.floor(s.w / 2) - 1, s.y + Math.floor(s.h / 2) - 1, 2, 2, '#2c3a4d');
   }
@@ -283,7 +332,10 @@ function buildOffice() {
       R(2, top, 60, 11, '#4a2c17');
       let x = 3;
       while (x < 59) {
-        if (rnd() < 0.07) { x += 3; continue; }
+        if (rnd() < 0.07) {
+          x += 3;
+          continue;
+        }
         const w = 2 + Math.floor(rnd() * 2);
         const h = 7 + Math.floor(rnd() * 4);
         const col = BOOKS[Math.floor(rnd() * BOOKS.length)];
@@ -324,8 +376,20 @@ function buildOffice() {
   addPlant(9, 16);
 
   // Desks for the main agents, and a small pod for subagent interns.
-  [[1, 5], [4, 5], [7, 5], [1, 9], [4, 9], [7, 9]].forEach(([c, r], i) => addDesk(i, c, r));
-  [[1, 13], [3, 13], [5, 13], [7, 13]].forEach(([c, r], i) => addInternDesk(i, c, r));
+  [
+    [1, 5],
+    [4, 5],
+    [7, 5],
+    [1, 9],
+    [4, 9],
+    [7, 9],
+  ].forEach(([c, r], i) => addDesk(i, c, r));
+  [
+    [1, 13],
+    [3, 13],
+    [5, 13],
+    [7, 13],
+  ].forEach(([c, r], i) => addInternDesk(i, c, r));
 
   // Meeting table, where agents brief their subagents.
   const table = makeSprite(64, 28, (R) => {
@@ -363,7 +427,13 @@ function buildOffice() {
     R(2, 24, 28, 4, '#4a515b');
   });
   const kioskScreen = { x: 19 * T + 4, y: 8 * T - 11, w: 24, h: 13 };
-  FURNITURE.push({ img: kiosk, x: 19 * T, y: 8 * T - 12, baseY: 9 * T, dyn: (g, now, scene) => drawGlobe(g, kioskScreen, now, scene.webBusy) });
+  FURNITURE.push({
+    img: kiosk,
+    x: 19 * T,
+    y: 8 * T - 12,
+    baseY: 9 * T,
+    dyn: (g, now, scene) => drawGlobe(g, kioskScreen, now, scene.webBusy),
+  });
   block(19, 8, 2, 1);
   SPOTS.web.push(spot('web', 19, 9, 'up', 'stand'), spot('web', 20, 9, 'up', 'stand'));
 
@@ -387,7 +457,13 @@ function buildOffice() {
       leds.push({ x: x + 4, y: y0, seed: k * 11 + u }, { x: x + 6, y: y0 + 1, seed: k * 11 + u + 5 });
     }
     RACK_LEDS.push(...leds);
-    FURNITURE.push({ img: rack, x, y, baseY: (r + 2) * T, dyn: (g, now, scene) => drawLeds(g, leds, now, scene.serversBusy) });
+    FURNITURE.push({
+      img: rack,
+      x,
+      y,
+      baseY: (r + 2) * T,
+      dyn: (g, now, scene) => drawLeds(g, leds, now, scene.serversBusy),
+    });
     block(25, r, 1, 2);
     SPOTS.servers.push(spot('servers', 24, r + 1, 'right', 'stand'));
   });
@@ -412,7 +488,8 @@ function buildOffice() {
   });
   FURNITURE.push({ img: sofa, x: 18 * T, y: 12 * T - 8, baseY: 12 * T + 6 });
   block(18, 12, 3, 1);
-  for (let c = 18; c <= 20; c++) SPOTS.lounge.push(spot('lounge', c, 12, 'down', 'sofa', { y: 12 * T + 13, approach: [c, 13] }));
+  for (let c = 18; c <= 20; c++)
+    SPOTS.lounge.push(spot('lounge', c, 12, 'down', 'sofa', { y: 12 * T + 13, approach: [c, 13] }));
 
   const coffeeTable = makeSprite(48, 12, (R) => {
     R(1, 0, 46, 6, '#7b5230');
@@ -434,7 +511,13 @@ function buildOffice() {
     R(5, 16, 4, 4, '#f4f4f4');
     R(3, 20, 8, 1, '#777777');
   });
-  FURNITURE.push({ img: coffee, x: 25 * T + 1, y: 13 * T - 8, baseY: 14 * T, dyn: (g, now, scene) => drawCoffee(g, now, scene.coffeeBusy) });
+  FURNITURE.push({
+    img: coffee,
+    x: 25 * T + 1,
+    y: 13 * T - 8,
+    baseY: 14 * T,
+    dyn: (g, now, scene) => drawCoffee(g, now, scene.coffeeBusy),
+  });
   block(25, 13);
   SPOTS.lounge.push(spot('lounge', 24, 13, 'right', 'stand'));
 
@@ -451,7 +534,10 @@ function buildOffice() {
   block(25, 15);
   SPOTS.lounge.push(spot('lounge', 24, 15, 'right', 'stand'));
 
-  [[21, 15, '#e0a13a'], [23, 15, '#5aa37a']].forEach(([c, r, col]) => {
+  [
+    [21, 15, '#e0a13a'],
+    [23, 15, '#5aa37a'],
+  ].forEach(([c, r, col]) => {
     const bag = makeSprite(16, 12, (R) => {
       R(4, 1, 8, 3, col);
       R(2, 3, 12, 8, col);
@@ -464,7 +550,16 @@ function buildOffice() {
   });
   SPOTS.lounge.push(spot('lounge', 16, 14, 'right', 'stand'), spot('lounge', 16, 15, 'right', 'stand'));
 
-  for (const [c, r] of [[10, 11], [11, 11], [13, 11], [14, 11], [10, 12], [11, 12], [13, 12], [14, 12]]) {
+  for (const [c, r] of [
+    [10, 11],
+    [11, 11],
+    [13, 11],
+    [14, 11],
+    [10, 12],
+    [11, 12],
+    [13, 12],
+    [14, 12],
+  ]) {
     SPOTS.floor.push(spot('floor', c, r, 'down', 'stand'));
   }
 }
@@ -480,7 +575,13 @@ function drawGlobe(g, s, now, busy) {
   g.clip();
   const shift = (now / (busy ? 90 : 400)) % 24;
   g.fillStyle = busy ? '#58c27d' : '#3f8f5c';
-  for (const [dx, dy, w, h] of [[0, -3, 4, 3], [5, 0, 3, 4], [11, -2, 4, 2], [16, 1, 5, 3], [20, -4, 3, 2]]) {
+  for (const [dx, dy, w, h] of [
+    [0, -3, 4, 3],
+    [5, 0, 3, 4],
+    [11, -2, 4, 2],
+    [16, 1, 5, 3],
+    [20, -4, 3, 2],
+  ]) {
     const x = cx - 5 + ((dx + shift) % 24) - 6;
     g.fillRect(Math.round(x), cy + dy, w, h);
     g.fillRect(Math.round(x - 24), cy + dy, w, h);
@@ -496,7 +597,7 @@ function drawGlobe(g, s, now, busy) {
 function drawLeds(g, leds, now, busy) {
   for (const led of leds) {
     const period = busy ? 110 : 900;
-    const on = ((Math.floor(now / period) + led.seed * 7) % 5) < (busy ? 3 : 4);
+    const on = (Math.floor(now / period) + led.seed * 7) % 5 < (busy ? 3 : 4);
     const col = led.seed % 3 === 0 ? '#4aa3ff' : led.seed % 7 === 0 ? '#ffb020' : '#3ddc84';
     rect(g, led.x, led.y, 1, 1, on ? col : '#1c2a22');
   }
@@ -559,10 +660,18 @@ export const background = makeSprite(W, H, (R) => {
   R(bx + 16, 35, 4, 1, '#2e86de');
   R(bx + 22, 35, 4, 1, '#27ae60');
   // A little flow chart that is always there.
-  R(bx + 6, 12, 14, 1, '#2e86de'); R(bx + 6, 19, 14, 1, '#2e86de'); R(bx + 6, 12, 1, 8, '#2e86de'); R(bx + 19, 12, 1, 8, '#2e86de');
-  R(bx + 20, 15, 6, 1, '#555555'); R(bx + 25, 14, 1, 3, '#555555');
-  R(bx + 27, 12, 10, 1, '#e74c3c'); R(bx + 27, 19, 10, 1, '#e74c3c'); R(bx + 27, 12, 1, 8, '#e74c3c'); R(bx + 36, 12, 1, 8, '#e74c3c');
-  R(bx + 8, 25, 26, 1, '#9aa3ad'); R(bx + 8, 28, 18, 1, '#9aa3ad');
+  R(bx + 6, 12, 14, 1, '#2e86de');
+  R(bx + 6, 19, 14, 1, '#2e86de');
+  R(bx + 6, 12, 1, 8, '#2e86de');
+  R(bx + 19, 12, 1, 8, '#2e86de');
+  R(bx + 20, 15, 6, 1, '#555555');
+  R(bx + 25, 14, 1, 3, '#555555');
+  R(bx + 27, 12, 10, 1, '#e74c3c');
+  R(bx + 27, 19, 10, 1, '#e74c3c');
+  R(bx + 27, 12, 1, 8, '#e74c3c');
+  R(bx + 36, 12, 1, 8, '#e74c3c');
+  R(bx + 8, 25, 26, 1, '#9aa3ad');
+  R(bx + 8, 28, 18, 1, '#9aa3ad');
   // Door mat and lounge rug.
   R(23 * T + 3, 3 * T + 1, 2 * T - 6, 5, '#5f7f5f');
   const rx = 16 * T + 2;
@@ -598,7 +707,8 @@ export function drawWall(g, now, scene) {
     rect(g, x, 7, 44, 12, top);
     rect(g, x, 19, 44, 12, bottom);
     if (night) {
-      for (const [sx, sy, p] of STARS) if ((Math.floor(now / 600 + p * 10) % 7) !== 0) rect(g, x + sx, 7 + sy, 1, 1, '#f5f3d7');
+      for (const [sx, sy, p] of STARS)
+        if (Math.floor(now / 600 + p * 10) % 7 !== 0) rect(g, x + sx, 7 + sy, 1, 1, '#f5f3d7');
       rect(g, x + 32, 10, 4, 4, '#f5f3d7');
     } else {
       const cloud = ((now / 900 + x) % 70) - 14;
@@ -621,8 +731,8 @@ export function drawWall(g, now, scene) {
   g.strokeStyle = '#5b4636';
   g.stroke();
   const d = new Date();
-  const hAng = ((d.getHours() % 12) + d.getMinutes() / 60) / 12 * Math.PI * 2 - Math.PI / 2;
-  const mAng = (d.getMinutes() + d.getSeconds() / 60) / 60 * Math.PI * 2 - Math.PI / 2;
+  const hAng = (((d.getHours() % 12) + d.getMinutes() / 60) / 12) * Math.PI * 2 - Math.PI / 2;
+  const mAng = ((d.getMinutes() + d.getSeconds() / 60) / 60) * Math.PI * 2 - Math.PI / 2;
   g.lineWidth = 1;
   g.beginPath();
   g.moveTo(cx, cy);
@@ -663,41 +773,21 @@ export function drawWall(g, now, scene) {
 
 export function screenGlows(scene) {
   const glows = [];
-  DESKS.forEach((d, i) => { if (scene.desks[i] && scene.desks[i].mode !== 'off') glows.push(d.screen); });
-  INTERN_DESKS.forEach((d, i) => { if (scene.interns[i] && scene.interns[i].mode !== 'off') glows.push(d.screen); });
+  DESKS.forEach((d, i) => {
+    if (scene.desks[i] && scene.desks[i].mode !== 'off') glows.push(d.screen);
+  });
+  INTERN_DESKS.forEach((d, i) => {
+    if (scene.interns[i] && scene.interns[i].mode !== 'off') glows.push(d.screen);
+  });
   glows.push({ x: 19 * T + 4, y: 8 * T - 11, w: 24, h: 13 });
   return glows;
 }
 
 // ── Characters ─────────────────────────────────────────────────────────────
 
-const HEAD_FRONT = [
-  '...hhhh...',
-  '..hhhhhh..',
-  '.hhhhhhhh.',
-  '.hssssssh.',
-  '.sesssses.',
-  '.ssssssss.',
-  '..ssssss..',
-];
-const HEAD_BACK = [
-  '...hhhh...',
-  '..hhhhhh..',
-  '.hhhhhhhh.',
-  '.hhhhhhhh.',
-  '.hhhhhhhh.',
-  '.shhhhhhs.',
-  '..ssssss..',
-];
-const HEAD_SIDE = [
-  '...hhhh...',
-  '..hhhhhhh.',
-  '.hhhhhhhh.',
-  '.ssshhhhh.',
-  'sesshhhhh.',
-  '.sssshhhh.',
-  '..ssss....',
-];
+const HEAD_FRONT = ['...hhhh...', '..hhhhhh..', '.hhhhhhhh.', '.hssssssh.', '.sesssses.', '.ssssssss.', '..ssssss..'];
+const HEAD_BACK = ['...hhhh...', '..hhhhhh..', '.hhhhhhhh.', '.hhhhhhhh.', '.hhhhhhhh.', '.shhhhhhs.', '..ssssss..'];
+const HEAD_SIDE = ['...hhhh...', '..hhhhhhh.', '.hhhhhhhh.', '.ssshhhhh.', 'sesshhhhh.', '.sssshhhh.', '..ssss....'];
 const BODY = ['.dccccccd.', 'sdccccccds', 'sdccccccds', '.pppppppp.'];
 const BODY_SIDE = ['..dcccc...', '..dccsc...', '..dcccc...', '..pppp....'];
 const LEGS = {
@@ -799,38 +889,10 @@ export function portrait(look) {
 // ── The office cat ─────────────────────────────────────────────────────────
 
 const CAT = {
-  walkA: [
-    '.......o.o',
-    'o......ooo',
-    '.o.....oeo',
-    '.oooooooo.',
-    '.owowowoo.',
-    '..o.o..o.o',
-  ],
-  walkB: [
-    '.......o.o',
-    'o......ooo',
-    '.o.....oeo',
-    '.oooooooo.',
-    '.owowowoo.',
-    '.o..o.o..o',
-  ],
-  sit: [
-    '.....o.o..',
-    '.....ooo..',
-    '.....oeo..',
-    'o...oooo..',
-    '.o.ooowo..',
-    '..oooooo..',
-  ],
-  sleep: [
-    '..........',
-    '..........',
-    '..........',
-    '.oooooo...',
-    'oowowoooo.',
-    '.oooooooo.',
-  ],
+  walkA: ['.......o.o', 'o......ooo', '.o.....oeo', '.oooooooo.', '.owowowoo.', '..o.o..o.o'],
+  walkB: ['.......o.o', 'o......ooo', '.o.....oeo', '.oooooooo.', '.owowowoo.', '.o..o.o..o'],
+  sit: ['.....o.o..', '.....ooo..', '.....oeo..', 'o...oooo..', '.o.ooowo..', '..oooooo..'],
+  sleep: ['..........', '..........', '..........', '.oooooo...', 'oowowoooo.', '.oooooooo.'],
 };
 const CAT_COLORS = { o: '#e39b4b', w: '#b86f2c', e: '#2b2b33' };
 const catCache = new Map();

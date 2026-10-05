@@ -12,7 +12,11 @@ import { loadLabels, LABEL_KEYS } from './labels';
 import { SOURCES } from './sources';
 
 const get = (key: string) => {
-  try { return localStorage.getItem(key); } catch { return null; }
+  try {
+    return localStorage.getItem(key);
+  } catch {
+    return null;
+  }
 };
 const put = (key: string, value: string | null) => {
   try {
@@ -20,8 +24,12 @@ const put = (key: string, value: string | null) => {
     else localStorage.setItem(key, value);
   } catch {}
 };
-const json = <T,>(key: string, fallback: T): T => {
-  try { return (JSON.parse(get(key) || 'null') as T) ?? fallback; } catch { return fallback; }
+const json = <T>(key: string, fallback: T): T => {
+  try {
+    return (JSON.parse(get(key) || 'null') as T) ?? fallback;
+  } catch {
+    return fallback;
+  }
 };
 
 // ── The clock ──────────────────────────────────────────────────────────────
@@ -39,7 +47,10 @@ export function setClock24(on: boolean) {
 const CURRENCY_KEY = 'overtime-currency';
 
 /** Currencies costs can show in. Prices are in US dollars, so each converts at a rate you set; these are where it starts. */
-export const CURRENCIES: Record<string, { name: string; symbol: string; rate: number; locale?: string; whole?: boolean }> = {
+export const CURRENCIES: Record<
+  string,
+  { name: string; symbol: string; rate: number; locale?: string; whole?: boolean }
+> = {
   USD: { name: 'US dollar', symbol: '$', rate: 1 },
   INR: { name: 'Indian rupee', symbol: '₹', rate: 88, locale: 'en-IN' },
   EUR: { name: 'Euro', symbol: '€', rate: 0.86 },
@@ -86,8 +97,14 @@ export const customizedProjects = () => Object.keys(env.projects);
 export function setProjectPref(name: string, pref: ProjectPref = {}) {
   const alias = 'alias' in pref ? pref.alias : env.projects[name]?.alias;
   const hue = 'hue' in pref ? pref.hue : env.projects[name]?.hue;
-  const clean = String(alias || '').replace(/\s+/g, ' ').trim().slice(0, 60);
-  const next: ProjectPref = { ...(clean && clean !== name ? { alias: clean } : {}), ...(Number.isFinite(hue) ? { hue } : {}) };
+  const clean = String(alias || '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 60);
+  const next: ProjectPref = {
+    ...(clean && clean !== name ? { alias: clean } : {}),
+    ...(Number.isFinite(hue) ? { hue } : {}),
+  };
   const projects = { ...env.projects };
   if (Object.keys(next).length) projects[name] = next;
   else delete projects[name];
@@ -171,7 +188,8 @@ export function saveSideWidth(w: number) {
 
 export const NAV_KEY = 'overtime-nav';
 export const readNav = () => json<{ order?: string[]; hidden?: string[] }>(NAV_KEY, {});
-export const saveNav = (value: { order: string[]; hidden: string[] } | null) => put(NAV_KEY, value ? JSON.stringify(value) : null);
+export const saveNav = (value: { order: string[]; hidden: string[] } | null) =>
+  put(NAV_KEY, value ? JSON.stringify(value) : null);
 
 // ── Exact plan limits: Claude Code's on unless turned off, Codex's live check off unless turned on ──
 

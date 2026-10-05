@@ -20,7 +20,9 @@ const drawerMax = () => Math.min(DRAWER.max, Math.round(window.innerWidth * 0.9)
 
 function readDrawerWidth() {
   let v = NaN;
-  try { v = Number(localStorage.getItem(DRAWER_KEY)); } catch {}
+  try {
+    v = Number(localStorage.getItem(DRAWER_KEY));
+  } catch {}
   return Number.isFinite(v) && v >= DRAWER.min && v <= DRAWER.max ? v : DRAWER.usual;
 }
 
@@ -61,7 +63,13 @@ export const useUi = create<UiState>((set, get) => ({
   sideWidth: readSideWidth(),
   nav: readNavState(),
   session: null,
-  docked: (() => { try { return localStorage.getItem(DOCK_KEY) === '1'; } catch { return false; } })(),
+  docked: (() => {
+    try {
+      return localStorage.getItem(DOCK_KEY) === '1';
+    } catch {
+      return false;
+    }
+  })(),
   drawerWidth: readDrawerWidth(),
   setPaletteOpen: (paletteOpen) => set({ paletteOpen }),
   setKeysOpen: (keysOpen) => set({ keysOpen }),

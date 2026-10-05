@@ -48,7 +48,10 @@ export function useHistory(scope: string, enabled = true) {
   return useQuery({
     enabled,
     queryKey: ['history', scope],
-    queryFn: async () => (demo ? { days: (await demoData()).demoHistory(Date.now()) } : getJson<{ days: unknown[] }>(`/api/history?scope=${scope}`)),
+    queryFn: async () =>
+      demo
+        ? { days: (await demoData()).demoHistory(Date.now()) }
+        : getJson<{ days: unknown[] }>(`/api/history?scope=${scope}`),
     staleTime: 5 * 60_000,
     refetchInterval: 5 * 60_000,
   });
@@ -88,14 +91,28 @@ export function useTurn(id: string | null, at: number | null) {
   });
 }
 
-export type SearchResult = { session: string; source: Source; title: string | null; project: string | null; count: number; lastAt: number; hits: { t: number; who: 'you' | 'agent'; text: string }[] };
+export type SearchResult = {
+  session: string;
+  source: Source;
+  title: string | null;
+  project: string | null;
+  count: number;
+  lastAt: number;
+  hits: { t: number; who: 'you' | 'agent'; text: string }[];
+};
 
 /** Sessions whose conversations have every word of `q`. Off (null) while search is off, or for fewer than two letters. */
-export function useSearch(q: string, { on = true, scope = 'all', limit = 40 }: { on?: boolean; scope?: string; limit?: number } = {}) {
+export function useSearch(
+  q: string,
+  { on = true, scope = 'all', limit = 40 }: { on?: boolean; scope?: string; limit?: number } = {},
+) {
   const query = q.trim();
   return useQuery({
     queryKey: ['search', scope, limit, query.toLowerCase()],
-    queryFn: () => getJson<{ terms: string[]; results: SearchResult[]; total: number }>(`/api/search?${new URLSearchParams({ q: query, scope, limit: String(limit) })}`),
+    queryFn: () =>
+      getJson<{ terms: string[]; results: SearchResult[]; total: number }>(
+        `/api/search?${new URLSearchParams({ q: query, scope, limit: String(limit) })}`,
+      ),
     enabled: on && !demo && query.length >= 2,
     staleTime: 10_000,
   });
@@ -105,7 +122,10 @@ export function useSearch(q: string, { on = true, scope = 'all', limit = 40 }: {
 export function useDigest(weeksAgo: number, enabled = true) {
   return useQuery({
     queryKey: ['digest', weeksAgo],
-    queryFn: async () => (demo ? (await demoData()).demoDigest(Date.now(), weeksAgo) : getJson<Record<string, unknown>>(`/api/digest?week=${weeksAgo ? 1 : 0}`)),
+    queryFn: async () =>
+      demo
+        ? (await demoData()).demoDigest(Date.now(), weeksAgo)
+        : getJson<Record<string, unknown>>(`/api/digest?week=${weeksAgo ? 1 : 0}`),
     enabled,
     staleTime: 60_000,
   });

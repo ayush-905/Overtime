@@ -35,11 +35,32 @@ export type Spend = { cost: number; tokens: number; unpricedTokens?: number; par
 
 export type AnalyticsView = {
   insights: Record<string, unknown> | null;
-  spend: { today: Spend; yesterday: Spend; yesterdayByNow: Spend; last7: Spend; last30: Spend; month: Spend & { from: number } } | null;
-  today: { tokens: number; cost: number; costPartial?: boolean; tools: number; added: number; removed: number; sessions: number; sessionList?: unknown[] } | null;
+  spend: {
+    today: Spend;
+    yesterday: Spend;
+    yesterdayByNow: Spend;
+    last7: Spend;
+    last30: Spend;
+    month: Spend & { from: number };
+  } | null;
+  today: {
+    tokens: number;
+    cost: number;
+    costPartial?: boolean;
+    tools: number;
+    added: number;
+    removed: number;
+    sessions: number;
+    sessionList?: unknown[];
+  } | null;
 };
 
-export type OpenSessions = { sampledAt: number; everyMs: number; sessions: ({ source: Source } & Record<string, unknown>)[]; sharedRuntimes?: ({ source: Source } & Record<string, unknown>)[] };
+export type OpenSessions = {
+  sampledAt: number;
+  everyMs: number;
+  sessions: ({ source: Source } & Record<string, unknown>)[];
+  sharedRuntimes?: ({ source: Source } & Record<string, unknown>)[];
+};
 
 export type Snapshot = {
   now: number;

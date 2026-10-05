@@ -47,12 +47,16 @@ export function digestReady(now = Date.now()) {
   if (weekday < 1 || weekday > 3) return null;
   const week = weekStartOf(now);
   let seen = 0;
-  try { seen = Number(localStorage.getItem(SEEN_KEY)) || 0; } catch {}
+  try {
+    seen = Number(localStorage.getItem(SEEN_KEY)) || 0;
+  } catch {}
   return seen >= week ? null : { from: weekStartOf(week - DAY), to: week };
 }
 
 export function markDigestSeen() {
-  try { localStorage.setItem(SEEN_KEY, String(weekStartOf(Date.now()))); } catch {}
+  try {
+    localStorage.setItem(SEEN_KEY, String(weekStartOf(Date.now())));
+  } catch {}
 }
 
 /** The days a digest covers: "22 – 28 Sept", or one day. */
@@ -60,7 +64,10 @@ export const span = (d: { from: number; to: number }) => {
   const last = d.to - DAY;
   const end = new Date(last).toLocaleDateString([], { day: 'numeric', month: 'short' });
   if (new Date(d.from).toDateString() === new Date(last).toDateString()) return end;
-  const from = new Date(d.from).toLocaleDateString([], { day: 'numeric', month: new Date(d.from).getMonth() === new Date(last).getMonth() ? undefined : 'short' });
+  const from = new Date(d.from).toLocaleDateString([], {
+    day: 'numeric',
+    month: new Date(d.from).getMonth() === new Date(last).getMonth() ? undefined : 'short',
+  });
   return `${from} – ${end}`;
 };
 
@@ -81,17 +88,32 @@ export function change(now: number, before: number) {
 export function digestNotes(d: Digest) {
   const out: string[] = [];
   const top = d.projects[0];
-  if (top && d.cost > 1 && top.cost / d.cost >= 0.4 && d.projects.length > 1) out.push(`${projectName(top.name)} took ${pct(top.cost, d.cost)}% of the cost (≈ ${money(top.cost)}).`);
+  if (top && d.cost > 1 && top.cost / d.cost >= 0.4 && d.projects.length > 1)
+    out.push(`${projectName(top.name)} took ${pct(top.cost, d.cost)}% of the cost (≈ ${money(top.cost)}).`);
   if (d.busiest && d.days > 1) out.push(`Your busiest day was ${longDay(d.busiest[0])}, at ≈ ${money(d.busiest[1])}.`);
-  if (d.waitMs >= 30 * 60_000) out.push(`Agents waited ${duration(d.waitMs)} for your replies${d.waits ? `, about ${duration(d.waitMs / d.waits)} a reply` : ''}.`);
-  if (d.agentMs > d.activeMs && d.activeMs > 0) out.push(`Your agents worked ${duration(d.agentMs)}, more than your own ${duration(d.activeMs)} of active time.`);
-  const hits = [d.hits.claude && `Claude Code's limit ${d.hits.claude === 1 ? 'once' : `${d.hits.claude} times`}`, d.hits.codex && `Codex's ${d.hits.codex === 1 ? 'once' : `${d.hits.codex} times`}`].filter(Boolean);
+  if (d.waitMs >= 30 * 60_000)
+    out.push(
+      `Agents waited ${duration(d.waitMs)} for your replies${d.waits ? `, about ${duration(d.waitMs / d.waits)} a reply` : ''}.`,
+    );
+  if (d.agentMs > d.activeMs && d.activeMs > 0)
+    out.push(`Your agents worked ${duration(d.agentMs)}, more than your own ${duration(d.activeMs)} of active time.`);
+  const hits = [
+    d.hits.claude && `Claude Code's limit ${d.hits.claude === 1 ? 'once' : `${d.hits.claude} times`}`,
+    d.hits.codex && `Codex's ${d.hits.codex === 1 ? 'once' : `${d.hits.codex} times`}`,
+  ].filter(Boolean);
   if (hits.length) out.push(`You hit ${hits.join(' and ')}.`);
   // Each provider's share of the cost, when more than one did some of the work.
-  const shares = SOURCES.filter((s) => (d.bySource[s] || 0) > 0.005).sort((a, b) => (d.bySource[b] || 0) - (d.bySource[a] || 0));
-  if (shares.length === 2) out.push(`${SOURCE[shares[1]].name} was ${pct(d.bySource[shares[1]]!, d.cost)}% of the cost, ${SOURCE[shares[0]].name} the rest.`);
-  else if (shares.length > 2) out.push(`Of the cost, ${andList(shares.map((s) => `${SOURCE[s].name} was ${pct(d.bySource[s]!, d.cost)}%`))}.`);
-  if (d.tools >= 50 && d.failed / d.tools >= 0.05) out.push(`${pct(d.failed, d.tools)}% of tool calls failed; Tool failures on the Agents page shows why.`);
+  const shares = SOURCES.filter((s) => (d.bySource[s] || 0) > 0.005).sort(
+    (a, b) => (d.bySource[b] || 0) - (d.bySource[a] || 0),
+  );
+  if (shares.length === 2)
+    out.push(
+      `${SOURCE[shares[1]].name} was ${pct(d.bySource[shares[1]]!, d.cost)}% of the cost, ${SOURCE[shares[0]].name} the rest.`,
+    );
+  else if (shares.length > 2)
+    out.push(`Of the cost, ${andList(shares.map((s) => `${SOURCE[s].name} was ${pct(d.bySource[s]!, d.cost)}%`))}.`);
+  if (d.tools >= 50 && d.failed / d.tools >= 0.05)
+    out.push(`${pct(d.failed, d.tools)}% of tool calls failed; Tool failures on the Agents page shows why.`);
   return out;
 }
 
@@ -106,11 +128,27 @@ export function digestText(d: Digest, last: boolean) {
     `Your active time: ${duration(d.activeMs)} · agent time: ${duration(d.agentMs)} · waited for you: ${duration(d.waitMs)}`,
     `Lines changed: +${d.added} −${d.removed}`,
   ];
-  if (d.projects.length) lines.push('', 'Top projects:', ...d.projects.slice(0, 3).map((p) => `- ${projectName(p.name)}: ≈ ${money(p.cost)} (${pct(p.cost, d.cost)}%), ${plural(p.sessions, 'session')}`));
-  if (d.topSessions.length) lines.push('', 'Priciest sessions:', ...d.topSessions.slice(0, 3).map((s) => `- ${titleFor(s.id, s.title)} (${projectName(s.project)}): ≈ ${money(s.cost)}`));
+  if (d.projects.length)
+    lines.push(
+      '',
+      'Top projects:',
+      ...d.projects
+        .slice(0, 3)
+        .map(
+          (p) =>
+            `- ${projectName(p.name)}: ≈ ${money(p.cost)} (${pct(p.cost, d.cost)}%), ${plural(p.sessions, 'session')}`,
+        ),
+    );
+  if (d.topSessions.length)
+    lines.push(
+      '',
+      'Priciest sessions:',
+      ...d.topSessions
+        .slice(0, 3)
+        .map((s) => `- ${titleFor(s.id, s.title)} (${projectName(s.project)}): ≈ ${money(s.cost)}`),
+    );
   const n = digestNotes(d);
   if (n.length) lines.push('', ...n.map((x) => `- ${x}`));
   lines.push('', 'Costs at API list prices.');
   return lines.join('\n');
 }
-

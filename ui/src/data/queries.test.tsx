@@ -34,7 +34,13 @@ afterEach(() => {
 });
 
 async function renderAction(status = 'success') {
-  act(() => root.render(<QueryClientProvider client={client}><InboxAction /></QueryClientProvider>));
+  act(() =>
+    root.render(
+      <QueryClientProvider client={client}>
+        <InboxAction />
+      </QueryClientProvider>,
+    ),
+  );
   await act(async () => {
     await vi.waitFor(() => expect(client.getQueryState(['session-target', id])?.status).toBe(status));
   });

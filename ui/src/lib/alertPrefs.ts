@@ -5,10 +5,34 @@
 export const WAIT_MAX_MINUTES = 25;
 export const STUCK_MAX_MINUTES = 40;
 
-export type AlertPrefs = { needs: boolean; waiting: boolean; waitMinutes: number; stuck: boolean; stuckMinutes: number; limits: boolean; pace: boolean; reset: boolean; budget: boolean; budgetUsd: number; digest: boolean };
+export type AlertPrefs = {
+  needs: boolean;
+  waiting: boolean;
+  waitMinutes: number;
+  stuck: boolean;
+  stuckMinutes: number;
+  limits: boolean;
+  pace: boolean;
+  reset: boolean;
+  budget: boolean;
+  budgetUsd: number;
+  digest: boolean;
+};
 
 export function readAlertPrefs(): AlertPrefs {
-  const prefs: AlertPrefs = { needs: false, waiting: false, waitMinutes: 10, stuck: false, stuckMinutes: 10, limits: false, pace: false, reset: false, budget: false, budgetUsd: 50, digest: false };
+  const prefs: AlertPrefs = {
+    needs: false,
+    waiting: false,
+    waitMinutes: 10,
+    stuck: false,
+    stuckMinutes: 10,
+    limits: false,
+    pace: false,
+    reset: false,
+    budget: false,
+    budgetUsd: 50,
+    digest: false,
+  };
   try {
     prefs.needs = localStorage.getItem('overtime-alerts') === '1';
     Object.assign(prefs, JSON.parse(localStorage.getItem('overtime-alert-prefs') || '{}'), { needs: prefs.needs });

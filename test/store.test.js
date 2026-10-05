@@ -16,7 +16,9 @@ function quiet(t) {
   const said = [];
   const error = console.error;
   console.error = (...parts) => said.push(parts.join(' '));
-  t.after(() => { console.error = error; });
+  t.after(() => {
+    console.error = error;
+  });
   return said;
 }
 

@@ -3,7 +3,19 @@
 
 import type { Source } from '@/lib/sources';
 
-export const TOTAL_KEYS = ['cost', 'subCost', 'tokens', 'messages', 'agentMs', 'waitMs', 'waits', 'added', 'removed', 'tools', 'failed'] as const;
+export const TOTAL_KEYS = [
+  'cost',
+  'subCost',
+  'tokens',
+  'messages',
+  'agentMs',
+  'waitMs',
+  'waits',
+  'added',
+  'removed',
+  'tools',
+  'failed',
+] as const;
 export type TotalKey = (typeof TOTAL_KEYS)[number];
 export type Totals = Record<TotalKey, number> & { partial: boolean };
 
@@ -37,7 +49,12 @@ export function totalsFrom(s: Session, from: number, to = Infinity): Totals {
 }
 
 /** Sessions for a provider that ran between two days, with their numbers for just those days. */
-export function sessionsIn(list: Session[] | null | undefined, provider: string, from: number, to = Infinity): SessionInRange[] {
+export function sessionsIn(
+  list: Session[] | null | undefined,
+  provider: string,
+  from: number,
+  to = Infinity,
+): SessionInRange[] {
   return (list || [])
     .filter((s) => (provider === 'all' || s.source === provider) && s.days.some((d) => d.day >= from && d.day < to))
     .map((s) => ({

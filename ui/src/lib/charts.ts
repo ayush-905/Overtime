@@ -10,7 +10,15 @@ export const CHART_DEFAULT_KEY = 'overtime-chart-default';
 
 export type ChartKind = 'bars' | 'line' | 'area' | 'heat' | 'list' | 'donut' | 'table';
 
-export const CHART_KINDS: Record<ChartKind, string> = { bars: 'Bars', line: 'Line', area: 'Area', heat: 'Heatmap', list: 'List', donut: 'Donut', table: 'Table' };
+export const CHART_KINDS: Record<ChartKind, string> = {
+  bars: 'Bars',
+  line: 'Line',
+  area: 'Area',
+  heat: 'Heatmap',
+  list: 'List',
+  donut: 'Donut',
+  table: 'Table',
+};
 /** Values over time: every style. */
 export const SERIES: ChartKind[] = ['bars', 'line', 'area', 'heat', 'table'];
 /** Parts of a whole: a list with bars, or a ring. */
@@ -76,9 +84,11 @@ if (typeof window !== 'undefined') {
 }
 
 /** A value's level on a heat scale of 0–4, on a square root so one big day doesn't wash out the rest. */
-export const heatLevel = (value: number, max: number) => (value <= 0 || !max ? 0 : Math.min(4, Math.ceil(Math.sqrt(value / max) * 4)));
+export const heatLevel = (value: number, max: number) =>
+  value <= 0 || !max ? 0 : Math.min(4, Math.ceil(Math.sqrt(value / max) * 4));
 
 const csvCell = (text: string) => (/[",\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text);
 
 /** Rows of cells as CSV. */
-export const toCsv = (rows: string[][]) => rows.map((r) => r.map((c) => csvCell(String(c).trim().replace(/\s+/g, ' '))).join(',')).join('\n');
+export const toCsv = (rows: string[][]) =>
+  rows.map((r) => r.map((c) => csvCell(String(c).trim().replace(/\s+/g, ' '))).join(',')).join('\n');

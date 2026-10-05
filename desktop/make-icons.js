@@ -95,7 +95,10 @@ function appIcon(size = 1024) {
   const SUB = 4;
   for (let y = 0; y < size; y++) {
     for (let x = 0; x < size; x++) {
-      let r = 0, g = 0, b = 0, a = 0;
+      let r = 0,
+        g = 0,
+        b = 0,
+        a = 0;
       for (let sy = 0; sy < SUB; sy++) {
         for (let sx = 0; sx < SUB; sx++) {
           const px = x + (sx + 0.5) / SUB;
@@ -106,7 +109,10 @@ function appIcon(size = 1024) {
           const gx = (px - inset) / cell;
           const gy = (py - inset) / cell;
           for (const [rx, ry, rw, rh, colour, rr] of FIGURE) if (inRound(gx, gy, rx, ry, rw, rh, rr)) c = hex(colour);
-          r += c[0]; g += c[1]; b += c[2]; a += 1;
+          r += c[0];
+          g += c[1];
+          b += c[2];
+          a += 1;
         }
       }
       const i = (y * size + x) * 4;
@@ -129,10 +135,16 @@ function appIcon(size = 1024) {
  */
 function trayIcon({ dot = false, scale = 1 } = {}) {
   const on = [
-    [5, 2, 6, 1], [4, 3, 8, 6], // hair and face, one shape
-    [4, 10, 8, 4], [3, 11, 1, 2], [12, 11, 1, 2], // body and arms, a row lower
+    [5, 2, 6, 1],
+    [4, 3, 8, 6], // hair and face, one shape
+    [4, 10, 8, 4],
+    [3, 11, 1, 2],
+    [12, 11, 1, 2], // body and arms, a row lower
   ];
-  const off = [[5, 6, 1, 1], [10, 6, 1, 1]]; // eyes
+  const off = [
+    [5, 6, 1, 1],
+    [10, 6, 1, 1],
+  ]; // eyes
   if (dot) on.push([13, 0, 3, 3]);
   const size = 16 * scale;
   const out = Buffer.alloc(size * size * 4);
@@ -140,7 +152,9 @@ function trayIcon({ dot = false, scale = 1 } = {}) {
     for (let x = 0; x < size; x++) {
       const gx = Math.floor(x / scale);
       const gy = Math.floor(y / scale);
-      const lit = on.some(([rx, ry, rw, rh]) => inRound(gx, gy, rx, ry, rw, rh)) && !off.some(([rx, ry, rw, rh]) => inRound(gx, gy, rx, ry, rw, rh));
+      const lit =
+        on.some(([rx, ry, rw, rh]) => inRound(gx, gy, rx, ry, rw, rh)) &&
+        !off.some(([rx, ry, rw, rh]) => inRound(gx, gy, rx, ry, rw, rh));
       out[(y * size + x) * 4 + 3] = lit ? 255 : 0;
     }
   }
@@ -149,7 +163,10 @@ function trayIcon({ dot = false, scale = 1 } = {}) {
 
 mkdirSync(OUT, { recursive: true });
 writeFileSync(path.join(OUT, 'icon.png'), appIcon(1024));
-for (const [name, dot] of [['trayTemplate', false], ['tray-needsTemplate', true]]) {
+for (const [name, dot] of [
+  ['trayTemplate', false],
+  ['tray-needsTemplate', true],
+]) {
   writeFileSync(path.join(OUT, `${name}.png`), trayIcon({ dot }));
   writeFileSync(path.join(OUT, `${name}@2x.png`), trayIcon({ dot, scale: 2 }));
 }
@@ -159,8 +176,22 @@ if (process.platform === 'darwin') {
   rmSync(set, { recursive: true, force: true });
   mkdirSync(set);
   for (const size of [16, 32, 128, 256, 512]) {
-    for (const [scale, suffix] of [[1, ''], [2, '@2x']]) {
-      execFileSync('sips', ['-z', String(size * scale), String(size * scale), path.join(OUT, 'icon.png'), '--out', path.join(set, `icon_${size}x${size}${suffix}.png`)], { stdio: 'ignore' });
+    for (const [scale, suffix] of [
+      [1, ''],
+      [2, '@2x'],
+    ]) {
+      execFileSync(
+        'sips',
+        [
+          '-z',
+          String(size * scale),
+          String(size * scale),
+          path.join(OUT, 'icon.png'),
+          '--out',
+          path.join(set, `icon_${size}x${size}${suffix}.png`),
+        ],
+        { stdio: 'ignore' },
+      );
     }
   }
   execFileSync('iconutil', ['-c', 'icns', set, '-o', path.join(OUT, 'icon.icns')]);

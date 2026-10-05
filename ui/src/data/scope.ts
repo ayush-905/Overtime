@@ -31,7 +31,9 @@ export const useHasInsights = () => useLive((s) => !!s.snap?.analytics?.[s.provi
 
 /** One insight for each of `sources`, whatever the filter: each provider's own trend, to split a chart by provider. */
 export function useInsightOf<T = unknown>(sources: readonly string[], key: string): (T | undefined)[] {
-  return useLive(useShallow((s) => sources.map((p) => s.snap?.analytics?.[p as Source]?.insights?.[key] as T | undefined)));
+  return useLive(
+    useShallow((s) => sources.map((p) => s.snap?.analytics?.[p as Source]?.insights?.[key] as T | undefined)),
+  );
 }
 
 /** What the provider in view spent: today, yesterday by now, the last 7 and 30 days, this month. */
@@ -92,7 +94,9 @@ export const useOpenSessions = () =>
     const from = s.snap?.openSessions || null;
     if (openFor?.from === from && openFor.provider === s.provider) return openFor.open;
     const mine = (x: { source: string }) => s.provider === 'all' || x.source === s.provider;
-    const open = from ? { ...from, sessions: from.sessions.filter(mine), sharedRuntimes: (from.sharedRuntimes || []).filter(mine) } : null;
+    const open = from
+      ? { ...from, sessions: from.sessions.filter(mine), sharedRuntimes: (from.sharedRuntimes || []).filter(mine) }
+      : null;
     openFor = { from, provider: s.provider, open };
     return open;
   });
@@ -114,12 +118,22 @@ export function useLimitsInput(): LimitsInput {
   const codexExactOn = useLimits((s) => s.codexExactOn);
   const codexExact = useLimits((s) => s.codexExact);
   const input = useMemo(
-    () => ({ now: serverNow(), limits: limits as LimitsInput['limits'], exactOn, exact: exact as LimitsInput['exact'], codexRecorded: codexRecorded as LimitsInput['codexRecorded'], codexExactOn, codexExact: codexExact as LimitsInput['codexExact'] }),
+    () => ({
+      now: serverNow(),
+      limits: limits as LimitsInput['limits'],
+      exactOn,
+      exact: exact as LimitsInput['exact'],
+      codexRecorded: codexRecorded as LimitsInput['codexRecorded'],
+      codexExactOn,
+      codexExact: codexExact as LimitsInput['codexExact'],
+    }),
     [minute, reset, limits, exactOn, exact, codexRecorded, codexExactOn, codexExact], // eslint-disable-line react-hooks/exhaustive-deps
   );
   // A window that resets before the minute is up.
   useEffect(() => {
-    const next = Math.min(...quotaItems(input, 'all').map((w) => (w.resetsAt && w.resetsAt > input.now ? w.resetsAt : Infinity)));
+    const next = Math.min(
+      ...quotaItems(input, 'all').map((w) => (w.resetsAt && w.resetsAt > input.now ? w.resetsAt : Infinity)),
+    );
     if (next - input.now > 60_000) return;
     const t = setTimeout(() => setReset((n) => n + 1), next - input.now + 100);
     return () => clearTimeout(t);

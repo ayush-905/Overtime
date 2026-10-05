@@ -6,7 +6,10 @@ import { Bot, CircleDollarSign, Clock, Folder, Gauge, LayoutDashboard, List, Sli
 import type { Page } from '@/lib/nav';
 import { needsCount, useLive } from '@/data/live';
 
-export const ICONS: Record<Page, ComponentType<{ size?: number; strokeWidth?: number; className?: string; 'aria-hidden'?: boolean }>> = {
+export const ICONS: Record<
+  Page,
+  ComponentType<{ size?: number; strokeWidth?: number; className?: string; 'aria-hidden'?: boolean }>
+> = {
   overview: LayoutDashboard,
   sessions: List,
   projects: Folder,
@@ -28,7 +31,10 @@ export function Badge({ page, className = '' }: { page: Page; className?: string
   const badge = useBadge(page);
   if (!badge) return null;
   return (
-    <span aria-label={badge.label} className={`inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-warn-soft px-1.5 text-label font-bold text-warn tnum ${className}`}>
+    <span
+      aria-label={badge.label}
+      className={`inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-warn-soft px-1.5 text-label font-bold text-warn tnum ${className}`}
+    >
       {badge.count}
     </span>
   );

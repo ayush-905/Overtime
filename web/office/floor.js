@@ -2,9 +2,24 @@
 // bubbles and name tags that float above them.
 
 import {
-  T, W, H, FURNITURE, DESKS, INTERN_DESKS, SPOTS, DOOR,
-  background, drawWall, drawCharacter, lookFor, isNight, screenGlows,
-  tileOf, isOpen, nearestOpen, findPath,
+  T,
+  W,
+  H,
+  FURNITURE,
+  DESKS,
+  INTERN_DESKS,
+  SPOTS,
+  DOOR,
+  background,
+  drawWall,
+  drawCharacter,
+  lookFor,
+  isNight,
+  screenGlows,
+  tileOf,
+  isOpen,
+  nearestOpen,
+  findPath,
 } from './office.js';
 import { state, select, matchesFilter, clip, waitLevel } from '/shared/state.js';
 import * as fx from './fx.js';
@@ -110,10 +125,16 @@ function claimSpot(ch, zone) {
 
 function deliverSpot(ch, parent) {
   const anchor = parent.spot && !parent.moving ? parent.spot : null;
-  if (ch.deliverFor && ch.deliverFor.anchor === anchor && ch.deliverFor.parentId === parent.id) return ch.deliverFor.spot;
+  if (ch.deliverFor && ch.deliverFor.anchor === anchor && ch.deliverFor.parentId === parent.id)
+    return ch.deliverFor.spot;
   const [pc, pr] = anchor ? anchor.approach : tileOf(parent.x, parent.y);
   let target = [pc, pr];
-  for (const [dc, dr] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+  for (const [dc, dr] of [
+    [1, 0],
+    [-1, 0],
+    [0, 1],
+    [0, -1],
+  ]) {
     if (isOpen(pc + dc, pr + dr)) {
       target = [pc + dc, pr + dr];
       break;
@@ -250,7 +271,15 @@ function update(dt, now) {
     if (target !== ch.spot) goTo(ch, target);
     step(ch, dt, now);
 
-    if (a && a.kind === 'sub' && a.status === 'done' && !ch.leaving && !ch.moving && ch.spot?.zone === 'deliver' && now - ch.arrivedAt > 1800) {
+    if (
+      a &&
+      a.kind === 'sub' &&
+      a.status === 'done' &&
+      !ch.leaving &&
+      !ch.moving &&
+      ch.spot?.zone === 'deliver' &&
+      now - ch.arrivedAt > 1800
+    ) {
       ch.leaving = true;
     }
     if (ch.leaving && !ch.moving && ch.spot === DOOR) {
@@ -284,20 +313,29 @@ function buildScene() {
   const d = new Date();
   const scene = {
     hour: d.getHours() + d.getMinutes() / 60,
-    desks: [], interns: [],
-    serversBusy: false, boardBusy: false, webBusy: false, coffeeBusy: false, doorOpen: false,
+    desks: [],
+    interns: [],
+    serversBusy: false,
+    boardBusy: false,
+    webBusy: false,
+    coffeeBusy: false,
+    doorOpen: false,
   };
   for (const ch of chars.values()) {
     const a = state.agents.get(ch.id);
     if (ch.deskIdx >= 0) {
-      (ch.kind === 'sub' ? scene.interns : scene.desks)[ch.deskIdx] = { mode: screenMode(ch, a), context: a?.context?.pct || 0 };
+      (ch.kind === 'sub' ? scene.interns : scene.desks)[ch.deskIdx] = {
+        mode: screenMode(ch, a),
+        context: a?.context?.pct || 0,
+      };
     }
     if (a && !ch.moving && ch.spot) {
       const active = a.status === 'working' || a.status === 'thinking';
       if (ch.spot.zone === 'servers' && active) scene.serversBusy = true;
       if (ch.spot.zone === 'board' && active) scene.boardBusy = true;
       if (ch.spot.zone === 'web' && active) scene.webBusy = true;
-      if (ch.spot.zone === 'lounge' && ch.spot.approach[0] === 24 && ch.spot.approach[1] === 13) scene.coffeeBusy = true;
+      if (ch.spot.zone === 'lounge' && ch.spot.approach[0] === 24 && ch.spot.approach[1] === 13)
+        scene.coffeeBusy = true;
     }
     if (Math.hypot(ch.x - DOOR.x, ch.y - DOOR.y) < 22) scene.doorOpen = true;
   }
@@ -341,11 +379,17 @@ function drawChar(ch, now) {
     g.stroke();
   }
   drawCharacter(g, ch.look, {
-    x: ch.x, y, dir: p.dir, pose: p.pose, frame: p.frame,
-    blink: now > ch.blinkAt && now < ch.blinkAt + 140, alpha: charAlpha(ch, a),
+    x: ch.x,
+    y,
+    dir: p.dir,
+    pose: p.pose,
+    frame: p.frame,
+    blink: now > ch.blinkAt && now < ch.blinkAt + 140,
+    alpha: charAlpha(ch, a),
   });
   if (now < ch.alertUntil) {
-    const top = y - (p.pose === 'sit' || p.pose === 'sofa' ? 13 : 14) - 6 - Math.round(Math.abs(Math.sin(now / 90)) * 2);
+    const top =
+      y - (p.pose === 'sit' || p.pose === 'sofa' ? 13 : 14) - 6 - Math.round(Math.abs(Math.sin(now / 90)) * 2);
     g.fillStyle = '#d03b3b';
     g.fillRect(Math.round(ch.x) + 4, top, 2, 4);
     g.fillRect(Math.round(ch.x) + 4, top + 5, 2, 2);
@@ -385,33 +429,51 @@ function bubbleFor(a, ch, now) {
   if (now < ch.compactUntil) return { text: '🧹 tidied up context', cls: 'info' };
   const age = waitLevel(a);
   switch (a.needsYou) {
-    case 'turn': return { text: '✅ Your turn', cls: `needs age-${age}` };
-    case 'question': return { text: '❓ Question for you', cls: `needs age-${age}` };
-    case 'plan': return { text: '📝 Plan to review', cls: `needs age-${age}` };
-    case 'approval': return { text: '✋ Needs approval?', cls: `needs age-${age}` };
+    case 'turn':
+      return { text: '✅ Your turn', cls: `needs age-${age}` };
+    case 'question':
+      return { text: '❓ Question for you', cls: `needs age-${age}` };
+    case 'plan':
+      return { text: '📝 Plan to review', cls: `needs age-${age}` };
+    case 'approval':
+      return { text: '✋ Needs approval?', cls: `needs age-${age}` };
   }
   switch (a.status) {
-    case 'thinking': return { text: '🤔 thinking…', cls: 'think' };
-    case 'replying': return { text: '💬 writing a reply', cls: '' };
-    case 'done': return { text: '📄 handing in', cls: '' };
-    case 'working': return { text: `${a.tool?.icon || '⚙️'} ${clip(a.tool?.detail || a.tool?.verb || 'working', 24)}`, cls: '' };
+    case 'thinking':
+      return { text: '🤔 thinking…', cls: 'think' };
+    case 'replying':
+      return { text: '💬 writing a reply', cls: '' };
+    case 'done':
+      return { text: '📄 handing in', cls: '' };
+    case 'working':
+      return { text: `${a.tool?.icon || '⚙️'} ${clip(a.tool?.detail || a.tool?.verb || 'working', 24)}`, cls: '' };
   }
   return { text: '', cls: 'hidden' };
 }
 
 function syncLabels(now) {
-  for (const [id, el] of labelEls) if (!chars.has(id)) { el.remove(); labelEls.delete(id); }
+  for (const [id, el] of labelEls)
+    if (!chars.has(id)) {
+      el.remove();
+      labelEls.delete(id);
+    }
   for (const ch of chars.values()) {
     const a = state.agents.get(ch.id);
     let el = labelEls.get(ch.id);
     if (!el) {
       el = document.createElement('div');
       el.className = 'label';
-      el.innerHTML = '<div class="bubble"></div><div class="nametag"><span></span></div><div class="gauge" hidden><b></b></div>';
+      el.innerHTML =
+        '<div class="bubble"></div><div class="nametag"><span></span></div><div class="gauge" hidden><b></b></div>';
       el.addEventListener('click', () => select(ch.id));
       labelsEl.appendChild(el);
       labelEls.set(ch.id, el);
-      el._parts = { bubble: el.children[0], name: el.children[1].firstChild, gauge: el.children[2], fill: el.children[2].firstChild };
+      el._parts = {
+        bubble: el.children[0],
+        name: el.children[1].firstChild,
+        gauge: el.children[2],
+        fill: el.children[2].firstChild,
+      };
     }
     const seated = !ch.moving && (ch.spot?.pose === 'sit' || ch.spot?.pose === 'sofa');
     const headTop = ch.y + hopOffset(ch, now) - (seated ? 13 : 14);
@@ -428,7 +490,9 @@ function syncLabels(now) {
       el._parts.bubble.className = `bubble ${b.cls}`;
       el._bubble = key;
     }
-    const name = a ? `${a.kind === 'sub' ? '🧢 ' : ''}${a.background ? '👻 ' : ''}${a.nick}${a.source === 'codex' ? ' · Codex' : a.source === 'pi' ? ' · Pi' : ''}` : '';
+    const name = a
+      ? `${a.kind === 'sub' ? '🧢 ' : ''}${a.background ? '👻 ' : ''}${a.nick}${a.source === 'codex' ? ' · Codex' : a.source === 'pi' ? ' · Pi' : ''}`
+      : '';
     if (el._name !== name) {
       el._parts.name.textContent = name;
       el._name = name;
@@ -443,7 +507,8 @@ function syncLabels(now) {
     el.classList.toggle('selected', ch.id === state.selectedId);
   }
   catLabel.hidden = performance.now() > fx.cat.meowUntil;
-  if (!catLabel.hidden) catLabel.style.transform = `translate(${(fx.cat.x * scale).toFixed(1)}px, ${((fx.cat.y - 8) * scale).toFixed(1)}px) translate(-50%, -100%)`;
+  if (!catLabel.hidden)
+    catLabel.style.transform = `translate(${(fx.cat.x * scale).toFixed(1)}px, ${((fx.cat.y - 8) * scale).toFixed(1)}px) translate(-50%, -100%)`;
 }
 
 // ── Syncing with new data ──────────────────────────────────────────────────

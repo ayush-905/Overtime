@@ -43,7 +43,10 @@ async function loadGlyphs() {
   const sctx = src.getContext('2d', { willReadFrequently: true })!;
   sctx.drawImage(img, 0, 0);
   const px = sctx.getImageData(0, 0, src.width, src.height);
-  let x0 = src.width, y0 = src.height, x1 = 0, y1 = 0;
+  let x0 = src.width,
+    y0 = src.height,
+    x1 = 0,
+    y1 = 0;
   for (let i = 0; i < px.data.length; i += 4) {
     const lum = (0.2126 * px.data[i] + 0.7152 * px.data[i + 1] + 0.0722 * px.data[i + 2]) / 255;
     const a = (px.data[i + 3] / 255) * Math.max(0, Math.min(1, (0.72 - lum) / 0.45));
@@ -53,17 +56,39 @@ async function loadGlyphs() {
       const p = i / 4;
       const x = p % src.width;
       const y = Math.floor(p / src.width);
-      x0 = Math.min(x0, x); y0 = Math.min(y0, y); x1 = Math.max(x1, x); y1 = Math.max(y1, y);
+      x0 = Math.min(x0, x);
+      y0 = Math.min(y0, y);
+      x1 = Math.max(x1, x);
+      y1 = Math.max(y1, y);
     }
   }
   sctx.putImageData(px, 0, 0);
   // Its lines are finer than Claude's mark; a pixel wider each way, they weigh the same in the menu bar.
   const bold = Object.assign(document.createElement('canvas'), { width: src.width, height: src.height });
   const bctx = bold.getContext('2d')!;
-  for (const [dx, dy] of [[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1]]) bctx.drawImage(src, dx, dy);
+  for (const [dx, dy] of [
+    [0, 0],
+    [1, 0],
+    [-1, 0],
+    [0, 1],
+    [0, -1],
+  ])
+    bctx.drawImage(src, dx, dy);
   const codex = canvas();
   const side = Math.max(x1 - x0, y1 - y0) + 3;
-  codex.getContext('2d')!.drawImage(bold, x0 - 1 - (side - (x1 - x0 + 3)) / 2, y0 - 1 - (side - (y1 - y0 + 3)) / 2, side, side, 0, 0, box, box);
+  codex
+    .getContext('2d')!
+    .drawImage(
+      bold,
+      x0 - 1 - (side - (x1 - x0 + 3)) / 2,
+      y0 - 1 - (side - (y1 - y0 + 3)) / 2,
+      side,
+      side,
+      0,
+      0,
+      box,
+      box,
+    );
   glyphs = { claude, codex };
 }
 
@@ -71,8 +96,19 @@ async function loadGlyphs() {
 function limitLines(items: QuotaItem[]) {
   const byProvider = new Map<'claude' | 'codex', QuotaItem[]>();
   for (const w of items) byProvider.set(w.provider, [...(byProvider.get(w.provider) || []), w]);
-  const left = (w?: QuotaItem) => (!w || (w.usedPercent == null && !w.limited) ? '–' : w.limited ? '0%' : `${Math.max(0, Math.round(100 - w.usedPercent!))}%`);
-  return [...byProvider].map(([provider, windows]) => ({ provider, lines: [left(windows.find((w) => /hour/i.test(w.label)) || windows[0]), left(windows.find((w) => /week/i.test(w.label)) || windows[1])] }));
+  const left = (w?: QuotaItem) =>
+    !w || (w.usedPercent == null && !w.limited)
+      ? '–'
+      : w.limited
+        ? '0%'
+        : `${Math.max(0, Math.round(100 - w.usedPercent!))}%`;
+  return [...byProvider].map(([provider, windows]) => ({
+    provider,
+    lines: [
+      left(windows.find((w) => /hour/i.test(w.label)) || windows[0]),
+      left(windows.find((w) => /week/i.test(w.label)) || windows[1]),
+    ],
+  }));
 }
 
 /** Each provider's logo with its two figures stacked, after a dot if an agent needs you. A PNG, black on clear. */
@@ -81,9 +117,14 @@ function drawMenuBar(providers: ReturnType<typeof limitLines>, needs: boolean) {
   let ctx = canvas.getContext('2d')!;
   const font = `600 ${8.5 * S}px system-ui, -apple-system, sans-serif`;
   ctx.font = font;
-  const blocks = providers.map((p) => ({ ...p, width: Math.ceil(Math.max(...p.lines.map((t) => ctx.measureText(t).width))) }));
+  const blocks = providers.map((p) => ({
+    ...p,
+    width: Math.ceil(Math.max(...p.lines.map((t) => ctx.measureText(t).width))),
+  }));
   const lead = needs ? DOT + GAP.dot : 0;
-  const width = (lead + blocks.reduce((sum, _b, i) => sum + (i ? GAP.block : 0) + GLYPH + GAP.glyph, 0)) * S + blocks.reduce((sum, b) => sum + b.width, 0);
+  const width =
+    (lead + blocks.reduce((sum, _b, i) => sum + (i ? GAP.block : 0) + GLYPH + GAP.glyph, 0)) * S +
+    blocks.reduce((sum, b) => sum + b.width, 0);
   canvas.width = Math.ceil(width);
   canvas.height = H * S;
   ctx = canvas.getContext('2d')!;
@@ -117,9 +158,19 @@ export function sendGlance() {
   if (!snap) return;
   at = snap.now;
   const l = useLimits.getState();
-  const inp: LimitsInput = { now: Date.now() - env.timeOffset, limits: (snap.limits || null) as LimitsInput['limits'], exactOn: l.exactOn, exact: l.exact as LimitsInput['exact'], codexRecorded: (snap.codexLimits || null) as LimitsInput['codexRecorded'], codexExactOn: l.codexExactOn, codexExact: l.codexExact as LimitsInput['codexExact'] };
+  const inp: LimitsInput = {
+    now: Date.now() - env.timeOffset,
+    limits: (snap.limits || null) as LimitsInput['limits'],
+    exactOn: l.exactOn,
+    exact: l.exact as LimitsInput['exact'],
+    codexRecorded: (snap.codexLimits || null) as LimitsInput['codexRecorded'],
+    codexExactOn: l.codexExactOn,
+    codexExact: l.codexExact as LimitsInput['codexExact'],
+  };
   const items = quotaItems(inp, 'all');
-  const windows = items.filter((w) => w.limited || w.usedPercent != null).map((w) => ({ ...w, left: w.limited ? 0 : Math.max(0, Math.round(100 - w.usedPercent!)) }));
+  const windows = items
+    .filter((w) => w.limited || w.usedPercent != null)
+    .map((w) => ({ ...w, left: w.limited ? 0 : Math.max(0, Math.round(100 - w.usedPercent!)) }));
   const tightest = [...windows].sort((a, b) => a.left - b.left)[0];
   const mains = snap.agents.filter((a) => a.kind === 'main');
   const cost = snap.analytics?.all?.spend?.today?.cost;
@@ -131,7 +182,9 @@ export function sendGlance() {
   const glance: Glance = {
     left: tightest ? tightest.left : null,
     limited: !!tightest?.limited,
-    windows: windows.map((w) => `${providerName(w.provider)} ${w.label.toLowerCase()}: ${w.limited ? 'limit reached' : `${w.left}% left`}`),
+    windows: windows.map(
+      (w) => `${providerName(w.provider)} ${w.label.toLowerCase()}: ${w.limited ? 'limit reached' : `${w.left}% left`}`,
+    ),
     cost: cost == null ? '' : money(cost),
     needs,
     working: mains.filter((a) => !a.needsYou && WORKING.includes(a.status as string)).length,
@@ -147,7 +200,9 @@ export function sendGlance() {
 export function useGlance() {
   useEffect(() => {
     if (!inPopover) return;
-    loadGlyphs().then(sendGlance, (error) => console.error("Couldn't load the providers' logos for the menu bar", error));
+    loadGlyphs().then(sendGlance, (error) =>
+      console.error("Couldn't load the providers' logos for the menu bar", error),
+    );
     sendGlance();
     const stopLive = useLive.subscribe((s, before) => {
       if (s.snap !== before.snap || s.snap?.now !== at) sendGlance();

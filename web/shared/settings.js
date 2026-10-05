@@ -28,7 +28,9 @@ function current() {
 
 /** Once this browser's settings are all on disk, it matches the file from then on (see settingsScript). */
 function markSynced() {
-  try { if (!localStorage.getItem(SYNCED_KEY)) localStorage.setItem(SYNCED_KEY, '1'); } catch {}
+  try {
+    if (!localStorage.getItem(SYNCED_KEY)) localStorage.setItem(SYNCED_KEY, '1');
+  } catch {}
 }
 
 /** Send whatever changed since the last time. Unsent changes are tried again next time. */
@@ -74,6 +76,12 @@ export function startSettingsSync() {
   });
   window.addEventListener('pagehide', () => flush({ leaving: true }));
   // Settings were reset or put back in another tab: start again from the file.
-  try { new BroadcastChannel('overtime').onmessage = (e) => { if (e.data === 'reload') location.reload(); }; } catch {}
-  document.addEventListener('visibilitychange', () => { if (document.hidden) flush({ leaving: true }); });
+  try {
+    new BroadcastChannel('overtime').onmessage = (e) => {
+      if (e.data === 'reload') location.reload();
+    };
+  } catch {}
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) flush({ leaving: true });
+  });
 }

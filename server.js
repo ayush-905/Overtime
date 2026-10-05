@@ -13,10 +13,26 @@ import { fileURLToPath } from 'node:url';
 import { createFeed, view } from './lib/agents.js';
 import { createWatcher } from './lib/watcher.js';
 import { createUsageIndex, estimateLimits, exactLimits, forgetLogin, windowSpend, spendSummary } from './lib/limits.js';
-import { computeInsights, sessionDetail, sessionList, activitySummary, weeklyDigest, setWorkdayHour, turnDetail } from './lib/insights.js';
+import {
+  computeInsights,
+  sessionDetail,
+  sessionList,
+  activitySummary,
+  weeklyDigest,
+  setWorkdayHour,
+  turnDetail,
+} from './lib/insights.js';
 import { exactCodexLimits, recordedCodexLimits } from './lib/codex-limits.js';
 import { createSessionMonitor } from './lib/open-sessions.js';
-import { createStore, cleanPrefs, mergeHistory, historyDays, applySettings, settingsScript, DEFAULT_PREFS } from './lib/store.js';
+import {
+  createStore,
+  cleanPrefs,
+  mergeHistory,
+  historyDays,
+  applySettings,
+  settingsScript,
+  DEFAULT_PREFS,
+} from './lib/store.js';
 import { resumeOptions, resumeInTerminal } from './lib/resume.js';
 import { writeCommand } from './lib/prompts.js';
 import { harness, isSessionId, nativeIdOf, openHarnesses } from './lib/harnesses/index.js';
@@ -94,20 +110,25 @@ function insights(now) {
   if (age > 120_000 || (age > 30_000 && from !== insightsFrom)) {
     insightsFrom = from;
     const daily = {};
-    insightsCache = Object.fromEntries(['all', ...present].map((source) => {
-      const index = usageIndex.scope(source);
-      const computed = computeInsights({ index, agents: watcher.agents, now });
-      // The days are served on their own (/api/history), not with every snapshot.
-      if (computed) {
-        daily[source] = computed.daily;
-        delete computed.daily;
-      }
-      return [source, {
-        insights: computed,
-        spend: spendSummary(index, now),
-        today: usageIndex.ready() ? activitySummary(index, watcher.agents, now) : null,
-      }];
-    }));
+    insightsCache = Object.fromEntries(
+      ['all', ...present].map((source) => {
+        const index = usageIndex.scope(source);
+        const computed = computeInsights({ index, agents: watcher.agents, now });
+        // The days are served on their own (/api/history), not with every snapshot.
+        if (computed) {
+          daily[source] = computed.daily;
+          delete computed.daily;
+        }
+        return [
+          source,
+          {
+            insights: computed,
+            spend: spendSummary(index, now),
+            today: usageIndex.ready() ? activitySummary(index, watcher.agents, now) : null,
+          },
+        ];
+      }),
+    );
     insightsComputedAt = now;
     if (daily.all) {
       dailyFresh = daily;
@@ -124,8 +145,16 @@ let sessionsCache = null;
 /** The Sessions page's list: rebuilt when the transcripts change, and at most every 15 seconds. */
 function sessions(now) {
   const version = usageIndex.version();
-  if (!sessionsCache || (sessionsCache.version !== version && now - sessionsCache.computedAt > 15_000) || now - sessionsCache.computedAt > 60_000) {
-    sessionsCache = { version, computedAt: now, sessions: usageIndex.ready() ? sessionList(usageIndex, watcher.agents, now) : null };
+  if (
+    !sessionsCache ||
+    (sessionsCache.version !== version && now - sessionsCache.computedAt > 15_000) ||
+    now - sessionsCache.computedAt > 60_000
+  ) {
+    sessionsCache = {
+      version,
+      computedAt: now,
+      sessions: usageIndex.ready() ? sessionList(usageIndex, watcher.agents, now) : null,
+    };
   }
   return sessionsCache;
 }
@@ -175,8 +204,20 @@ function snapshot() {
 // names are served, so nothing outside those folders can be reached. The
 // dashboard (web/app, built from ui/) keeps its files in assets/, with the hash
 // of what's in them in their names, so they can be kept a year.
-const MOUNTS = [['/office/', 'office'], ['/shared/', 'shared'], ['/', 'app']];
-const TYPES = { '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.svg': 'image/svg+xml', '.png': 'image/png', '.woff2': 'font/woff2', '.webp': 'image/webp' };
+const MOUNTS = [
+  ['/office/', 'office'],
+  ['/shared/', 'shared'],
+  ['/', 'app'],
+];
+const TYPES = {
+  '.html': 'text/html; charset=utf-8',
+  '.css': 'text/css; charset=utf-8',
+  '.js': 'text/javascript; charset=utf-8',
+  '.svg': 'image/svg+xml',
+  '.png': 'image/png',
+  '.woff2': 'font/woff2',
+  '.webp': 'image/webp',
+};
 
 function staticFile(pathname) {
   const [prefix, dir] = MOUNTS.find(([p]) => pathname.startsWith(p)) || [];
@@ -186,7 +227,9 @@ function staticFile(pathname) {
   if (dir === 'app' && /^mini\/?$/.test(name)) name = 'index.html';
   const type = TYPES[path.extname(name)];
   const plain = dir === 'app' ? /^(assets\/)?[\w-]+(\.[\w-]+)*$/ : /^[\w-]+(\.[\w-]+)*$/;
-  return plain.test(name) && type ? [path.join(WEB_DIR, dir, name), type, dir === 'app' && name.startsWith('assets/')] : null;
+  return plain.test(name) && type
+    ? [path.join(WEB_DIR, dir, name), type, dir === 'app' && name.startsWith('assets/')]
+    : null;
 }
 // Set once the server is listening, for the port it got.
 let ALLOWED_HOSTS = new Set();
@@ -216,7 +259,9 @@ function analyticsParts(analytics) {
     parts = [];
     for (const [scope, view] of Object.entries(analytics)) {
       for (const [section, value] of Object.entries(view || {})) {
-        if (section === 'insights' && value) for (const [key, x] of Object.entries(value)) parts.push([['analytics', scope, 'insights', key], JSON.stringify(x, round) ?? 'null']);
+        if (section === 'insights' && value)
+          for (const [key, x] of Object.entries(value))
+            parts.push([['analytics', scope, 'insights', key], JSON.stringify(x, round) ?? 'null']);
         else parts.push([['analytics', scope, section], JSON.stringify(value, round) ?? 'null']);
       }
     }
@@ -233,7 +278,8 @@ function snapshotParts(snap) {
     const lists = [];
     for (const [key, value] of Object.entries(snap)) {
       if (key === 'now' || key === 'analytics') continue;
-      if (LISTS.includes(key) && Array.isArray(value)) lists.push([key, value.map((x) => x.id), new Map(value.map((x) => [x.id, JSON.stringify(x)]))]);
+      if (LISTS.includes(key) && Array.isArray(value))
+        lists.push([key, value.map((x) => x.id), new Map(value.map((x) => [x.id, JSON.stringify(x)]))]);
       else parts.push([[key], JSON.stringify(value) ?? 'null']);
     }
     cached = { parts: [...parts, ...analyticsParts(snap.analytics)], lists };
@@ -266,7 +312,9 @@ function sendTo(res, snap) {
     items.push(`[${JSON.stringify([name])},${before?.order === order ? 'null' : order},[${changed.join(',')}]]`);
     has.lists.set(name, { order, items: byId });
   }
-  res.write(`data: {"now":${snap.now},"patch":1,"changes":[${changes.join(',')}]${items.length ? `,"items":[${items.join(',')}]` : ''}}\n\n`);
+  res.write(
+    `data: {"now":${snap.now},"patch":1,"changes":[${changes.join(',')}]${items.length ? `,"items":[${items.join(',')}]` : ''}}\n\n`,
+  );
 }
 
 /** A page, with your saved settings put in before anything else runs. */
@@ -279,14 +327,21 @@ async function readJson(req, limit = 4096) {
     text += chunk;
     if (text.length > limit) return null;
   }
-  try { return JSON.parse(text); } catch { return null; }
+  try {
+    return JSON.parse(text);
+  } catch {
+    return null;
+  }
 }
 
 // A request that fails is answered with an error, and the server goes on.
 const server = http.createServer((req, res) => {
   handle(req, res).catch((error) => {
     report(`${req.method} ${req.url.split('?')[0]}`, error);
-    if (!res.headersSent) res.writeHead(500, { 'Content-Type': 'text/plain; charset=utf-8' }).end('Overtime ran into a problem with that request');
+    if (!res.headersSent)
+      res
+        .writeHead(500, { 'Content-Type': 'text/plain; charset=utf-8' })
+        .end('Overtime ran into a problem with that request');
     else res.end();
   });
 });
@@ -316,10 +371,13 @@ async function handle(req, res) {
   // loading its history. Read-only.
   if (url.pathname === '/api/session-target') {
     const id = url.searchParams.get('id') || '';
-    const known = isSessionId(id)
-      ? watcher.agents.get(id) || usageIndex.sessionRecord(id) : null;
-    const target = known ? await resumeOptions({ source: known.source, nativeId: known.nativeId || nativeIdOf(id) }) : null;
-    res.writeHead(target ? 200 : 404, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }).end(JSON.stringify(target));
+    const known = isSessionId(id) ? watcher.agents.get(id) || usageIndex.sessionRecord(id) : null;
+    const target = known
+      ? await resumeOptions({ source: known.source, nativeId: known.nativeId || nativeIdOf(id) })
+      : null;
+    res
+      .writeHead(target ? 200 : 404, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' })
+      .end(JSON.stringify(target));
     return;
   }
   // One session in full, for the dashboard's session panel. Read-only.
@@ -328,7 +386,9 @@ async function handle(req, res) {
     const detail = isSessionId(id) ? sessionDetail(usageIndex, id) : null;
     // Where it can be picked up again: Terminal, and the app it belongs to.
     if (detail) detail.resume = await resumeOptions({ source: detail.source, nativeId: detail.nativeId });
-    res.writeHead(detail ? 200 : 404, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }).end(JSON.stringify(detail));
+    res
+      .writeHead(detail ? 200 : 404, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' })
+      .end(JSON.stringify(detail));
     return;
   }
   // One of your messages in a session and what it led to: ?id=<session>&t=<any moment in it>.
@@ -336,20 +396,26 @@ async function handle(req, res) {
     const id = url.searchParams.get('id') || '';
     const at = Number(url.searchParams.get('t'));
     const body = isSessionId(id) && Number.isFinite(at) ? turnDetail(usageIndex, id, at) : null;
-    res.writeHead(body ? 200 : 404, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }).end(JSON.stringify(body));
+    res
+      .writeHead(body ? 200 : 404, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' })
+      .end(JSON.stringify(body));
     return;
   }
   // Every session of the last 30 days, for the Sessions page. Read-only too.
   if (url.pathname === '/api/sessions') {
     const { computedAt, sessions: list } = sessions(Date.now());
-    res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }).end(JSON.stringify({ computedAt, sessions: list }));
+    res
+      .writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' })
+      .end(JSON.stringify({ computedAt, sessions: list }));
     return;
   }
   // A week in review: ?week=1 for last week (the default), 0 for this one so far.
   if (url.pathname === '/api/digest') {
     const weeksAgo = url.searchParams.get('week') === '0' ? 0 : 1;
     const body = usageIndex.ready() ? weeklyDigest(usageIndex, watcher.agents, Date.now(), weeksAgo) : null;
-    res.writeHead(body ? 200 : 503, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }).end(JSON.stringify(body));
+    res
+      .writeHead(body ? 200 : 503, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' })
+      .end(JSON.stringify(body));
     return;
   }
   // Every day on record for one provider view, for the activity heatmap: the
@@ -358,7 +424,9 @@ async function handle(req, res) {
     const scope = present.includes(url.searchParams.get('scope')) ? url.searchParams.get('scope') : 'all';
     if (!dailyFresh) insights(Date.now());
     const body = dailyFresh ? { scope, days: historyDays(history, dailyFresh, scope) } : null;
-    res.writeHead(body ? 200 : 503, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }).end(JSON.stringify(body));
+    res
+      .writeHead(body ? 200 : 503, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' })
+      .end(JSON.stringify(body));
     return;
   }
   // Search inside the conversations of the last 30 days: ?q=words or "a phrase",
@@ -368,23 +436,42 @@ async function handle(req, res) {
     const q = (url.searchParams.get('q') || '').slice(0, 200);
     const limit = Math.min(100, Math.max(1, Number(url.searchParams.get('limit')) || 40));
     const stats = usageIndex.searchStats();
-    const found = stats.on && usageIndex.ready() ? usageIndex.search(q, { source: scope, limit }) : { terms: [], results: [], total: 0 };
-    res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }).end(JSON.stringify({ q, scope, on: stats.on, ready: usageIndex.ready(), stats, ...found }));
+    const found =
+      stats.on && usageIndex.ready()
+        ? usageIndex.search(q, { source: scope, limit })
+        : { terms: [], results: [], total: 0 };
+    res
+      .writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' })
+      .end(JSON.stringify({ q, scope, on: stats.on, ready: usageIndex.ready(), stats, ...found }));
     return;
   }
   // Who's answering on this port: how the desktop app finds an Overtime that's already running.
   if (url.pathname === '/api/hello') {
-    res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }).end(JSON.stringify({ app: 'overtime', version: VERSION, desktop: !!process.parentPort }));
+    res
+      .writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' })
+      .end(JSON.stringify({ app: 'overtime', version: VERSION, desktop: !!process.parentPort }));
     return;
   }
   // Actions the page can take. Only this page may trigger them: a POST with a
   // custom header forces a CORS preflight that other websites can't pass.
   // Your saved settings, as the pages keep them. Read-only here; they change with a POST below.
   if (url.pathname === '/api/settings' && req.method === 'GET') {
-    res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }).end(JSON.stringify(settings));
+    res
+      .writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' })
+      .end(JSON.stringify(settings));
     return;
   }
-  const ACTIONS = ['/api/refresh', '/api/limits/exact', '/api/limits/forget', '/api/limits/codex', '/api/prefs', '/api/settings', '/api/resume', '/api/reset', '/api/commands'];
+  const ACTIONS = [
+    '/api/refresh',
+    '/api/limits/exact',
+    '/api/limits/forget',
+    '/api/limits/codex',
+    '/api/prefs',
+    '/api/settings',
+    '/api/resume',
+    '/api/reset',
+    '/api/commands',
+  ];
   if (ACTIONS.includes(url.pathname) && (req.method !== 'POST' || req.headers['x-overtime'] !== '1')) {
     res.writeHead(405).end('Use POST from the Overtime page');
     return;
@@ -447,13 +534,19 @@ async function handle(req, res) {
     const id = url.searchParams.get('id') || '';
     const d = isSessionId(id) ? sessionDetail(usageIndex, id) : null;
     const live = watcher.agents.get(id);
-    const session = d ? { source: d.source, nativeId: d.nativeId, cwd: d.cwd } : live ? { source: live.source, nativeId: live.nativeId || nativeIdOf(id), cwd: live.cwd } : null;
+    const session = d
+      ? { source: d.source, nativeId: d.nativeId, cwd: d.cwd }
+      : live
+        ? { source: live.source, nativeId: live.nativeId || nativeIdOf(id), cwd: live.cwd }
+        : null;
     try {
       if (!session) throw new Error("Overtime doesn't know this session");
       const result = await resumeInTerminal(session, store.dir);
       res.writeHead(200, { 'Content-Type': 'application/json' }).end(JSON.stringify(result));
     } catch (error) {
-      res.writeHead(422, { 'Content-Type': 'application/json' }).end(JSON.stringify({ ok: false, message: error.message }));
+      res
+        .writeHead(422, { 'Content-Type': 'application/json' })
+        .end(JSON.stringify({ ok: false, message: error.message }));
     }
     return;
   }
@@ -507,9 +600,14 @@ async function handle(req, res) {
     const result = await exactLimits({ force });
     // Add what each window has cost so far, from the local usage index.
     const withSpend = (w, length) => (w?.resetsAt ? { ...w, spend: windowSpend(claudeIndex, w.resetsAt - length) } : w);
-    const body = result.status === 'ok'
-      ? { ...result, session: withSpend(result.session, 5 * 3_600_000), weekly: withSpend(result.weekly, 7 * 86_400_000) }
-      : result;
+    const body =
+      result.status === 'ok'
+        ? {
+            ...result,
+            session: withSpend(result.session, 5 * 3_600_000),
+            weekly: withSpend(result.weekly, 7 * 86_400_000),
+          }
+        : result;
     res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }).end(JSON.stringify(body));
     return;
   }
@@ -519,12 +617,19 @@ async function handle(req, res) {
   }
   const entry = staticFile(url.pathname);
   let body;
-  try { body = entry && (await fsp.readFile(entry[0])); } catch {}
+  try {
+    body = entry && (await fsp.readFile(entry[0]));
+  } catch {}
   if (!body) {
     res.writeHead(404).end('Not found');
     return;
   }
-  res.writeHead(200, { 'Content-Type': entry[1], 'Cache-Control': entry[2] ? 'public, max-age=31536000, immutable' : 'no-store' }).end(entry[0].endsWith('index.html') ? withSettings(body) : body);
+  res
+    .writeHead(200, {
+      'Content-Type': entry[1],
+      'Cache-Control': entry[2] ? 'public, max-age=31536000, immutable' : 'no-store',
+    })
+    .end(entry[0].endsWith('index.html') ? withSettings(body) : body);
 }
 
 let lastSent = 0;
@@ -548,7 +653,10 @@ setInterval(() => {
 // the system's file events say, or after a minute or five anyway, for anything they
 // missed. Without file events, every time, as the folders can't say.
 const due = { discover: true, scan: true };
-const folderWatch = watchFolders(() => { due.discover = true; due.scan = true; });
+const folderWatch = watchFolders(() => {
+  due.discover = true;
+  due.scan = true;
+});
 
 function whenChanged(name, slowMs, job) {
   let last = Date.now();
@@ -570,7 +678,13 @@ const discover = whenChanged('discover', 60_000, () => watcher.discover());
 setInterval(() => discover().catch((error) => report('Finding the transcripts', error)), 4000);
 // The usage index behind the limits, spend and insights builds in the background,
 // then only reads what's new, which takes a few milliseconds.
-usageIndex.scan().then(() => { limitsComputedAt = 0; insightsComputedAt = 0; }, (error) => report('Reading the history', error));
+usageIndex.scan().then(
+  () => {
+    limitsComputedAt = 0;
+    insightsComputedAt = 0;
+  },
+  (error) => report('Reading the history', error),
+);
 const scan = whenChanged('scan', 5 * 60_000, () => usageIndex.scan());
 setInterval(async () => {
   try {
@@ -598,7 +712,9 @@ const tellApp = (message) => process.parentPort?.postMessage(message);
 server.on('error', (error) => {
   if (error.code === 'EADDRINUSE') {
     tellApp({ type: 'in-use', port: PORT });
-    console.error(`Port ${PORT} is taken. If that's Overtime already (the desktop app, or another terminal), it's at http://localhost:${PORT}. Or start this one elsewhere with PORT=4778 npm start.`);
+    console.error(
+      `Port ${PORT} is taken. If that's Overtime already (the desktop app, or another terminal), it's at http://localhost:${PORT}. Or start this one elsewhere with PORT=4778 npm start.`,
+    );
   } else {
     tellApp({ type: 'error', message: error.message });
     console.error(`Overtime couldn't start: ${error.message}`);
@@ -611,7 +727,9 @@ server.listen(PORT, HOST, () => {
   ALLOWED_HOSTS = new Set([`127.0.0.1:${port}`, `localhost:${port}`]);
   tellApp({ type: 'listening', port });
   console.log(`Overtime is open at http://localhost:${port} (the pixel office is at /office/)`);
-  console.log(`Watching ${watching.length > 1 ? `${watching.slice(0, -1).join(', ')} and ${watching.at(-1)}` : watching[0]} (read-only). Loaded ${watcher.agents.size} sessions in ${Date.now() - started} ms.`);
+  console.log(
+    `Watching ${watching.length > 1 ? `${watching.slice(0, -1).join(', ')} and ${watching.at(-1)}` : watching[0]} (read-only). Loaded ${watcher.agents.size} sessions in ${Date.now() - started} ms.`,
+  );
   try {
     const { agents } = snapshot();
     console.log(`${agents.length} agent${agents.length === 1 ? '' : 's'} in the office right now.`);

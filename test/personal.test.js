@@ -21,12 +21,20 @@ async function morning(t) {
   const start = noon.getTime() - 3 * 3_600_000; // 9am
   const at = (ms) => new Date(start + ms).toISOString();
   const user = (ms, text) => ({ type: 'user', timestamp: at(ms), message: { content: text }, cwd: '/work/shop' });
-  const reply = (ms, n) => ({ type: 'assistant', timestamp: at(ms), message: { id: `a${n}`, model: 'claude-sonnet-4-5', usage: { input_tokens: 100, output_tokens: 20 } } });
+  const reply = (ms, n) => ({
+    type: 'assistant',
+    timestamp: at(ms),
+    message: { id: `a${n}`, model: 'claude-sonnet-4-5', usage: { input_tokens: 100, output_tokens: 20 } },
+  });
   // Worked 5 minutes, waited 3 for you, worked 5 more; then a 2-hour break before the last message.
   const lines = [
-    user(0, 'First'), reply(2 * MINUTE, 1), reply(5 * MINUTE, 2),
-    user(8 * MINUTE, 'Second'), reply(13 * MINUTE, 3),
-    user(13 * MINUTE + 2 * 3_600_000, 'Third'), reply(14 * MINUTE + 2 * 3_600_000, 4),
+    user(0, 'First'),
+    reply(2 * MINUTE, 1),
+    reply(5 * MINUTE, 2),
+    user(8 * MINUTE, 'Second'),
+    reply(13 * MINUTE, 3),
+    user(13 * MINUTE + 2 * 3_600_000, 'Third'),
+    reply(14 * MINUTE + 2 * 3_600_000, 4),
   ];
   await writeFile(path.join(claudeDir, 'project', `${id}.jsonl`), lines.map(JSON.stringify).join('\n') + '\n');
   const idx = createUsageIndex({ claudeDir, codexDir: path.join(root, 'none') });
@@ -70,7 +78,10 @@ test('observed turn durations use the same indexed transcripts as the existing a
   assert.equal(turnPerformance.medianMs, 5 * MINUTE);
   assert.equal(turnPerformance.p90Ms, 5 * MINUTE);
   assert.equal(turnPerformance.inferred, 3);
-  assert.equal(turnPerformance.buckets.reduce((n, bucket) => n + bucket.count, 0), 3);
+  assert.equal(
+    turnPerformance.buckets.reduce((n, bucket) => n + bucket.count, 0),
+    3,
+  );
 });
 
 test('the working day starts at the hour you choose', async (t) => {
@@ -93,7 +104,11 @@ test('the working day starts at the hour you choose', async (t) => {
 test('kept history takes the settled days, leaves out today and the oldest, and gives way to fresh numbers', () => {
   const now = new Date(2026, 8, 28, 15).getTime();
   const day = (ago) => new Date(2026, 8, 28 - ago).getTime();
-  const fresh = { all: Array.from({ length: 30 }, (_, i) => ({ day: day(29 - i), cost: i, messages: 1 })), claude: [], codex: [] };
+  const fresh = {
+    all: Array.from({ length: 30 }, (_, i) => ({ day: day(29 - i), cost: i, messages: 1 })),
+    claude: [],
+    codex: [],
+  };
   const { history, changed } = mergeHistory({ days: { '2025-01-01': { all: { cost: 5 } } } }, fresh, now);
   assert.ok(changed);
   const keys = Object.keys(history.days).sort();
@@ -105,7 +120,13 @@ test('kept history takes the settled days, leaves out today and the oldest, and 
   assert.ok(!keys.includes('2025-01-01'));
   assert.equal(mergeHistory(history, fresh, now).changed, false);
   // Older kept days come first, and the fresh 30 days win where both have a day.
-  const kept = { days: { ...history.days, [dayKey(day(40))]: { all: { cost: 9, messages: 2 } }, [dayKey(day(3))]: { all: { cost: 99 } } } };
+  const kept = {
+    days: {
+      ...history.days,
+      [dayKey(day(40))]: { all: { cost: 9, messages: 2 } },
+      [dayKey(day(3))]: { all: { cost: 99 } },
+    },
+  };
   const days = historyDays(kept, fresh, 'all');
   assert.equal(days[0].cost, 9);
   assert.equal(days[0].kept, true);
@@ -113,10 +134,15 @@ test('kept history takes the settled days, leaves out today and the oldest, and 
   assert.equal(days.length, 31);
 });
 
-test("a past day whose transcripts have gone keeps what was kept for it, in the file and on the heatmap", () => {
+test('a past day whose transcripts have gone keeps what was kept for it, in the file and on the heatmap', () => {
   const now = new Date(2026, 8, 28, 15).getTime();
   const day = (ago) => new Date(2026, 8, 28 - ago).getTime();
-  const kept = { days: { [dayKey(day(10))]: { all: { cost: 40, tokens: 9000, messages: 12 } }, [dayKey(day(5))]: { all: { cost: 2, tokens: 100, messages: 1 } } } };
+  const kept = {
+    days: {
+      [dayKey(day(10))]: { all: { cost: 40, tokens: 9000, messages: 12 } },
+      [dayKey(day(5))]: { all: { cost: 2, tokens: 100, messages: 1 } },
+    },
+  };
   // Claude Code cleared day 10's sessions; day 5 went on to have more, or was priced again.
   const fresh = { all: Array.from({ length: 30 }, (_, i) => ({ day: day(29 - i), cost: 0, tokens: 0, messages: 0 })) };
   Object.assign(fresh.all[24], { cost: 1.5, tokens: 100, messages: 1 }); // 5 days ago
@@ -141,19 +167,25 @@ test('settings the server takes are checked, and a bad value keeps the one befor
   assert.deepEqual(cleanPrefs({ search: 'no' }, { workdayHour: 7, search: false }), { workdayHour: 7, search: false });
 });
 
-test('settings are kept by name, only the dashboard\'s own, and go back into the page safely', async () => {
+test("settings are kept by name, only the dashboard's own, and go back into the page safely", async () => {
   const { applySettings, settingsScript, isSetting } = await import('../lib/store.js');
   assert.ok(isSetting('overtime-theme'));
   assert.ok(!isSetting('overtime-page')); // where you were last stays with each browser
   assert.ok(!isSetting('something-else'));
-  const first = applySettings({}, { 'overtime-theme': 'dark', 'overtime-page': 'cost', other: 'x', 'overtime-clock': 24 });
+  const first = applySettings(
+    {},
+    { 'overtime-theme': 'dark', 'overtime-page': 'cost', other: 'x', 'overtime-clock': 24 },
+  );
   assert.deepEqual(first.values, { 'overtime-theme': 'dark' });
   assert.ok(first.changed);
   assert.equal(applySettings(first.values, { 'overtime-theme': 'dark' }).changed, false);
   assert.deepEqual(applySettings(first.values, { 'overtime-theme': null }).values, {});
   assert.ok(applySettings({}, { 'overtime-x': 'y'.repeat(300_000) }).values['overtime-x'] === undefined);
   // A value can't end the script it's written into.
-  const script = settingsScript({ initialized: true, values: { 'overtime-session-names': '{"a":"</script><img src=x>"}' } });
+  const script = settingsScript({
+    initialized: true,
+    values: { 'overtime-session-names': '{"a":"</script><img src=x>"}' },
+  });
   assert.equal(script.match(/<\/script>/g).length, 1);
   assert.ok(script.includes('\\u003c/script>'));
 });
@@ -163,7 +195,11 @@ test('resuming in Terminal writes a script from the session itself, safely quote
   const dir = await mkdtemp(path.join(os.tmpdir(), 'overtime-resume-'));
   t.after(() => rm(dir, { recursive: true, force: true }));
   let opened = null;
-  const r = await resumeInTerminal({ source: 'claude', nativeId: id, cwd: "/work/it's here" }, dir, { open: async (file) => { opened = file; } });
+  const r = await resumeInTerminal({ source: 'claude', nativeId: id, cwd: "/work/it's here" }, dir, {
+    open: async (file) => {
+      opened = file;
+    },
+  });
   assert.equal(r.command, `claude --resume ${id}`);
   assert.equal(opened, r.file);
   const { readFile, stat } = await import('node:fs/promises');
@@ -181,11 +217,18 @@ test('resuming in Terminal writes a script from the session itself, safely quote
 test('app targets use the exact native session and fall back for missing apps and unmatched Claude sessions', async () => {
   const { resumeOptions } = await import('../lib/resume.js');
   const installed = { appInstalled: () => true, getDesktopSessions: async () => new Map([[id, 'local_abc-123']]) };
-  assert.deepEqual((await resumeOptions({ source: 'claude', nativeId: id }, installed)).app,
-    { name: 'Claude', url: 'claude://code/continue?session=local_abc-123' });
-  assert.deepEqual((await resumeOptions({ source: 'codex', nativeId: id }, installed)).app,
-    { name: 'Codex', url: `codex://threads/${id}` });
-  const unmatched = await resumeOptions({ source: 'claude', nativeId: id }, { ...installed, getDesktopSessions: async () => new Map() });
+  assert.deepEqual((await resumeOptions({ source: 'claude', nativeId: id }, installed)).app, {
+    name: 'Claude',
+    url: 'claude://code/continue?session=local_abc-123',
+  });
+  assert.deepEqual((await resumeOptions({ source: 'codex', nativeId: id }, installed)).app, {
+    name: 'Codex',
+    url: `codex://threads/${id}`,
+  });
+  const unmatched = await resumeOptions(
+    { source: 'claude', nativeId: id },
+    { ...installed, getDesktopSessions: async () => new Map() },
+  );
   assert.equal(unmatched.app, null);
   assert.equal(unmatched.terminal, true);
   for (const source of ['claude', 'codex']) {
@@ -194,10 +237,18 @@ test('app targets use the exact native session and fall back for missing apps an
   }
 });
 
-test('live updates rebuild the whole snapshot from changes, keeping what didn\'t change', async () => {
+test("live updates rebuild the whole snapshot from changes, keeping what didn't change", async () => {
   const { createMerger } = await import('../web/shared/live.js');
   const merge = createMerger();
-  let s = merge({ patch: 1, now: 1, changes: [[['agents'], [{ id: 'a' }]], [['analytics', 'all', 'insights', 'trend'], { days: [1] }], [['analytics', 'all', 'spend'], { today: 2 }]] });
+  let s = merge({
+    patch: 1,
+    now: 1,
+    changes: [
+      [['agents'], [{ id: 'a' }]],
+      [['analytics', 'all', 'insights', 'trend'], { days: [1] }],
+      [['analytics', 'all', 'spend'], { today: 2 }],
+    ],
+  });
   const trend = s.analytics.all.insights.trend;
   const agents = s.agents;
   s = merge({ patch: 1, now: 2, changes: [[['analytics', 'all', 'insights', 'hours'], { h: 3 }]] });
@@ -215,8 +266,26 @@ test('live updates rebuild the whole snapshot from changes, keeping what didn\'t
 test('lists come item by item: unchanged items keep their identity, and a message with nothing new keeps the snapshot', async () => {
   const { createMerger } = await import('../web/shared/live.js');
   const merge = createMerger();
-  let s = merge({ patch: 1, now: 1, changes: [[['prefs'], { workdayHour: 4 }]], items: [[['agents'], ['a', 'b'], [{ id: 'a', cost: 1 }, { id: 'b', cost: 2 }]], [['feed'], [1], [{ id: 1, text: 'Read a file' }]]] });
-  assert.deepEqual(s.agents, [{ id: 'a', cost: 1 }, { id: 'b', cost: 2 }]);
+  let s = merge({
+    patch: 1,
+    now: 1,
+    changes: [[['prefs'], { workdayHour: 4 }]],
+    items: [
+      [
+        ['agents'],
+        ['a', 'b'],
+        [
+          { id: 'a', cost: 1 },
+          { id: 'b', cost: 2 },
+        ],
+      ],
+      [['feed'], [1], [{ id: 1, text: 'Read a file' }]],
+    ],
+  });
+  assert.deepEqual(s.agents, [
+    { id: 'a', cost: 1 },
+    { id: 'b', cost: 2 },
+  ]);
   const [a, b] = s.agents;
   const feed = s.feed;
   // One agent changed, in the same order: only it is sent, and the other is the same object.
@@ -225,8 +294,19 @@ test('lists come item by item: unchanged items keep their identity, and a messag
   assert.deepEqual(s.agents[1], { id: 'b', cost: 3 });
   assert.equal(s.feed, feed);
   // A new order: one gone, one new, and the one kept is the same object.
-  s = merge({ patch: 1, now: 3, changes: [], items: [[['agents'], ['c', 'a'], [{ id: 'c', cost: 0 }]], [['feed'], [1, 2], [{ id: 2, text: 'Ran a command' }]]] });
-  assert.deepEqual(s.agents.map((x) => x.id), ['c', 'a']);
+  s = merge({
+    patch: 1,
+    now: 3,
+    changes: [],
+    items: [
+      [['agents'], ['c', 'a'], [{ id: 'c', cost: 0 }]],
+      [['feed'], [1, 2], [{ id: 2, text: 'Ran a command' }]],
+    ],
+  });
+  assert.deepEqual(
+    s.agents.map((x) => x.id),
+    ['c', 'a'],
+  );
   assert.equal(s.agents[1], a);
   assert.equal(s.feed[0], feed[0]);
   assert.ok(!s.agents.includes(b));

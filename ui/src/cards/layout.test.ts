@@ -10,16 +10,26 @@ beforeEach(() => localStorage.clear());
 test('every customizable widget has a renderer, and the default Overview stays focused', () => {
   expect(new Set(CATALOG.map((c) => c.id)).size).toBe(CATALOG.length);
   expect(Object.keys(OVERVIEW_WIDGETS).sort()).toEqual(CATALOG.map((c) => c.id).sort());
-  expect(shownCards(usualLayout()).map((c) => c.id)).toEqual(['today', 'turn-duration', 'timeline', 'top-sessions', 'where-today']);
+  expect(shownCards(usualLayout()).map((c) => c.id)).toEqual([
+    'today',
+    'turn-duration',
+    'timeline',
+    'top-sessions',
+    'where-today',
+  ]);
   expect(CATALOG.filter((c) => c.section === 'Cost')).toHaveLength(7);
   expect(CATALOG.filter((c) => c.section === 'Agents')).toHaveLength(6);
   expect(CATALOG.filter((c) => c.section === 'You')).toHaveLength(9);
 });
 
 test('adding widgets preserves an existing order and hidden cards without enabling new ones', () => {
-  localStorage.setItem('overtime-overview-cards', JSON.stringify({
-    order: ['timeline', 'today', 'where-today', 'top-sessions', 'open-sessions'], hidden: ['today'],
-  }));
+  localStorage.setItem(
+    'overtime-overview-cards',
+    JSON.stringify({
+      order: ['timeline', 'today', 'where-today', 'top-sessions', 'open-sessions'],
+      hidden: ['today'],
+    }),
+  );
   const layout = readLayout();
   const existing = ['timeline', 'today', 'where-today', 'top-sessions', 'open-sessions'];
   expect(layout.order.filter((id) => existing.includes(id))).toEqual(existing);
@@ -32,7 +42,10 @@ test('adding widgets preserves an existing order and hidden cards without enabli
 
 test('optional widgets can be enabled and reordered, and reset restores the default', () => {
   const layout = usualLayout();
-  saveLayout({ order: ['tools', ...layout.order.filter((id) => id !== 'tools')], hidden: layout.hidden.filter((id) => id !== 'tools') });
+  saveLayout({
+    order: ['tools', ...layout.order.filter((id) => id !== 'tools')],
+    hidden: layout.hidden.filter((id) => id !== 'tools'),
+  });
   expect(shownCards(readLayout())[0].id).toBe('tools');
   saveLayout(usualLayout());
   expect(localStorage.getItem('overtime-overview-cards')).toBeNull();

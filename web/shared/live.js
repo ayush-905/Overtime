@@ -42,7 +42,11 @@ export function createMerger() {
       const before = getIn(next, path) || [];
       const byId = new Map(before.map((x) => [x.id, x]));
       for (const x of items) byId.set(x.id, x);
-      next = setIn(next, path, (ids || before.map((x) => x.id)).map((id) => byId.get(id)));
+      next = setIn(
+        next,
+        path,
+        (ids || before.map((x) => x.id)).map((id) => byId.get(id)),
+      );
     }
     whole = next;
     return whole;

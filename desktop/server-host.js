@@ -26,7 +26,11 @@ export function createServerHost({ entry, port: preferred, env, log = () => {}, 
   /** Start server.js on a port: { ok, port, proc }, { inUse }, or { error }. */
   function fork(p) {
     return new Promise((resolve) => {
-      const proc = utilityProcess.fork(entry, [], { env: { ...env, PORT: String(p) }, serviceName: 'Overtime server', stdio: 'pipe' });
+      const proc = utilityProcess.fork(entry, [], {
+        env: { ...env, PORT: String(p) },
+        serviceName: 'Overtime server',
+        stdio: 'pipe',
+      });
       let settled = false;
       const settle = (result) => {
         if (settled) return;
@@ -64,7 +68,10 @@ export function createServerHost({ entry, port: preferred, env, log = () => {}, 
     let misses = 0;
     stopWatching();
     watch = setInterval(async () => {
-      if (await hello(p)) { misses = 0; return; }
+      if (await hello(p)) {
+        misses = 0;
+        return;
+      }
       if (++misses < 2) return;
       stopWatching();
       log('the server this app was using stopped; starting its own');
@@ -121,7 +128,11 @@ export function createServerHost({ entry, port: preferred, env, log = () => {}, 
       stopWatching();
       child?.kill();
     },
-    get port() { return port; },
-    get mode() { return mode; },
+    get port() {
+      return port;
+    },
+    get mode() {
+      return mode;
+    },
   };
 }

@@ -34,7 +34,16 @@ export function useShortcuts() {
         ui.toggleFolded();
         return;
       }
-      if (e.metaKey || e.ctrlKey || e.altKey || typing(e.target) || ui.paletteOpen || ui.keysOpen || document.querySelector('[role="dialog"]')) return;
+      if (
+        e.metaKey ||
+        e.ctrlKey ||
+        e.altKey ||
+        typing(e.target) ||
+        ui.paletteOpen ||
+        ui.keysOpen ||
+        document.querySelector('[role="dialog"]')
+      )
+        return;
       if (key === 't' && !e.shiftKey) {
         e.preventDefault();
         toggleTheme();

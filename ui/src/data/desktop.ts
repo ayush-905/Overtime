@@ -20,7 +20,9 @@ type Bridge = {
   onGo?: (fn: (dir: string) => void) => void;
 };
 
-export const bridge = (typeof window !== 'undefined' ? (window as unknown as { overtimeDesktop?: Bridge }).overtimeDesktop : undefined) || null;
+export const bridge =
+  (typeof window !== 'undefined' ? (window as unknown as { overtimeDesktop?: Bridge }).overtimeDesktop : undefined) ||
+  null;
 
 /** In the menu bar's popover. */
 export const inPopover = bridge?.window === 'popover';

@@ -45,7 +45,9 @@ function apply(snap: Snapshot) {
   if (snap.prefs) env.workdayHour = snap.prefs.workdayHour ?? 4;
   // A provider with no folder on this Mac (any more) has nothing to show: show them all, without forgetting the choice.
   const { provider } = useLive.getState();
-  useLive.setState(snap.analytics && provider !== 'all' && !snap.analytics[provider] ? { snap, provider: 'all' } : { snap });
+  useLive.setState(
+    snap.analytics && provider !== 'all' && !snap.analytics[provider] ? { snap, provider: 'all' } : { snap },
+  );
   if (prefs !== lastPrefs) {
     lastPrefs = prefs;
     changed('prefs');
@@ -96,4 +98,5 @@ window.addEventListener('storage', (e) => {
 export const WORKING = ['thinking', 'working', 'replying'];
 
 /** The main agents that need you, whatever the filter: for the title, the badges and the Dock. */
-export const needsCount = (snap: Snapshot | null) => (snap?.agents || []).filter((a) => a.kind === 'main' && a.needsYou).length;
+export const needsCount = (snap: Snapshot | null) =>
+  (snap?.agents || []).filter((a) => a.kind === 'main' && a.needsYou).length;

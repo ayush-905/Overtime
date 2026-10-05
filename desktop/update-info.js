@@ -7,7 +7,11 @@ const unquote = (v) => {
   const t = v.trim();
   if (/^'.*'$/.test(t)) return t.slice(1, -1).replace(/''/g, "'");
   if (/^".*"$/.test(t)) {
-    try { return JSON.parse(t); } catch { return t.slice(1, -1); }
+    try {
+      return JSON.parse(t);
+    } catch {
+      return t.slice(1, -1);
+    }
   }
   return t;
 };
@@ -42,7 +46,9 @@ export function parseYaml(text) {
 }
 
 const parts = (v) => {
-  const [main, pre = ''] = String(v || '').replace(/^v/, '').split('-', 2);
+  const [main, pre = ''] = String(v || '')
+    .replace(/^v/, '')
+    .split('-', 2);
   return { nums: main.split('.').map((n) => Number.parseInt(n, 10) || 0), pre };
 };
 
@@ -63,7 +69,8 @@ export function isNewer(a, b) {
 /** The release's zip for this Mac's chip: { url, sha512, size }, or null. */
 export function pickZip(info, arch = process.arch) {
   const zips = (Array.isArray(info?.files) ? info.files : []).filter((f) => /\.zip$/i.test(f.url || '') && f.sha512);
-  const file = zips.find((f) => new RegExp(`[-_.]${arch}[-_.]`, 'i').test(f.url)) || (zips.length === 1 ? zips[0] : null);
+  const file =
+    zips.find((f) => new RegExp(`[-_.]${arch}[-_.]`, 'i').test(f.url)) || (zips.length === 1 ? zips[0] : null);
   return file ? { url: file.url, sha512: file.sha512, size: Number(file.size) || 0 } : null;
 }
 
@@ -71,7 +78,11 @@ export function pickZip(info, arch = process.arch) {
 export function updateSource(config) {
   if (config?.provider === 'github' && config.owner && config.repo) {
     const repo = `https://github.com/${config.owner}/${config.repo}`;
-    return { feed: `${repo}/releases/latest/download/`, page: `${repo}/releases/latest`, where: `github.com/${config.owner}/${config.repo}` };
+    return {
+      feed: `${repo}/releases/latest/download/`,
+      page: `${repo}/releases/latest`,
+      where: `github.com/${config.owner}/${config.repo}`,
+    };
   }
   if (config?.provider === 'generic' && /^https:\/\//.test(config.url || '')) {
     const feed = config.url.endsWith('/') ? config.url : `${config.url}/`;

@@ -8,7 +8,13 @@ import { changed } from '@/lib/bus';
 
 const KEY = 'overtime-overview-cards';
 
-export type OverviewCard = { id: string; name: string; span: 5 | 6 | 7 | 12; shown: boolean; section?: 'Cost' | 'Agents' | 'You' };
+export type OverviewCard = {
+  id: string;
+  name: string;
+  span: 5 | 6 | 7 | 12;
+  shown: boolean;
+  section?: 'Cost' | 'Agents' | 'You';
+};
 
 /** The cards, as the Overview ships: `shown` is whether it's on the page by default. */
 export const CATALOG: OverviewCard[] = [
@@ -44,23 +50,31 @@ export const CATALOG: OverviewCard[] = [
 
 export type Layout = { order: string[]; hidden: string[] };
 
-export const usualLayout = (): Layout => ({ order: CATALOG.map((c) => c.id), hidden: CATALOG.filter((c) => !c.shown).map((c) => c.id) });
+export const usualLayout = (): Layout => ({
+  order: CATALOG.map((c) => c.id),
+  hidden: CATALOG.filter((c) => !c.shown).map((c) => c.id),
+});
 
 export function readLayout(): Layout {
   const known = new Set(CATALOG.map((c) => c.id));
   let saved: Partial<Layout> = {};
-  try { saved = JSON.parse(localStorage.getItem(KEY) || '{}') || {}; } catch {}
+  try {
+    saved = JSON.parse(localStorage.getItem(KEY) || '{}') || {};
+  } catch {}
   const order = (Array.isArray(saved.order) ? saved.order : []).filter((id) => known.has(id));
   // Cards added since you saved come in where they'd normally be, as they ship.
   const usual = usualLayout();
-  for (const id of usual.order) if (!order.includes(id)) order.splice(Math.min(usual.order.indexOf(id), order.length), 0, id);
+  for (const id of usual.order)
+    if (!order.includes(id)) order.splice(Math.min(usual.order.indexOf(id), order.length), 0, id);
   const hidden = Array.isArray(saved.hidden) ? saved.hidden.filter((id) => known.has(id)) : usual.hidden;
   // Existing custom layouts opt into new widgets; never silently add a visible card.
-  for (const c of CATALOG) if (!saved.order?.includes(c.id) && Array.isArray(saved.order) && !hidden.includes(c.id)) hidden.push(c.id);
+  for (const c of CATALOG)
+    if (!saved.order?.includes(c.id) && Array.isArray(saved.order) && !hidden.includes(c.id)) hidden.push(c.id);
   return { order, hidden };
 }
 
-const same = (a: Layout, b: Layout) => a.order.join() === b.order.join() && [...a.hidden].sort().join() === [...b.hidden].sort().join();
+const same = (a: Layout, b: Layout) =>
+  a.order.join() === b.order.join() && [...a.hidden].sort().join() === [...b.hidden].sort().join();
 
 export function saveLayout(layout: Layout) {
   try {
@@ -71,4 +85,5 @@ export function saveLayout(layout: Layout) {
 }
 
 /** The cards on the page, in order. */
-export const shownCards = (layout: Layout) => layout.order.filter((id) => !layout.hidden.includes(id)).map((id) => CATALOG.find((c) => c.id === id)!);
+export const shownCards = (layout: Layout) =>
+  layout.order.filter((id) => !layout.hidden.includes(id)).map((id) => CATALOG.find((c) => c.id === id)!);

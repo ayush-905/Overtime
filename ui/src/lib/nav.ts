@@ -10,10 +10,26 @@ import { changed } from './bus';
 export const PAGES = ['overview', 'sessions', 'projects', 'usage', 'cost', 'agents', 'you', 'settings'] as const;
 export type Page = (typeof PAGES)[number];
 
-export const TITLES: Record<Page, string> = { overview: 'Overview', sessions: 'Sessions', projects: 'Projects', usage: 'Usage', cost: 'Cost', agents: 'Agents', you: 'You', settings: 'Settings' };
+export const TITLES: Record<Page, string> = {
+  overview: 'Overview',
+  sessions: 'Sessions',
+  projects: 'Projects',
+  usage: 'Usage',
+  cost: 'Cost',
+  agents: 'Agents',
+  you: 'You',
+  settings: 'Settings',
+};
 
 /** A section's group heading; Overview stands on its own at the top. */
-export const GROUPS: Partial<Record<Page, string>> = { sessions: 'Work', projects: 'Work', usage: 'Plans & cost', cost: 'Plans & cost', agents: 'Activity', you: 'Activity' };
+export const GROUPS: Partial<Record<Page, string>> = {
+  sessions: 'Work',
+  projects: 'Work',
+  usage: 'Plans & cost',
+  cost: 'Plans & cost',
+  agents: 'Activity',
+  you: 'Activity',
+};
 
 /** The sections the sidebar can order and hide: all but Settings. */
 export const ORDERABLE = PAGES.filter((p) => p !== 'settings') as Exclude<Page, 'settings'>[];
@@ -30,7 +46,8 @@ export type NavState = { order: Page[]; hidden: Set<Page> };
 export function readNavState(saved = readNav()): NavState {
   const known = new Set<string>(ORDERABLE);
   let order = (Array.isArray(saved.order) ? saved.order : []).filter((id) => known.has(id));
-  for (const id of ORDERABLE) if (!order.includes(id)) order.splice(Math.min(ORDERABLE.indexOf(id), order.length), 0, id);
+  for (const id of ORDERABLE)
+    if (!order.includes(id)) order.splice(Math.min(ORDERABLE.indexOf(id), order.length), 0, id);
   order = grouped(order);
   const hidden = new Set((Array.isArray(saved.hidden) ? saved.hidden : []).filter((id) => known.has(id)) as Page[]);
   return { order: order as Page[], hidden };
