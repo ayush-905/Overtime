@@ -39,11 +39,11 @@ describe('the sidebar', () => {
 describe('⌘K', () => {
   test('a start beats a word’s start beats anywhere, and letters in order count once there are three', () => {
     expect(score('Sessions', 'ses')).toBe(4);
-    expect(score('Pulse survey scoring', 'sur')).toBe(3);
+    expect(score('Recipe search ranking', 'sea')).toBe(3);
     expect(score('Checkout-flow', 'flow')).toBe(3);
     expect(score('Dashboards', 'board')).toBe(2);
-    expect(score('pulse survey', 'psv')).toBe(1);
-    expect(score('pulse survey', 'ps')).toBe(0);
+    expect(score('recipe search', 'rsh')).toBe(1);
+    expect(score('recipe search', 'rs')).toBe(0);
     expect(score('anything', '')).toBe(1);
   });
 });
@@ -51,12 +51,36 @@ describe('⌘K', () => {
 describe('sessions in a range', () => {
   const day = (d: number) => new Date(2026, 8, d).getTime();
   const list: Session[] = [
-    { id: 'a', source: 'claude', title: 'A', project: 'p', model: null, startedAt: day(20), lastAt: day(28), days: [{ day: day(20), cost: 1, tokens: 10 }, { day: day(28), cost: 2, tokens: 20, partial: true }] },
-    { id: 'b', source: 'codex', title: 'B', project: 'p', model: null, startedAt: day(27), lastAt: day(27), days: [{ day: day(27), cost: 4, tokens: 40 }] },
+    {
+      id: 'a',
+      source: 'claude',
+      title: 'A',
+      project: 'p',
+      model: null,
+      startedAt: day(20),
+      lastAt: day(28),
+      days: [
+        { day: day(20), cost: 1, tokens: 10 },
+        { day: day(28), cost: 2, tokens: 20, partial: true },
+      ],
+    },
+    {
+      id: 'b',
+      source: 'codex',
+      title: 'B',
+      project: 'p',
+      model: null,
+      startedAt: day(27),
+      lastAt: day(27),
+      days: [{ day: day(27), cost: 4, tokens: 40 }],
+    },
   ];
   test('only the days in range count, for the provider in view', () => {
     const all = sessionsIn(list, 'all', day(25));
-    expect(all.map((s) => [s.id, s.cost, s.tokens, s.partial, s.lastDay])).toEqual([['a', 2, 20, true, day(28)], ['b', 4, 40, false, day(27)]]);
+    expect(all.map((s) => [s.id, s.cost, s.tokens, s.partial, s.lastDay])).toEqual([
+      ['a', 2, 20, true, day(28)],
+      ['b', 4, 40, false, day(27)],
+    ]);
     expect(sessionsIn(list, 'codex', day(1)).map((s) => s.id)).toEqual(['b']);
     expect(sessionsIn(list, 'all', day(21), day(27))).toEqual([]);
   });

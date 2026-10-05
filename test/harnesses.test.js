@@ -20,13 +20,33 @@ test('every harness gives the core what it needs, and the dashboard lists the sa
     prefixes.add(h.prefix);
     assert.equal(typeof h.resume.command('x'), 'string', h.id);
     assert.ok(h.process.exe && h.process.script instanceof RegExp, h.id);
-    assert.ok(h.tools.reads instanceof Set && h.tools.writes instanceof Set && typeof h.tools.command === 'function' && typeof h.tools.delegate === 'function', h.id);
-    if (h.commands) assert.ok(typeof h.commands.dir() === 'string' && h.commands.use('x').endsWith('x') && h.commands.noun, h.id);
+    assert.ok(
+      h.tools.reads instanceof Set &&
+        h.tools.writes instanceof Set &&
+        typeof h.tools.command === 'function' &&
+        typeof h.tools.delegate === 'function',
+      h.id,
+    );
+    if (h.commands)
+      assert.ok(typeof h.commands.dir() === 'string' && h.commands.use('x').endsWith('x') && h.commands.noun, h.id);
+    if (h.resume.app) assert.equal(typeof h.resume.app, 'function', h.id);
+    if (h.skills) {
+      assert.equal(typeof h.skills.kind, 'function', h.id);
+      const where = { at: '', cwds: [], exists: () => false, folders: () => [] };
+      assert.ok(['personal', 'project', 'plugin', 'app', 'builtin'].includes(h.skills.kind('x', where).kind), h.id);
+      if (h.skills.alias) assert.ok(h.skills.alias('x') === null || typeof h.skills.alias('x') === 'string', h.id);
+    }
     const open = h.open({ dir: os.tmpdir(), piHome: os.tmpdir() });
-    assert.ok(typeof open.transcripts === 'function' && typeof open.live === 'function' && typeof open.indexLine === 'function', h.id);
+    assert.ok(
+      typeof open.transcripts === 'function' && typeof open.live === 'function' && typeof open.indexLine === 'function',
+      h.id,
+    );
   }
   // Only one harness, Claude Code, goes without a prefix, and ids never collide.
-  assert.deepEqual(HARNESSES.filter((h) => !h.prefix).map((h) => h.id), ['claude']);
+  assert.deepEqual(
+    HARNESSES.filter((h) => !h.prefix).map((h) => h.id),
+    ['claude'],
+  );
   const ui = await readFile(new URL('../ui/src/lib/sources.ts', import.meta.url), 'utf8');
   assert.deepEqual(JSON.parse(ui.match(/export const SOURCES = (\[[^\]]*\])/)[1].replace(/'/g, '"')), SOURCES);
   assert.ok(isSessionId('codex-12345678-1234-1234-1234-123456789012') && !isSessionId('codex-nope'));
@@ -39,7 +59,10 @@ test('a new harness is one module: the index and the live view take it through t
   const now = Date.now();
   // A made-up agent that writes one line per event: { t, prompt } or { t, tokens, cost }.
   const toy = {
-    id: 'toy', name: 'Toy', prefix: 'toy-', nativeId: /^\w+$/,
+    id: 'toy',
+    name: 'Toy',
+    prefix: 'toy-',
+    nativeId: /^\w+$/,
     open: ({ dir }) => ({
       dir,
       async *transcripts(since) {
@@ -48,7 +71,16 @@ test('a new harness is one module: the index and the live view take it through t
           const file = path.join(dir, name);
           const st = await stat(file);
           const native = path.basename(name, '.jsonl');
-          if (st.mtimeMs >= since) yield { file, st, id: `toy-${native}`, nativeId: native, session: `toy-${native}`, sub: false, parentId: null };
+          if (st.mtimeMs >= since)
+            yield {
+              file,
+              st,
+              id: `toy-${native}`,
+              nativeId: native,
+              session: `toy-${native}`,
+              sub: false,
+              parentId: null,
+            };
         }
       },
       live(feed, a, ev) {
@@ -63,14 +95,21 @@ test('a new harness is one module: the index and the live view take it through t
         if (ev.prompt) {
           f.prompts.push([ev.t, f, 'human', ev.prompt]);
           notePrompt(f, ev.prompt);
-        }
-        else f.events.push([ev.t, ev.cost, ev.tokens, 'toy-1', f, { costKnown: true }]);
+        } else f.events.push([ev.t, ev.cost, ev.tokens, 'toy-1', f, { costKnown: true }]);
       },
     }),
   };
   const dir = path.join(root, 'toy');
   await mkdir(dir);
-  await writeFile(path.join(dir, 'abc.jsonl'), [{ t: now - 5000, prompt: 'Sort the blocks' }, { t: now - 2000, tokens: 1200, cost: 0.03 }].map(JSON.stringify).join('\n') + '\n');
+  await writeFile(
+    path.join(dir, 'abc.jsonl'),
+    `${[
+      { t: now - 5000, prompt: 'Sort the blocks' },
+      { t: now - 2000, tokens: 1200, cost: 0.03 },
+    ]
+      .map(JSON.stringify)
+      .join('\n')}\n`,
+  );
   const harnesses = [{ ...toy, ...toy.open({ dir }) }];
 
   const index = createUsageIndex({ harnesses });

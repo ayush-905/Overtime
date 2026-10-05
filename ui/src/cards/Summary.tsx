@@ -18,7 +18,7 @@ function TodayStrip() {
   // Your active time counts by the minute.
   useMinute();
   const today = useSpend()?.today;
-  const hours = useInsight<Parameters<typeof activeBetween>[0]>('hours');
+  const hours = useInsight('hours');
   const now = serverNow();
   if (!today) return <Skeleton lines={2} />;
   const tokens = byTokens();

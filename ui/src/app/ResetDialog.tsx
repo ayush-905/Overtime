@@ -9,20 +9,22 @@ import { useLive } from '@/data/live';
 import { useHistory } from '@/data/queries';
 import { plural } from '@/lib/format';
 import { dayParam } from '@/lib/route';
+import { forgetAllSettings } from '@/lib/storage';
 import { Dialog } from '@/components/Dialog';
 import { Button } from '@/components/Button';
 import { note } from './toasts';
 import { useReset, type SettingsCopy } from './dialogs';
 
-const send = (path: string, body: unknown) => fetch(path, { method: 'POST', headers: { 'X-Overtime': '1', 'Content-Type': 'application/json' }, body: JSON.stringify(body || {}) });
+const send = (path: string, body: unknown) =>
+  fetch(path, {
+    method: 'POST',
+    headers: { 'X-Overtime': '1', 'Content-Type': 'application/json' },
+    body: JSON.stringify(body || {}),
+  });
 
 /** Clear this browser's copy too, tell other tabs, and start again from what's on disk. */
 function reloadEverywhere() {
-  try {
-    const keys: string[] = [];
-    for (let i = 0; i < localStorage.length; i++) if (localStorage.key(i)!.startsWith('overtime-')) keys.push(localStorage.key(i)!);
-    for (const k of keys) localStorage.removeItem(k);
-  } catch {}
+  forgetAllSettings();
   try {
     new BroadcastChannel('overtime').postMessage('reload');
   } catch {}
@@ -33,7 +35,13 @@ function reloadEverywhere() {
 export async function saveCopy() {
   try {
     const saved = await fetch('/api/settings').then((r) => r.json());
-    const copy: SettingsCopy = { app: 'overtime', version: 1, savedAt: new Date().toISOString(), settings: saved.values || {}, prefs: (useLive.getState().snap?.prefs as Record<string, unknown>) || {} };
+    const copy: SettingsCopy = {
+      app: 'overtime',
+      version: 1,
+      savedAt: new Date().toISOString(),
+      settings: saved.values || {},
+      prefs: (useLive.getState().snap?.prefs as Record<string, unknown>) || {},
+    };
     const a = document.createElement('a');
     a.href = URL.createObjectURL(new Blob([JSON.stringify(copy, null, 2)], { type: 'application/json' }));
     a.download = `overtime-settings-${dayParam(Date.now())}.json`;
@@ -64,7 +72,7 @@ export function ResetDialog() {
   const [sure, setSure] = useState(false);
   const [busy, setBusy] = useState(false);
   const { data } = useHistory('all', mode === 'reset');
-  const days = Math.max(0, ((data?.days as unknown[]) || []).length - 30);
+  const days = Math.max(0, (data?.days || []).length - 30);
   const done = () => {
     setSure(false);
     setHistory(false);
@@ -110,11 +118,20 @@ export function ResetDialog() {
     </div>
   );
   if (mode === 'restore' && copy) {
-    const when = copy.savedAt ? new Date(copy.savedAt).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' }) : 'an earlier date';
+    const when = copy.savedAt
+      ? new Date(copy.savedAt).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })
+      : 'an earlier date';
     return (
-      <Dialog open onOpenChange={(o) => !o && done()} title="Put this copy back?" description={`Saved ${when}, with ${plural(Object.keys(copy.settings).length, 'setting')}`}>
+      <Dialog
+        open
+        onOpenChange={(o) => !o && done()}
+        title="Put this copy back?"
+        description={`Saved ${when}, with ${plural(Object.keys(copy.settings).length, 'setting')}`}
+      >
         <div className="flex flex-col gap-4">
-          {warn('Your settings now, in every browser on this Mac, are replaced by the ones in this copy. Save a copy of these first if you might want them back.')}
+          {warn(
+            'Your settings now, in every browser on this Mac, are replaced by the ones in this copy. Save a copy of these first if you might want them back.',
+          )}
           {saveRow('Keep what you have now too?')}
           <footer className="flex justify-end gap-2">
             <Button onClick={done}>Cancel</Button>
@@ -127,7 +144,12 @@ export function ResetDialog() {
     );
   }
   return (
-    <Dialog open={mode === 'reset'} onOpenChange={(o) => !o && done()} title="Reset everything?" description="Overtime goes back to how it was the first time you opened it, in every browser on this Mac">
+    <Dialog
+      open={mode === 'reset'}
+      onOpenChange={(o) => !o && done()}
+      title="Reset everything?"
+      description="Overtime goes back to how it was the first time you opened it, in every browser on this Mac"
+    >
       <div className="flex flex-col gap-4">
         {warn("This can't be undone. Your transcripts aren't touched, and nothing leaves this Mac.")}
         <div>
@@ -140,19 +162,26 @@ export function ResetDialog() {
           </ul>
         </div>
         <label className="flex items-start gap-2.5 text-detail">
-          <input type="checkbox" checked={history} onChange={(e) => setHistory(e.target.checked)} className="mt-0.5 size-4 accent-[var(--bad-fill)]" />
+          <input
+            type="checkbox"
+            checked={history}
+            onChange={(e) => setHistory(e.target.checked)}
+            className="mt-0.5 size-4 accent-[var(--bad-fill)]"
+          />
           <span>
             <b className="font-semibold">Also delete your activity history</b>
             <small className="block text-muted">
-              The days Overtime keeps for the heatmap{days ? `, ${plural(days, 'day')} of it from before the last 30,` : ''} which your transcripts can't bring back. The last 30 days come back on their own.
+              The days Overtime keeps for the heatmap
+              {days ? `, ${plural(days, 'day')} of it from before the last 30,` : ''} which your transcripts can't bring
+              back. The last 30 days come back on their own.
             </small>
           </span>
         </label>
         {saveRow('Want a way back? Save a copy first, and put it back from Settings any time.')}
         <footer className="flex flex-wrap items-center gap-2">
           <label className="flex items-center gap-2 text-detail">
-            <input type="checkbox" checked={sure} onChange={(e) => setSure(e.target.checked)} className="size-4" />
-            I understand this can't be undone
+            <input type="checkbox" checked={sure} onChange={(e) => setSure(e.target.checked)} className="size-4" />I
+            understand this can't be undone
           </label>
           <span className="grow" />
           <Button onClick={done}>Cancel</Button>

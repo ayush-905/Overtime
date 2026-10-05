@@ -34,10 +34,23 @@ export function CompactHeader() {
             <Search size={14} strokeWidth={1.9} aria-hidden />
           </IconButton>
         )}
-        <IconButton label="Refresh" size="sm" disabled={refreshing} aria-busy={refreshing} onClick={() => refreshLimits()}>
+        <IconButton
+          label="Refresh"
+          size="sm"
+          disabled={refreshing}
+          aria-busy={refreshing}
+          onClick={() => refreshLimits()}
+        >
           <RefreshCw size={14} strokeWidth={1.9} className={refreshing ? 'animate-spin' : ''} aria-hidden />
         </IconButton>
-        <a href={settingsHref} target={MINI ? '_blank' : undefined} rel={MINI ? 'noopener' : undefined} aria-label="Settings" data-tip="Settings" className="grid size-7 place-items-center rounded-control border border-line bg-card text-muted hover:text-ink">
+        <a
+          href={settingsHref}
+          target={MINI ? '_blank' : undefined}
+          rel={MINI ? 'noopener' : undefined}
+          aria-label="Settings"
+          data-tip="Settings"
+          className="grid size-7 place-items-center rounded-control border border-line bg-card text-muted hover:text-ink"
+        >
           <SlidersHorizontal size={14} strokeWidth={1.9} aria-hidden />
         </a>
         {(inPopover || MINI) && (
@@ -76,11 +89,17 @@ function Tab({ page }: { page: Page }) {
       aria-current={current ? 'page' : undefined}
       // A tab tapped or clicked lets go of the focus, so no ring shows on it when the window comes back.
       onClick={(e) => e.detail && e.currentTarget.blur()}
-      className={cx('mobile-tab relative flex min-w-0 flex-col items-center justify-center gap-1 rounded-control text-[10px] no-underline', current ? 'font-bold text-ink' : 'font-medium text-muted')}
+      className={cx(
+        'mobile-tab relative flex min-w-0 flex-col items-center justify-center gap-1 rounded-control text-[10px] no-underline',
+        current ? 'font-bold text-ink' : 'font-medium text-muted',
+      )}
     >
       <Icon size={20} strokeWidth={current ? 2.1 : 1.8} aria-hidden />
       <span className="max-w-full truncate leading-4">{TITLES[page]}</span>
-      <Badge page={page} className="absolute left-[calc(50%+5px)] top-1 h-4 min-w-4 bg-warn-fill px-1 text-[10px] text-[#1c1e22]" />
+      <Badge
+        page={page}
+        className="absolute left-[calc(50%+5px)] top-1 h-4 min-w-4 bg-warn-fill px-1 text-[10px] text-[#1c1e22]"
+      />
     </a>
   );
 }

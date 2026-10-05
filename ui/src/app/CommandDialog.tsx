@@ -12,15 +12,21 @@ import { Dialog } from '@/components/Dialog';
 import { Button } from '@/components/Button';
 import { Seg } from '@/components/Seg';
 import { cx } from '@/components/cx';
-import { changed } from '@/lib/bus';
+import { readJson, writeJson } from '@/lib/storage';
 import { SOURCE, commandUse, isSource, type Source } from '@/lib/sources';
 import { useSources } from '@/data/scope';
 import { note } from './toasts';
-import { useCommand } from './dialogs';
+import { MADE_KEY, useCommand, type MadeCommands } from './dialogs';
 
-const MADE_KEY = 'overtime-commands-made';
 const NAME = /^[a-z0-9][a-z0-9_-]{0,39}$/;
-const slug = (v: string) => v.toLowerCase().replace(/^\/+/, '').replace(/[^a-z0-9_-]+/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '').slice(0, 40);
+const slug = (v: string) =>
+  v
+    .toLowerCase()
+    .replace(/^\/+/, '')
+    .replace(/[^a-z0-9_-]+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '')
+    .slice(0, 40);
 
 export function CommandDialog() {
   const g = useCommand((s) => s.group);
@@ -54,7 +60,11 @@ export function CommandDialog() {
     let res: { ok?: boolean; message?: string; use?: string } | null = null;
     // The server says why it refused (a file already there, a name it won't take) in the body, whatever the status.
     try {
-      const r = await fetch('/api/commands', { method: 'POST', headers: { 'X-Overtime': '1', 'Content-Type': 'application/json' }, body: JSON.stringify({ target, name, description, body }) });
+      const r = await fetch('/api/commands', {
+        method: 'POST',
+        headers: { 'X-Overtime': '1', 'Content-Type': 'application/json' },
+        body: JSON.stringify({ target, name, description, body }),
+      });
       res = await r.json().catch(() => null);
     } catch {}
     setBusy(false);
@@ -62,11 +72,11 @@ export function CommandDialog() {
       setError(res?.message || "Couldn't reach Overtime's server, so nothing was written");
       return;
     }
-    try {
-      const made = JSON.parse(localStorage.getItem(MADE_KEY) || '{}') || {};
-      localStorage.setItem(MADE_KEY, JSON.stringify({ ...made, [g.key]: { name, target, at: Date.now() } }));
-    } catch {}
-    changed('labels');
+    writeJson(
+      MADE_KEY,
+      { ...readJson<MadeCommands>(MADE_KEY, {}), [g.key]: { name, target, at: Date.now() } },
+      'labels',
+    );
     close();
     note(`Made ${res.use || commandUse(target, name)}. ${ready}`);
   };
@@ -91,7 +101,13 @@ export function CommandDialog() {
       >
         <div className="flex flex-col gap-1.5">
           <span className="text-detail font-semibold">For</span>
-          <Seg label="Which agent" value={target} onChange={setTarget} options={[...new Set([...sources, target])].map((s) => [s, SOURCE[s].name])} className="self-start" />
+          <Seg
+            label="Which agent"
+            value={target}
+            onChange={setTarget}
+            options={[...new Set([...sources, target])].map((s) => [s, SOURCE[s].name])}
+            className="self-start"
+          />
         </div>
         <label className="flex flex-col gap-1.5">
           <span className="text-detail font-semibold">Name</span>
@@ -109,16 +125,32 @@ export function CommandDialog() {
             />
           </span>
           <small id="cmd-name-hint" className={cx('text-label', !valid || exists ? 'text-bad' : 'text-muted')}>
-            {!valid ? 'Lowercase letters, numbers and dashes, up to 40' : exists ? `There's already one called ${name} there. Pick another name` : 'Lowercase letters, numbers and dashes'}
+            {!valid
+              ? 'Lowercase letters, numbers and dashes, up to 40'
+              : exists
+                ? `There's already one called ${name} there. Pick another name`
+                : 'Lowercase letters, numbers and dashes'}
           </small>
         </label>
         <label className="flex flex-col gap-1.5">
           <span className="text-detail font-semibold">What it's for</span>
-          <input value={description} onChange={(e) => setDescription(e.target.value)} maxLength={200} placeholder="A line about it, shown when you pick it" className={cx('h-9', field)} />
+          <input
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            maxLength={200}
+            placeholder="A line about it, shown when you pick it"
+            className={cx('h-9', field)}
+          />
         </label>
         <label className="flex flex-col gap-1.5">
           <span className="text-detail font-semibold">The prompt</span>
-          <textarea value={body} onChange={(e) => setBody(e.target.value)} rows={7} maxLength={20000} className={cx('py-2 font-mono text-detail', field)} />
+          <textarea
+            value={body}
+            onChange={(e) => setBody(e.target.value)}
+            rows={7}
+            maxLength={20000}
+            className={cx('py-2 font-mono text-detail', field)}
+          />
           <small className="text-label text-muted">
             {hasArg ? (
               <>
@@ -134,7 +166,12 @@ export function CommandDialog() {
         <p className="flex items-start gap-2 rounded-row bg-sunken px-3 py-2.5 text-detail text-muted">
           <Folder size={15} strokeWidth={1.8} className="mt-0.5 shrink-0" aria-hidden />
           <span>
-            Saved as <code>{dir}/{valid ? name : 'its-name'}.md</code>, which {agent} reads{reads}. Overtime writes it only when you press Create, and never over a file that's there.
+            Saved as{' '}
+            <code>
+              {dir}/{valid ? name : 'its-name'}.md
+            </code>
+            , which {agent} reads{reads}. Overtime writes it only when you press Create, and never over a file that's
+            there.
           </span>
         </p>
         {error && (

@@ -1,0 +1,45 @@
+# The checks every push to main and every pull request gets: the formatting and
+# lint, the server's and the dashboard's tests, the type checks, and that the
+# built dashboard in web/app is what ui/ builds to (it's kept in the repo, so
+# running from source needs no install, and it's easy to forget to rebuild).
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: macos-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - name: Install
+        run: npm ci
+        env:
+          # The tests don't open the app, so Electron itself isn't needed.
+          ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
+      - name: Formatting and lint
+        run: npx biome ci .
+      - name: Server and app tests
+        run: npm test
+      - name: Dashboard tests
+        run: npm run test:ui
+      - name: Type checks
+        run: npm run check
+      - name: The built dashboard matches its source
+        run: |
+          npx vite build --config ui/vite.config.ts --outDir "$RUNNER_TEMP/app" --emptyOutDir
+          diff -r web/app "$RUNNER_TEMP/app" || { echo "::error::web/app is out of date: run npm run build:ui and commit it."; exit 1; }

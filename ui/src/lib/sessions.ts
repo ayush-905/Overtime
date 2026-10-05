@@ -1,27 +1,36 @@
 // The last 30 days of sessions, as /api/sessions sends them: each session's
 // numbers kept per day, so any range adds up exactly.
 
-import type { Source } from '@/lib/sources';
+import type { SessionDay as ApiSessionDay, SessionListItem } from '@/data/types';
 
-export const TOTAL_KEYS = ['cost', 'subCost', 'tokens', 'messages', 'agentMs', 'waitMs', 'waits', 'added', 'removed', 'tools', 'failed'] as const;
+export const TOTAL_KEYS = [
+  'cost',
+  'subCost',
+  'tokens',
+  'messages',
+  'agentMs',
+  'waitMs',
+  'waits',
+  'added',
+  'removed',
+  'tools',
+  'failed',
+] as const satisfies readonly (keyof ApiSessionDay)[];
 export type TotalKey = (typeof TOTAL_KEYS)[number];
 export type Totals = Record<TotalKey, number> & { partial: boolean };
 
-export type SessionDay = Partial<Record<TotalKey, number>> & { day: number; partial?: boolean };
+/** One day of a session (SessionDay in data/types.ts), of which tests build only some numbers. */
+export type SessionDay = Pick<ApiSessionDay, 'day'> &
+  Partial<Omit<ApiSessionDay, 'day' | 'partial'>> & { partial?: boolean };
 
-export type Session = {
-  id: string;
-  source: Source;
-  title: string | null;
-  project: string | null;
-  model: string | null;
-  models?: { name: string; cost: number; tokens?: number }[];
-  startedAt: number;
-  lastAt: number;
-  subagents?: number;
-  context?: { used: number; window: number; pct: number; at: number } | null;
-  days: SessionDay[];
-};
+/** A session as /api/sessions sends it (SessionListItem in data/types.ts), of which tests build only these parts. */
+export type Session = Pick<SessionListItem, 'id' | 'source' | 'startedAt' | 'lastAt'> &
+  Partial<Pick<SessionListItem, 'models' | 'subagents' | 'context'>> & {
+    title: string | null;
+    project: string | null;
+    model: string | null;
+    days: SessionDay[];
+  };
 
 export type SessionInRange = Session & Totals & { lastDay: number };
 
@@ -37,7 +46,12 @@ export function totalsFrom(s: Session, from: number, to = Infinity): Totals {
 }
 
 /** Sessions for a provider that ran between two days, with their numbers for just those days. */
-export function sessionsIn(list: Session[] | null | undefined, provider: string, from: number, to = Infinity): SessionInRange[] {
+export function sessionsIn(
+  list: Session[] | null | undefined,
+  provider: string,
+  from: number,
+  to = Infinity,
+): SessionInRange[] {
   return (list || [])
     .filter((s) => (provider === 'all' || s.source === provider) && s.days.some((d) => d.day >= from && d.day < to))
     .map((s) => ({

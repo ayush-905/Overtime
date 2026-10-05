@@ -6,8 +6,9 @@ import { measureOf } from './measure';
 import type { Range } from './sessionsView';
 import type { SessionInRange } from './sessions';
 import { bySourceOf, type Source } from './sources';
+import { readJson, writeJson } from './storage';
 
-export const PROJECTS_VIEW_KEY = 'overtime-projects-view';
+const PROJECTS_VIEW_KEY = 'projects-view';
 /** 'cost' sorts by what you compare by, cost or tokens. */
 export const PROJECT_SORTS = ['cost', 'agentMs', 'recent'] as const;
 export type ProjectSort = (typeof PROJECT_SORTS)[number];
@@ -33,19 +34,13 @@ const SUMS = ['cost', 'tokens', 'messages', 'agentMs', 'waitMs', 'added', 'remov
 
 export function readProjectsView(): { range: Range; sort: ProjectSort } {
   const out: { range: Range; sort: ProjectSort } = { range: '30', sort: 'cost' };
-  try {
-    const stored = JSON.parse(localStorage.getItem(PROJECTS_VIEW_KEY) || '{}');
-    if (['today', '7', '30'].includes(stored.range)) out.range = stored.range;
-    if ((PROJECT_SORTS as readonly string[]).includes(stored.sort)) out.sort = stored.sort;
-  } catch {}
+  const stored = readJson<{ range?: Range; sort?: ProjectSort }>(PROJECTS_VIEW_KEY, {});
+  if (stored.range && ['today', '7', '30'].includes(stored.range)) out.range = stored.range;
+  if (stored.sort && PROJECT_SORTS.includes(stored.sort)) out.sort = stored.sort;
   return out;
 }
 
-export function writeProjectsView(v: { range: Range; sort: ProjectSort }) {
-  try {
-    localStorage.setItem(PROJECTS_VIEW_KEY, JSON.stringify(v));
-  } catch {}
-}
+export const writeProjectsView = (v: { range: Range; sort: ProjectSort }) => writeJson(PROJECTS_VIEW_KEY, v);
 
 /** Each project's sessions and totals, sorted. Sessions without a folder are "Unknown". */
 export function projectsOf(sessions: SessionInRange[], sort: ProjectSort): Project[] {
@@ -53,7 +48,26 @@ export function projectsOf(sessions: SessionInRange[], sort: ProjectSort): Proje
   for (const s of sessions) {
     const name = s.project || 'Unknown';
     let p = map.get(name);
-    if (!p) map.set(name, (p = { name, sessions: [], cost: 0, tokens: 0, partial: false, messages: 0, agentMs: 0, waitMs: 0, added: 0, removed: 0, tools: 0, failed: 0, lastAt: 0, bySource: bySourceOf(() => ({ cost: 0, tokens: 0 })) }));
+    if (!p)
+      map.set(
+        name,
+        (p = {
+          name,
+          sessions: [],
+          cost: 0,
+          tokens: 0,
+          partial: false,
+          messages: 0,
+          agentMs: 0,
+          waitMs: 0,
+          added: 0,
+          removed: 0,
+          tools: 0,
+          failed: 0,
+          lastAt: 0,
+          bySource: bySourceOf(() => ({ cost: 0, tokens: 0 })),
+        }),
+      );
     p.sessions.push(s);
     for (const k of SUMS) p[k] += s[k];
     p.partial ||= s.partial;
@@ -62,6 +76,10 @@ export function projectsOf(sessions: SessionInRange[], sort: ProjectSort): Proje
     by.cost += s.cost;
     by.tokens += s.tokens;
   }
-  const value: Record<ProjectSort, (p: Project) => number> = { cost: (p) => measureOf(p), agentMs: (p) => p.agentMs, recent: (p) => p.lastAt };
+  const value: Record<ProjectSort, (p: Project) => number> = {
+    cost: (p) => measureOf(p),
+    agentMs: (p) => p.agentMs,
+    recent: (p) => p.lastAt,
+  };
   return [...map.values()].sort((a, b) => value[sort](b) - value[sort](a) || measureOf(b) - measureOf(a));
 }

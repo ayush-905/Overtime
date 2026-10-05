@@ -34,12 +34,41 @@ function Body({ d, last }: { d: Digest; last: boolean }) {
   return (
     <div className="flex flex-col gap-5">
       <dl className="grid gap-4" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))' }}>
-        <Stat label="Cost" value={costText(d.cost, d.partial)} sub={change(d.cost, b.cost)} tip="At API list prices, including subagents" />
+        <Stat
+          label="Cost"
+          value={costText(d.cost, d.partial)}
+          sub={change(d.cost, b.cost)}
+          tip="At API list prices, including subagents"
+        />
         <Stat label="Sessions" value={d.sessions} sub={`${plural(d.messages, 'message')} from you`} />
-        <Stat label="Your active time" value={duration(d.activeMs)} sub={change(d.activeMs, b.activeMs)} tip="From each message you sent until the agent's last reply, with breaks under 30 minutes bridged" />
-        <Stat label="Agent time" value={duration(d.agentMs)} sub={change(d.agentMs, b.agentMs)} tip="How long the agents worked on your messages" />
-        <Stat label="Waited for you" value={duration(d.waitMs)} sub={change(d.waitMs, b.waitMs)} tip="From an agent's last reply to your next message, leaving out breaks over 30 minutes" />
-        <Stat label="Lines changed" value={<><span className="text-ok">+{compact(d.added)}</span> <span className="text-bad">−{compact(d.removed)}</span></>} sub={`${compact(d.tools)} tool call${d.tools === 1 ? '' : 's'}`} />
+        <Stat
+          label="Your active time"
+          value={duration(d.activeMs)}
+          sub={change(d.activeMs, b.activeMs)}
+          tip="From each message you sent until the agent's last reply, with breaks under 30 minutes bridged"
+        />
+        <Stat
+          label="Agent time"
+          value={duration(d.agentMs)}
+          sub={change(d.agentMs, b.agentMs)}
+          tip="How long the agents worked on your messages"
+        />
+        <Stat
+          label="Waited for you"
+          value={duration(d.waitMs)}
+          sub={change(d.waitMs, b.waitMs)}
+          tip="From an agent's last reply to your next message, leaving out breaks over 30 minutes"
+        />
+        <Stat
+          label="Lines changed"
+          value={
+            <>
+              <span className="text-ok">+{compact(d.added)}</span>{' '}
+              <span className="text-bad">−{compact(d.removed)}</span>
+            </>
+          }
+          sub={`${compact(d.tools)} tool call${d.tools === 1 ? '' : 's'}`}
+        />
       </dl>
       {notes.length > 0 && (
         <ul className="flex flex-col gap-1.5">
@@ -57,7 +86,11 @@ function Body({ d, last }: { d: Digest; last: boolean }) {
           {d.projects.slice(0, 5).map((p) => {
             const share = pct(p.cost, d.cost);
             return (
-              <a key={p.name} href={pageLink('projects', { p: p.name, range: '7' })} className="flex flex-col gap-1 text-ink no-underline">
+              <a
+                key={p.name}
+                href={pageLink('projects', { p: p.name, range: '7' })}
+                className="flex flex-col gap-1 text-ink no-underline"
+              >
                 <span className="flex items-center gap-2">
                   <ProjectDot name={p.name} />
                   <span className="grow truncate font-medium">{projectName(p.name)}</span>
@@ -65,7 +98,10 @@ function Body({ d, last }: { d: Digest; last: boolean }) {
                   <span className="w-9 text-right text-detail text-muted tnum">{share}%</span>
                 </span>
                 <span className="h-1.5 overflow-hidden rounded-full bg-sunken">
-                  <span className="block h-full rounded-full bg-ink/70" style={{ width: `${Math.max(share > 0 ? 1.5 : 0, share)}%` }} />
+                  <span
+                    className="block h-full rounded-full bg-ink/70"
+                    style={{ width: `${Math.max(share > 0 ? 1.5 : 0, share)}%` }}
+                  />
                 </span>
               </a>
             );
@@ -75,13 +111,22 @@ function Body({ d, last }: { d: Digest; last: boolean }) {
           <h3 className="mb-1 text-detail font-semibold text-muted">Priciest sessions</h3>
           <div className="flex flex-col divide-y divide-line">
             {d.topSessions.map((s) => (
-              <SessionRow key={s.id} id={s.id} source={s.source} title={s.title} project={s.project} meta={[plural(s.messages, 'message')]} end={costCol(s.cost)} />
+              <SessionRow
+                key={s.id}
+                id={s.id}
+                source={s.source}
+                title={s.title}
+                project={s.project}
+                meta={[plural(s.messages, 'message')]}
+                end={costCol(s.cost)}
+              />
             ))}
           </div>
         </div>
       </div>
       <p className="text-detail text-muted">
-        {last ? `${dayLabel(d.from)} to ${dayLabel(d.to - DAY)}` : 'Monday to today'}, against the same days of the week before. Costs at API list prices.
+        {last ? `${dayLabel(d.from)} to ${dayLabel(d.to - DAY)}` : 'Monday to today'}, against the same days of the week
+        before. Costs at API list prices.
       </p>
     </div>
   );
@@ -109,7 +154,7 @@ export function DigestDialog() {
     window.addEventListener('hashchange', close);
     return () => window.removeEventListener('hashchange', close);
   }, [setWeek]);
-  const d = q.data as Digest | undefined;
+  const d = q.data;
   const title = d ? `${w ? 'Last week' : 'This week so far'} · ${span(d)}` : w ? 'Last week' : 'This week so far';
   return (
     <Dialog
@@ -120,11 +165,26 @@ export function DigestDialog() {
       wide
       tools={
         <>
-          <Seg label="Week" size="sm" value={String(w)} onChange={(v) => setWeek(Number(v) as 0 | 1)} options={[['0', 'This week so far'], ['1', 'Last week']]} />
+          <Seg
+            label="Week"
+            size="sm"
+            value={String(w)}
+            onChange={(v) => setWeek(Number(v) as 0 | 1)}
+            options={[
+              ['0', 'This week so far'],
+              ['1', 'Last week'],
+            ]}
+          />
           {d && (
             <Button
               size="sm"
-              icon={copied ? <Check size={14} strokeWidth={2} aria-hidden /> : <Copy size={14} strokeWidth={2} aria-hidden />}
+              icon={
+                copied ? (
+                  <Check size={14} strokeWidth={2} aria-hidden />
+                ) : (
+                  <Copy size={14} strokeWidth={2} aria-hidden />
+                )
+              }
               onClick={async () => {
                 try {
                   await navigator.clipboard.writeText(digestText(d, !!w));

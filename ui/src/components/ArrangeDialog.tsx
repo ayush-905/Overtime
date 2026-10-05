@@ -4,32 +4,86 @@
 // drop with it.
 
 import { useEffect, useState } from 'react';
-import { DndContext, KeyboardSensor, PointerSensor, closestCenter, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core';
-import { SortableContext, arrayMove, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
+import {
+  DndContext,
+  KeyboardSensor,
+  PointerSensor,
+  closestCenter,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from '@dnd-kit/core';
+import {
+  SortableContext,
+  arrayMove,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { ChevronDown, ChevronUp, GripVertical } from 'lucide-react';
 import { useChanged } from '@/data/hooks';
 import { offerUndo } from '@/app/toasts';
 import { Dialog } from './Dialog';
 import { Button, IconButton } from './Button';
-import { readOrder, saveOrder, useArrange } from './PageGrid';
+import { readOrder, saveOrder } from './PageGrid';
+import { useArrange } from '@/app/dialogs';
 import { cx } from './cx';
 
-function Row({ id, name, span, index, count, move }: { id: string; name: string; span: number; index: number; count: number; move: (from: number, to: number) => void }) {
+function Row({
+  id,
+  name,
+  span,
+  index,
+  count,
+  move,
+}: {
+  id: string;
+  name: string;
+  span: number;
+  index: number;
+  count: number;
+  move: (from: number, to: number) => void;
+}) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
   return (
-    <li ref={setNodeRef} style={{ transform: CSS.Translate.toString(transform), transition }} className={cx('flex items-center gap-3 rounded-row border border-line bg-card px-3 py-2', isDragging && 'relative z-10 shadow-raised')}>
-      <button type="button" className="grid size-7 cursor-grab place-items-center text-muted" aria-label={`Move ${name}`} {...attributes} {...listeners}>
+    <li
+      ref={setNodeRef}
+      style={{ transform: CSS.Translate.toString(transform), transition }}
+      className={cx(
+        'flex items-center gap-3 rounded-row border border-line bg-card px-3 py-2',
+        isDragging && 'relative z-10 shadow-raised',
+      )}
+    >
+      <button
+        type="button"
+        className="grid size-7 cursor-grab place-items-center text-muted"
+        aria-label={`Move ${name}`}
+        {...attributes}
+        {...listeners}
+      >
         <GripVertical size={16} strokeWidth={1.8} aria-hidden />
       </button>
       <span className="grow">
         <b className="font-semibold">{name}</b>
         <small className="ml-2 text-label text-muted">{span === 12 ? 'Full width' : 'Half'}</small>
       </span>
-      <IconButton label="Move earlier" variant="quiet" size="sm" disabled={index === 0} onClick={() => move(index, index - 1)}>
+      <IconButton
+        label="Move earlier"
+        variant="quiet"
+        size="sm"
+        disabled={index === 0}
+        onClick={() => move(index, index - 1)}
+      >
         <ChevronUp size={15} strokeWidth={2} aria-hidden />
       </IconButton>
-      <IconButton label="Move later" variant="quiet" size="sm" disabled={index === count - 1} onClick={() => move(index, index + 1)}>
+      <IconButton
+        label="Move later"
+        variant="quiet"
+        size="sm"
+        disabled={index === count - 1}
+        onClick={() => move(index, index + 1)}
+      >
         <ChevronDown size={15} strokeWidth={2} aria-hidden />
       </IconButton>
     </li>
@@ -40,11 +94,27 @@ export function ArrangeDialog() {
   const a = useArrange((s) => s.arranging);
   const close = () => useArrange.getState().open(null);
   const v = useChanged();
-  const [order, setOrder] = useState<string[]>(() => (a ? readOrder(a.page, a.cards.map((c) => c.id)) : []));
+  const [order, setOrder] = useState<string[]>(() =>
+    a
+      ? readOrder(
+          a.page,
+          a.cards.map((c) => c.id),
+        )
+      : [],
+  );
   useEffect(() => {
-    if (a) setOrder(readOrder(a.page, a.cards.map((c) => c.id)));
+    if (a)
+      setOrder(
+        readOrder(
+          a.page,
+          a.cards.map((c) => c.id),
+        ),
+      );
   }, [a, v]);
-  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }), useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }));
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
   const put = (next: string[], undo?: string) => {
     if (!a) return;
     const before = order;
@@ -65,7 +135,15 @@ export function ArrangeDialog() {
       description="The order of this page's cards"
       tools={
         a && (
-          <Button size="sm" onClick={() => put(a.cards.map((c) => c.id), `${a.title}'s cards are back in their usual order`)}>
+          <Button
+            size="sm"
+            onClick={() =>
+              put(
+                a.cards.map((c) => c.id),
+                `${a.title}'s cards are back in their usual order`,
+              )
+            }
+          >
             Reset
           </Button>
         )
@@ -77,7 +155,9 @@ export function ArrangeDialog() {
             <ul className="flex flex-col gap-2">
               {order.map((id, i) => {
                 const c = a.cards.find((x) => x.id === id);
-                return c ? <Row key={id} id={id} name={c.name} span={c.span} index={i} count={order.length} move={move} /> : null;
+                return c ? (
+                  <Row key={id} id={id} name={c.name} span={c.span} index={i} count={order.length} move={move} />
+                ) : null;
               })}
             </ul>
           </SortableContext>

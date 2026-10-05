@@ -6,7 +6,11 @@ export type Params = Record<string, string>;
 
 /** A link to a section, with its filters. Empty values are left out. */
 export function pageLink(page: string, params: Record<string, string | number | null | undefined> = {}) {
-  const q = new URLSearchParams(Object.entries(params).filter(([, v]) => v != null && v !== '').map(([k, v]) => [k, String(v)]));
+  const q = new URLSearchParams(
+    Object.entries(params)
+      .filter(([, v]) => v != null && v !== '')
+      .map(([k, v]) => [k, String(v)]),
+  );
   const text = q.toString();
   return `#${page}${text ? `?${text}` : ''}`;
 }

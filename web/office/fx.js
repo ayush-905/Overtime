@@ -11,8 +11,14 @@ export function confetti(x, y) {
     const angle = -Math.PI / 2 + (Math.random() - 0.5) * 2.2;
     const speed = 30 + Math.random() * 45;
     particles.push({
-      x, y, vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed,
-      g: 90, life: 1300 + Math.random() * 500, age: 0, size: Math.random() < 0.3 ? 2 : 1,
+      x,
+      y,
+      vx: Math.cos(angle) * speed,
+      vy: Math.sin(angle) * speed,
+      g: 90,
+      life: 1300 + Math.random() * 500,
+      age: 0,
+      size: Math.random() < 0.3 ? 2 : 1,
       color: CONFETTI[i % CONFETTI.length],
     });
   }
@@ -22,8 +28,16 @@ export function puff(x, y) {
   for (let i = 0; i < 12; i++) {
     const angle = Math.random() * Math.PI * 2;
     particles.push({
-      x, y, vx: Math.cos(angle) * 14, vy: Math.sin(angle) * 8 - 10,
-      g: -6, life: 900 + Math.random() * 300, age: 0, size: 2, color: '#f4f1e8', fade: true,
+      x,
+      y,
+      vx: Math.cos(angle) * 14,
+      vy: Math.sin(angle) * 8 - 10,
+      g: -6,
+      life: 900 + Math.random() * 300,
+      age: 0,
+      size: 2,
+      color: '#f4f1e8',
+      fade: true,
     });
   }
 }
@@ -31,8 +45,15 @@ export function puff(x, y) {
 export function sweat(x, y) {
   for (let i = 0; i < 3; i++) {
     particles.push({
-      x: x + (i - 1) * 4, y, vx: (i - 1) * 8, vy: -18 - i * 4,
-      g: 70, life: 800, age: 0, size: 1, color: '#7ec8e3',
+      x: x + (i - 1) * 4,
+      y,
+      vx: (i - 1) * 8,
+      vy: -18 - i * 4,
+      g: 70,
+      life: 800,
+      age: 0,
+      size: 1,
+      color: '#7ec8e3',
     });
   }
 }
@@ -74,8 +95,15 @@ export function drawParticles(g) {
 // ── The cat ────────────────────────────────────────────────────────────────
 
 export const cat = {
-  x: 17 * T + 8, y: 16 * T + 12, dir: 'right', path: [], pose: 'sleep',
-  walkClock: 0, nextAt: performance.now() + 4000, zAt: 0, meowUntil: 0,
+  x: 17 * T + 8,
+  y: 16 * T + 12,
+  dir: 'right',
+  path: [],
+  pose: 'sleep',
+  walkClock: 0,
+  nextAt: performance.now() + 4000,
+  zAt: 0,
+  meowUntil: 0,
 };
 
 const CAT_SPEED = 30;
@@ -95,7 +123,13 @@ function chooseDestination(characters) {
   if (waiting.length && Math.random() < 0.65) {
     const ch = waiting[Math.floor(Math.random() * waiting.length)];
     const [c, r] = ch.spot.approach;
-    for (const [dc, dr] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) if (isOpen(c + dc, r + dr)) return [c + dc, r + dr];
+    for (const [dc, dr] of [
+      [1, 0],
+      [-1, 0],
+      [0, 1],
+      [0, -1],
+    ])
+      if (isOpen(c + dc, r + dr)) return [c + dc, r + dr];
   }
   if (Math.random() < 0.3) return SPOTS.lounge[0].approach;
   return randomOpenTile();

@@ -4,7 +4,13 @@ import { turnPerformance } from '../lib/turn-performance.js';
 
 const MIN = 60_000;
 const now = 1000 * MIN;
-const turn = (session, ms, options = {}) => ({ t: now - 100 * MIN, end: now - 100 * MIN + ms, kind: 'human', rec: { session, source: 'claude', sub: false, work: [] }, ...options });
+const turn = (session, ms, options = {}) => ({
+  t: now - 100 * MIN,
+  end: now - 100 * MIN + ms,
+  kind: 'human',
+  rec: { session, source: 'claude', sub: false, work: [] },
+  ...options,
+});
 
 test('duration percentiles and exclusive buckets use only recorded human turns', () => {
   const turns = [30_000, MIN, 5 * MIN, 15 * MIN, 60 * MIN].map((ms, i) => turn(String(i), ms));
@@ -13,12 +19,19 @@ test('duration percentiles and exclusive buckets use only recorded human turns',
   assert.equal(result.count, 5);
   assert.equal(result.medianMs, 5 * MIN);
   assert.equal(result.p90Ms, 60 * MIN);
-  assert.deepEqual(result.buckets.map((b) => b.count), [1, 1, 1, 1, 1]);
+  assert.deepEqual(
+    result.buckets.map((b) => b.count),
+    [1, 1, 1, 1, 1],
+  );
 });
 
 test('ongoing, approval, question, and plan waits never look like completed fast turns', () => {
   for (const needsYou of [null, 'approval', 'question', 'plan']) {
-    const result = turnPerformance([turn('live', 4 * MIN)], new Map([['live', { status: needsYou ? 'idle' : 'working', needsYou, lastActivity: now }]]), now);
+    const result = turnPerformance(
+      [turn('live', 4 * MIN)],
+      new Map([['live', { status: needsYou ? 'idle' : 'working', needsYou, lastActivity: now }]]),
+      now,
+    );
     assert.equal(result.count, 0);
     assert.equal(result.pending, 1);
   }
@@ -38,7 +51,11 @@ test('interruptions, future records and unfinished recorded work are excluded', 
   const interrupt = { ...interrupted, t: interrupted.end, kind: 'interrupt' };
   const unfinished = turn('b', MIN);
   unfinished.rec.work = [{ start: unfinished.t, end: unfinished.end, completed: false }];
-  const result = turnPerformance([interrupt, interrupted, unfinished, turn('future', MIN, { t: now + MIN, end: now + 2 * MIN })], new Map(), now);
+  const result = turnPerformance(
+    [interrupt, interrupted, unfinished, turn('future', MIN, { t: now + MIN, end: now + 2 * MIN })],
+    new Map(),
+    now,
+  );
   assert.equal(result.count, 0);
   assert.equal(result.interrupted, 1);
   assert.equal(result.pending, 1);

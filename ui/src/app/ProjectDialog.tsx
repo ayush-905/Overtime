@@ -20,7 +20,9 @@ function save(name: string, alias: string, hue: number | null | undefined) {
   if (next === (before.alias || '') && hue === before.hue) return;
   setProjectPref(name, { alias: next, hue });
   const label = projectName(name);
-  offerUndo(next && next !== before.alias ? `Renamed ${name} to ${label}` : `Updated ${label}`, () => setProjectPref(name, { alias: before.alias || '', hue: before.hue }));
+  offerUndo(next && next !== before.alias ? `Renamed ${name} to ${label}` : `Updated ${label}`, () =>
+    setProjectPref(name, { alias: before.alias || '', hue: before.hue }),
+  );
 }
 
 export function ProjectDialog() {
@@ -28,7 +30,9 @@ export function ProjectDialog() {
   const close = useProjectDialog((s) => s.close);
   // It opens with the project's own (and again if another is opened).
   const [alias, setAlias] = useState(() => (name && projectPref(name).alias) || '');
-  const [hue, setHue] = useState<number | null>(() => (name && Number.isFinite(projectPref(name).hue) ? (projectPref(name).hue as number) : null));
+  const [hue, setHue] = useState<number | null>(() =>
+    name && Number.isFinite(projectPref(name).hue) ? (projectPref(name).hue as number) : null,
+  );
   const field = useRef<HTMLInputElement>(null);
   useEffect(() => {
     if (!name) return;
@@ -36,7 +40,12 @@ export function ProjectDialog() {
     setAlias(pref.alias || '');
     setHue(Number.isFinite(pref.hue) ? (pref.hue as number) : null);
   }, [name]);
-  if (!name) return <Dialog open={false} onOpenChange={() => {}} title="Name and colour" children={null} />;
+  if (!name)
+    return (
+      <Dialog open={false} onOpenChange={() => {}} title="Name and colour">
+        {null}
+      </Dialog>
+    );
   const pref = projectPref(name);
   const shown = hue ?? projectHue(name);
   const done = (next: { alias: string; hue: number | null }) => {
@@ -81,11 +90,30 @@ export function ProjectDialog() {
         <div className="flex flex-col gap-1.5">
           <span className="text-detail font-semibold">Colour</span>
           <div role="radiogroup" aria-label="Colour" className="flex flex-wrap gap-2">
-            <button type="button" role="radio" aria-checked={hue == null} onClick={() => setHue(null)} data-tip="From its name" className={cx('h-8 rounded-full border-2 px-3 text-detail font-semibold', hue == null ? 'border-ink' : 'border-line')}>
+            <button
+              type="button"
+              role="radio"
+              aria-checked={hue == null}
+              onClick={() => setHue(null)}
+              data-tip="From its name"
+              className={cx(
+                'h-8 rounded-full border-2 px-3 text-detail font-semibold',
+                hue == null ? 'border-ink' : 'border-line',
+              )}
+            >
               Auto
             </button>
             {HUES.map((h) => (
-              <button key={h} type="button" role="radio" aria-checked={hue === h} aria-label={`Hue ${h}`} onClick={() => setHue(h)} className={cx(swatch, hue === h ? 'border-ink' : 'border-transparent')} style={{ background: `hsl(${h} 55% 50%)` }}>
+              <button
+                key={h}
+                type="button"
+                role="radio"
+                aria-checked={hue === h}
+                aria-label={`Hue ${h}`}
+                onClick={() => setHue(h)}
+                className={cx(swatch, hue === h ? 'border-ink' : 'border-transparent')}
+                style={{ background: `hsl(${h} 55% 50%)` }}
+              >
                 {hue === h && <Check size={14} strokeWidth={3} className="text-white" aria-hidden />}
               </button>
             ))}
@@ -97,7 +125,11 @@ export function ProjectDialog() {
         </p>
         <footer className="flex items-center gap-2">
           {(pref.alias || Number.isFinite(pref.hue)) && (
-            <button type="button" className="text-detail font-semibold text-accent hover:underline" onClick={() => done({ alias: '', hue: null })}>
+            <button
+              type="button"
+              className="text-detail font-semibold text-accent hover:underline"
+              onClick={() => done({ alias: '', hue: null })}
+            >
               Use its own name and colour
             </button>
           )}

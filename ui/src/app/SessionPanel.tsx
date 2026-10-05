@@ -9,9 +9,33 @@
 // wanted (app/later.tsx), and redraws with its own session's changes, not every
 // message: its sections that come from the history only when that does.
 
-import { memo, useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent, type PointerEvent, type ReactNode } from 'react';
 import {
-  ArrowLeftRight, Check, Copy, ExternalLink, Folder, PanelRightClose, PanelRightOpen, Pencil, Pin, Play, Tag, TriangleAlert, X, Ban,
+  memo,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type KeyboardEvent,
+  type PointerEvent,
+  type ReactNode,
+} from 'react';
+import {
+  ArrowLeftRight,
+  Check,
+  CircleDashed,
+  Copy,
+  ExternalLink,
+  Folder,
+  PanelRightClose,
+  PanelRightOpen,
+  Pencil,
+  Pin,
+  Play,
+  Tag,
+  TriangleAlert,
+  X,
+  Ban,
 } from 'lucide-react';
 import { useShallow } from 'zustand/react/shallow';
 import { useLive } from '@/data/live';
@@ -19,10 +43,39 @@ import { useSessionDetail, useTurn } from '@/data/queries';
 import { useChanged, useMedia, useMinute } from '@/data/hooks';
 import { demo, post } from '@/data/api';
 import { inPopover, openInWindow } from '@/data/desktop';
-import { calendarDay, clip, clock, compact, costText, dayLabel, duration, lower, money, moneyCol, plural, projectName, whenText } from '@/lib/format';
+import {
+  calendarDay,
+  clip,
+  clock,
+  compact,
+  costText,
+  dayLabel,
+  duration,
+  lower,
+  money,
+  moneyCol,
+  plural,
+  projectName,
+  whenText,
+} from '@/lib/format';
 import { serverNow } from '@/lib/env';
-import { MAX_NOTE, MAX_TAGS, allTags, cleanTag, customName, isPinned, noteFor, rename, setNote, setTags, tagsFor, tidyTitle, titleFor, togglePin } from '@/lib/labels';
-import { doingText, liveStateOf, sinceFor, type LiveAgent } from '@/lib/agents';
+import {
+  MAX_NOTE,
+  MAX_TAGS,
+  allTags,
+  cleanTag,
+  customName,
+  isPinned,
+  noteFor,
+  rename,
+  setNote,
+  setTags,
+  tagsFor,
+  tidyTitle,
+  titleFor,
+  togglePin,
+} from '@/lib/labels';
+import { doingText, liveStateOf, sinceFor } from '@/lib/agents';
 import { queryTerms } from '@/lib/search';
 import { pageLink } from '@/lib/route';
 import { Empty, Marked, ProjectDot, Skeleton } from '@/components/Bits';
@@ -32,69 +85,37 @@ import { cx } from '@/components/cx';
 import { note, offerUndo } from './toasts';
 import { DRAWER, useUi, usePanelDocked } from './ui';
 import { useCompare } from './dialogs';
-import { sourceInfo, type Source } from '@/lib/sources';
+import { sourceInfo } from '@/lib/sources';
+import type { Agent, OpenSession, SessionDetail, SessionResponse, TurnDetail } from '@/data/types';
 
-const ENTRY: Record<string, string> = { 'claude-desktop': 'Desktop app', 'claude-vscode': 'VS Code', cli: 'Terminal', codex: 'Codex' };
-
-// ── What the server sends ─────────────────────────────────────────────────────
-
-type Detail = {
-  id: string;
-  nativeId: string;
-  source: Source;
-  title: string | null;
-  project: string | null;
-  cwd: string | null;
-  firstAt: number | null;
-  lastAt: number | null;
-  cost: number;
-  partial: boolean;
-  subCost: number;
-  saved: number;
-  tokens: { fresh: number; output: number; cacheRead: number; cacheWrite: number; total: number };
-  models: { name: string; cost: number; tokens: number; other?: boolean }[];
-  lines: { added: number; removed: number };
-  tools: { calls: number; failed: number; denied: number; top: [string, number][] };
-  compactions: number;
-  context: { used: number; window: number; pct: number; at: number } | null;
-  agentMs: number;
-  waitMs: number;
-  messages: { count: number; interrupts: number; list: { t: number; text: string; cost: number; partial: boolean; ms: number }[] };
-  subagents: { count: number; list: { title: string; firstAt: number | null; calls: number; cost: number; partial: boolean }[] };
-  timeline: { from: number; step: number; costs: number[] } | null;
-  // What picks it back up, as its harness says: the command for Terminal, and its app's link.
-  // `appMissing`: the app that would open it, and why it can't.
-  resume?: { terminal?: boolean; command?: string; app?: { name: string; url: string } | null; appMissing?: { name: string; why: string } | null };
+const ENTRY: Record<string, string> = {
+  'claude-desktop': 'Desktop app',
+  'claude-vscode': 'VS Code',
+  cli: 'Terminal',
+  codex: 'Codex',
 };
 
-type Turn = {
-  t: number;
-  text: string;
-  whole: boolean;
-  replies: { t: number; text: string }[];
-  moreReplies: number;
-  searchOn: boolean;
-  files: { path: string; edits: number; added: number; removed: number; reads: number }[];
-  moreFiles: number;
-  commands: { text: string; status: 'ok' | 'error' | 'denied'; reason?: string; sub?: boolean }[];
-  moreCommands: number;
-  tools: [string, number][];
-  cost: number;
-  partial: boolean;
-  ms: number;
-  tokens: number;
-  subagents: number;
-  failed: number;
-  denied: number;
-  cwd: string | null;
-};
-
-type Live = LiveAgent & { cwd?: string; nativeId?: string; branch?: string | null; model?: string | null; modelName?: string | null; resumeCommand?: string | null; entrypoint?: string | null; startedAt?: number; cost?: number; tokens?: { total: number }; lines?: { added: number; removed: number }; turns?: number; files?: { path: string; name: string; added: number; removed: number }[] };
-type Proc = { id?: string; source: Source; title?: string; project?: string; lastActive?: number; openedAt: number; memBytes: number; toolsMemBytes: number; tools: number; cpuPct?: number | null; runtimeShared?: boolean };
+// What the server sends: the live agent (Agent), how it runs on this Mac
+// (OpenSession), the session in full (SessionResponse, from /api/session) and one
+// message (TurnDetail, from /api/turn), all in data/types.ts.
+type Live = Agent;
+type Proc = OpenSession;
 
 // ── Small pieces ─────────────────────────────────────────────────────────────
 
-function Section({ title, sub, tools, children, className }: { title: ReactNode; sub?: ReactNode; tools?: ReactNode; children: ReactNode; className?: string }) {
+function Section({
+  title,
+  sub,
+  tools,
+  children,
+  className,
+}: {
+  title: ReactNode;
+  sub?: ReactNode;
+  tools?: ReactNode;
+  children: ReactNode;
+  className?: string;
+}) {
   return (
     <section className={cx('flex flex-col gap-2.5 border-t border-line px-5 py-4', className)}>
       <div className="flex items-baseline gap-2">
@@ -128,27 +149,54 @@ function CopyButton({ text, label }: { text: string; label: string }) {
 }
 
 /** A path as it reads in the session's folder. */
-const shortPath = (p: string, cwd: string | null) => (cwd && p.startsWith(`${cwd}/`) ? p.slice(cwd.length + 1) : p.replace(/^\/Users\/[^/]+/, '~'));
+const shortPath = (p: string, cwd: string | null) =>
+  cwd && p.startsWith(`${cwd}/`) ? p.slice(cwd.length + 1) : p.replace(/^\/Users\/[^/]+/, '~');
 
 const shellQuote = (s: string) => `'${String(s).replace(/'/g, `'\\''`)}'`;
 
 // ── Its sections ─────────────────────────────────────────────────────────────
 
 /** What it's doing now, and since when: only the "for 3m" counts each second. */
-function Status({ live, d, proc }: { live: Live | null; d: Detail | null; proc: Proc | null }) {
+function Status({ live, d, proc }: { live: Live | null; d: SessionDetail | null; proc: Proc | null }) {
   if (live) {
     const state = liveStateOf(live);
     const since = sinceFor(live);
     return (
-      <div className={cx('mx-5 mt-1 flex items-center gap-2.5 rounded-row px-3 py-2.5', state === 'needs' ? 'bg-warn-soft' : state === 'working' ? 'bg-ok-soft' : 'bg-sunken')}>
-        <span className={cx('size-2 shrink-0 rounded-full', state === 'needs' ? 'bg-warn-fill' : state === 'working' ? 'bg-ok-fill' : 'bg-faint')} aria-hidden />
-        <b className={cx('font-semibold', state === 'needs' ? 'text-warn' : state === 'working' ? 'text-ok' : '')}>{doingText(live)}</b>
-        {since != null && <span className="ml-auto shrink-0 whitespace-nowrap text-detail text-muted tnum">for <Ago t={since} /></span>}
+      <div
+        className={cx(
+          'mx-5 mt-1 flex items-center gap-2.5 rounded-row px-3 py-2.5',
+          state === 'needs' ? 'bg-warn-soft' : state === 'working' ? 'bg-ok-soft' : 'bg-sunken',
+        )}
+      >
+        <span
+          className={cx(
+            'size-2 shrink-0 rounded-full',
+            state === 'needs' ? 'bg-warn-fill' : state === 'working' ? 'bg-ok-fill' : 'bg-faint',
+          )}
+          aria-hidden
+        />
+        <b className={cx('font-semibold', state === 'needs' ? 'text-warn' : state === 'working' ? 'text-ok' : '')}>
+          {doingText(live)}
+        </b>
+        {since != null && (
+          <span className="ml-auto shrink-0 whitespace-nowrap text-detail text-muted tnum">
+            for <Ago t={since} />
+          </span>
+        )}
       </div>
     );
   }
   if (proc) {
-    const last = proc.lastActive ? <>last active <Ago t={proc.lastActive} /> ago</> : <>opened <Ago t={proc.openedAt} /> ago</>;
+    // A chat in the Codex app may not say when it was opened.
+    const last = proc.lastActive ? (
+      <>
+        last active <Ago t={proc.lastActive} /> ago
+      </>
+    ) : proc.openedAt ? (
+      <>
+        opened <Ago t={proc.openedAt} /> ago
+      </>
+    ) : null;
     return (
       <div className="mx-5 mt-1 flex items-center gap-2.5 rounded-row bg-sunken px-3 py-2.5">
         <span className="size-2 shrink-0 rounded-full bg-faint" aria-hidden />
@@ -161,7 +209,9 @@ function Status({ live, d, proc }: { live: Live | null; d: Detail | null; proc: 
     return (
       <div className="mx-5 mt-1 flex items-center gap-2.5 rounded-row bg-sunken px-3 py-2.5">
         <b className="font-semibold">Not running</b>
-        <span className="ml-auto text-detail text-muted">last active {whenText(d.lastAt)}, <Ago t={d.lastAt} /> ago</span>
+        <span className="ml-auto text-detail text-muted">
+          last active {whenText(d.lastAt)}, <Ago t={d.lastAt} /> ago
+        </span>
       </div>
     );
   }
@@ -169,38 +219,95 @@ function Status({ live, d, proc }: { live: Live | null; d: Detail | null; proc: 
 }
 
 /** `today` is only so it's drawn again when the day changes, as its times say the weekday then. */
-const TurnView = memo(function TurnView({ id, at, terms, onClose }: { id: string; at: number; terms: string[]; onClose: () => void; today: number }) {
+const TurnView = memo(function TurnView({
+  id,
+  at,
+  terms,
+  onClose,
+}: {
+  id: string;
+  at: number;
+  terms: string[];
+  onClose: () => void;
+  today: number;
+}) {
   useChanged();
   const q = useTurn(id, Math.round(at));
   const box = useRef<HTMLDivElement>(null);
-  const t = q.data as Turn | undefined;
+  const t: TurnDetail | undefined = q.data;
   // A search's match, once it's there, is brought into view.
   useEffect(() => {
     const hit = box.current?.querySelector('[data-hit]');
     hit?.scrollIntoView({ block: 'center' });
   }, [t]);
-  const close = <IconButton label="Back to the whole session" variant="quiet" size="sm" onClick={onClose}><X size={15} strokeWidth={2} aria-hidden /></IconButton>;
-  if (q.isLoading) return <Section title="Your message" tools={close}><Skeleton lines={3} /></Section>;
-  if (!t) return <Section title="Your message" tools={close}><Empty>{demo ? 'The demo has no messages to open.' : "Couldn't find that message in the last 31 days of transcripts."}</Empty></Section>;
+  const close = (
+    <IconButton label="Back to the whole session" variant="quiet" size="sm" onClick={onClose}>
+      <X size={15} strokeWidth={2} aria-hidden />
+    </IconButton>
+  );
+  if (q.isLoading)
+    return (
+      <Section title="Your message" tools={close}>
+        <Skeleton lines={3} />
+      </Section>
+    );
+  if (!t)
+    return (
+      <Section title="Your message" tools={close}>
+        <Empty>
+          {demo
+            ? 'The demo has no messages to open.'
+            : "Couldn't find that message in the last 31 days of transcripts."}
+        </Empty>
+      </Section>
+    );
   const hitYou = terms.length > 0 && Math.abs(t.t - at) < 1500;
-  const facts = [costText(t.cost, t.partial), t.ms > 60_000 ? `kept it busy ${duration(t.ms)}` : '', `${compact(t.tokens)} tokens`, t.subagents ? plural(t.subagents, 'subagent') : '', t.failed ? `${t.failed} failed` : '', t.denied ? `${t.denied} denied by you` : ''].filter(Boolean).join(' · ');
+  const facts = [
+    costText(t.cost, t.partial),
+    t.ms > 60_000 ? `kept it busy ${duration(t.ms)}` : '',
+    `${compact(t.tokens)} tokens`,
+    t.subagents ? plural(t.subagents, 'subagent') : '',
+    t.failed ? `${t.failed} failed` : '',
+    t.denied ? `${t.denied} denied by you` : '',
+  ]
+    .filter(Boolean)
+    .join(' · ');
   return (
     <div ref={box}>
-      <Section title="Your message" sub={whenText(t.t)} tools={close} className="bg-[color-mix(in_srgb,var(--accent)_4%,var(--card))]">
-        <blockquote data-hit={hitYou ? '' : undefined} className={cx('m-0 whitespace-pre-wrap rounded-row border-l-2 border-ink/40 bg-sunken px-3 py-2 text-body', hitYou && 'ring-2 ring-warn-line')}>
+      <Section
+        title="Your message"
+        sub={whenText(t.t)}
+        tools={close}
+        className="bg-[color-mix(in_srgb,var(--accent)_4%,var(--card))]"
+      >
+        <blockquote
+          data-hit={hitYou ? '' : undefined}
+          className={cx(
+            'm-0 whitespace-pre-wrap rounded-row border-l-2 border-ink/40 bg-sunken px-3 py-2 text-body',
+            hitYou && 'ring-2 ring-warn-line',
+          )}
+        >
           <Marked text={t.text} terms={terms} />
           {t.whole ? '' : '…'}
         </blockquote>
         {t.replies.length > 0 ? (
           <>
             <h4 className="mt-1 text-detail font-semibold">
-              What the agent said <small className="font-normal text-muted">{plural(t.replies.length + t.moreReplies, 'reply', 'replies')}{t.moreReplies ? ', the first 4 and the last 20' : ''}</small>
+              What the agent said{' '}
+              <small className="font-normal text-muted">
+                {plural(t.replies.length + t.moreReplies, 'reply', 'replies')}
+                {t.moreReplies ? ', the first 4 and the last 20' : ''}
+              </small>
             </h4>
             <div className="flex max-h-[360px] flex-col gap-2 overflow-y-auto">
               {t.replies.map((r) => {
                 const hit = terms.length > 0 && Math.abs(r.t - at) < 1500;
                 return (
-                  <div key={r.t} data-hit={hit ? '' : undefined} className={cx('flex gap-2.5 rounded-sm px-1 text-detail', hit && 'bg-warn-soft')}>
+                  <div
+                    key={r.t}
+                    data-hit={hit ? '' : undefined}
+                    className={cx('flex gap-2.5 rounded-sm px-1 text-detail', hit && 'bg-warn-soft')}
+                  >
                     <time className="w-12 shrink-0 text-muted tnum">{clock(r.t)}</time>
                     <p className={cx('whitespace-pre-wrap', r.text.length > 700 && !hit && 'line-clamp-6')}>
                       <Marked text={r.text} terms={terms} />
@@ -211,7 +318,9 @@ const TurnView = memo(function TurnView({ id, at, terms, onClose }: { id: string
             </div>
           </>
         ) : (
-          !t.searchOn && <Empty>Turn on search inside conversations in Settings → Data to see the agent’s replies here too.</Empty>
+          !t.searchOn && (
+            <Empty>Turn on search inside conversations in Settings → Data to see the agent’s replies here too.</Empty>
+          )
         )}
         {t.files.length || t.commands.length || t.tools.length ? (
           <>
@@ -224,7 +333,10 @@ const TurnView = memo(function TurnView({ id, at, terms, onClose }: { id: string
                   <li key={f.path} data-tip={f.path} className="flex items-center gap-2">
                     <span className="grow truncate font-mono text-[12px]">{shortPath(f.path, t.cwd)}</span>
                     {f.edits ? (
-                      <span className="tnum"><span className="text-ok">+{compact(f.added)}</span> <span className="text-bad">−{compact(f.removed)}</span></span>
+                      <span className="tnum">
+                        <span className="text-ok">+{compact(f.added)}</span>{' '}
+                        <span className="text-bad">−{compact(f.removed)}</span>
+                      </span>
                     ) : (
                       <small className="text-muted">read{f.reads > 1 ? ` ${f.reads}×` : ''}</small>
                     )}
@@ -236,19 +348,37 @@ const TurnView = memo(function TurnView({ id, at, terms, onClose }: { id: string
             {t.commands.length > 0 && (
               <ul className="flex flex-col gap-1">
                 {t.commands.map((c, i) => (
-                  <li key={i} data-tip={c.reason} className="flex items-start gap-2 text-[12px]">
-                    {c.status === 'error' ? <TriangleAlert size={13} className="mt-0.5 shrink-0 text-bad" aria-label="Failed" /> : c.status === 'denied' ? <Ban size={13} className="mt-0.5 shrink-0 text-muted" aria-label="Denied" /> : <Check size={13} className="mt-0.5 shrink-0 text-ok" aria-hidden />}
+                  <li
+                    key={i}
+                    data-tip={
+                      c.reason || (c.status === 'pending' ? 'Still running, or it never reported back' : undefined)
+                    }
+                    className="flex items-start gap-2 text-[12px]"
+                  >
+                    {c.status === 'error' ? (
+                      <TriangleAlert size={13} className="mt-0.5 shrink-0 text-bad" aria-label="Failed" />
+                    ) : c.status === 'denied' ? (
+                      <Ban size={13} className="mt-0.5 shrink-0 text-muted" aria-label="Denied" />
+                    ) : c.status === 'pending' ? (
+                      <CircleDashed size={13} className="mt-0.5 shrink-0 text-muted" aria-label="No result yet" />
+                    ) : (
+                      <Check size={13} className="mt-0.5 shrink-0 text-ok" aria-hidden />
+                    )}
                     <code className="break-all font-mono">{c.text}</code>
                     {c.sub && <small className="shrink-0 text-muted">subagent</small>}
                   </li>
                 ))}
-                {t.moreCommands > 0 && <li className="text-detail text-muted">the last 30 of {t.commands.length + t.moreCommands}</li>}
+                {t.moreCommands > 0 && (
+                  <li className="text-detail text-muted">the last 30 of {t.commands.length + t.moreCommands}</li>
+                )}
               </ul>
             )}
             {t.tools.length > 0 && (
               <div className="flex flex-wrap gap-1.5">
                 {t.tools.map(([name, n]) => (
-                  <span key={name} className="rounded-full border border-line px-2 py-0.5 text-label">{name} <b>{n}</b></span>
+                  <span key={name} className="rounded-full border border-line px-2 py-0.5 text-label">
+                    {name} <b>{n}</b>
+                  </span>
                 ))}
               </div>
             )}
@@ -272,9 +402,12 @@ const Notes = memo(function Notes({ id }: { id: string }) {
   useEffect(() => {
     if (!typing.current) setText(noteFor(id));
   }, [id, mine.length]);
-  useEffect(() => () => {
-    clearTimeout(timer.current);
-  }, []);
+  useEffect(
+    () => () => {
+      clearTimeout(timer.current);
+    },
+    [],
+  );
   const flush = (value = text) => {
     clearTimeout(timer.current);
     setNote(id, value);
@@ -284,7 +417,10 @@ const Notes = memo(function Notes({ id }: { id: string }) {
     if (t) setTags(id, [...tagsFor(id), t]);
     setDraft('');
   };
-  const others = allTags().map(([t]) => t).filter((t) => !mine.some((m) => m.toLowerCase() === t.toLowerCase())).slice(0, 6);
+  const others = allTags()
+    .map(([t]) => t)
+    .filter((t) => !mine.some((m) => m.toLowerCase() === t.toLowerCase()))
+    .slice(0, 6);
   const onKey = (e: KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter' || e.key === ',') {
       e.preventDefault();
@@ -301,9 +437,17 @@ const Notes = memo(function Notes({ id }: { id: string }) {
     <Section title="Notes and tags" sub="only on this dashboard">
       <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="Tags">
         {mine.map((t) => (
-          <span key={t} className="inline-flex h-7 items-center gap-1 rounded-full border border-line pl-2.5 pr-1 text-detail">
+          <span
+            key={t}
+            className="inline-flex h-7 items-center gap-1 rounded-full border border-line pl-2.5 pr-1 text-detail"
+          >
             <Tag size={12} strokeWidth={2} className="text-muted" aria-hidden />
-            <a href={pageLink('sessions', { tag: t })} data-tip={`Every session tagged ${t}`} className="no-underline hover:underline" onClick={() => useUi.getState().closeSession()}>
+            <a
+              href={pageLink('sessions', { tag: t })}
+              data-tip={`Every session tagged ${t}`}
+              className="no-underline hover:underline"
+              onClick={() => useUi.getState().closeSession()}
+            >
               {t}
             </a>
             <button
@@ -312,7 +456,10 @@ const Notes = memo(function Notes({ id }: { id: string }) {
               className="grid size-5 place-items-center rounded-full text-muted hover:bg-sunken hover:text-ink"
               onClick={() => {
                 const before = tagsFor(id);
-                setTags(id, before.filter((x) => x !== t));
+                setTags(
+                  id,
+                  before.filter((x) => x !== t),
+                );
                 offerUndo(`Took off the tag “${t}”`, () => setTags(id, before));
               }}
             >
@@ -349,7 +496,12 @@ const Notes = memo(function Notes({ id }: { id: string }) {
         <div className="flex flex-wrap items-center gap-1.5 text-label text-muted">
           <span>Your tags:</span>
           {others.map((t) => (
-            <button key={t} type="button" onClick={() => add(t)} className="rounded-full border border-dashed border-line px-2 py-0.5 hover:border-line-strong hover:text-ink">
+            <button
+              key={t}
+              type="button"
+              onClick={() => add(t)}
+              className="rounded-full border border-dashed border-line px-2 py-0.5 hover:border-line-strong hover:text-ink"
+            >
               + {t}
             </button>
           ))}
@@ -378,7 +530,7 @@ const Notes = memo(function Notes({ id }: { id: string }) {
   );
 });
 
-function Stats({ live, d, proc }: { live: Live | null; d: Detail | null; proc: Proc | null }) {
+function Stats({ live, d, proc }: { live: Live | null; d: SessionDetail | null; proc: Proc | null }) {
   const cost = d ? d.cost : live?.cost;
   const tokens = d ? d.tokens.total : live?.tokens?.total;
   const lines = d ? d.lines : live?.lines;
@@ -390,40 +542,92 @@ function Stats({ live, d, proc }: { live: Live | null; d: Detail | null; proc: P
     </div>
   );
   const c = live?.context || d?.context;
-  const pct = c?.window ? c.pct ?? Math.round((c.used / c.window) * 100) : null;
+  const pct = c?.window ? (c.pct ?? Math.round((c.used / c.window) * 100)) : null;
   return (
     <div className="flex flex-col gap-3 px-5 py-4">
       <dl className="grid grid-cols-3 gap-x-4 gap-y-3.5 max-[460px]:grid-cols-2">
-        {cell('Cost', cost == null ? '—' : costText(cost, d?.partial), d?.subCost && d.subCost > 0.005 ? `${money(d.subCost)} subagents` : undefined, d ? `At API list prices${d.subCost > 0.005 ? `, including ${money(d.subCost)} on subagents` : ''}. Prompt caching saved ≈ ${money(d.saved)}.` : 'At API list prices')}
-        {cell('Tokens', tokens == null ? '—' : compact(tokens), undefined, d ? `${compact(d.tokens.fresh)} fresh input · ${compact(d.tokens.output)} output · ${compact(d.tokens.cacheRead)} cache reads · ${compact(d.tokens.cacheWrite)} cache writes` : undefined)}
-        {cell('Your messages', d ? d.messages.count : live?.turns ?? '—', d && (d.messages.interrupts || d.waitMs) ? [d.messages.interrupts && `${d.messages.interrupts} interrupted`, d.waitMs && `waited ${duration(d.waitMs)} for you`].filter(Boolean).join(' · ') : undefined)}
-        {cell('Agent time', d?.agentMs ? duration(d.agentMs) : '—', d?.agentMs && d.messages.count > 1 ? `about ${duration(d.agentMs / d.messages.count)} a message` : undefined, 'How long the agent worked on your messages, from each one to its last reply, added up')}
-        {cell('Lines changed', lines ? <><span className="text-ok">+{compact(lines.added)}</span> <span className="text-bad">−{compact(lines.removed)}</span></> : '—')}
+        {cell(
+          'Cost',
+          cost == null ? '—' : costText(cost, d?.partial),
+          d?.subCost && d.subCost > 0.005 ? `${money(d.subCost)} subagents` : undefined,
+          d
+            ? `At API list prices${d.subCost > 0.005 ? `, including ${money(d.subCost)} on subagents` : ''}. Prompt caching saved ≈ ${money(d.saved)}.`
+            : 'At API list prices',
+        )}
+        {cell(
+          'Tokens',
+          tokens == null ? '—' : compact(tokens),
+          undefined,
+          d
+            ? `${compact(d.tokens.fresh)} fresh input · ${compact(d.tokens.output)} output · ${compact(d.tokens.cacheRead)} cache reads · ${compact(d.tokens.cacheWrite)} cache writes`
+            : undefined,
+        )}
+        {cell(
+          'Your messages',
+          d ? d.messages.count : (live?.turns ?? '—'),
+          d && (d.messages.interrupts || d.waitMs)
+            ? [
+                d.messages.interrupts && `${d.messages.interrupts} interrupted`,
+                d.waitMs && `waited ${duration(d.waitMs)} for you`,
+              ]
+                .filter(Boolean)
+                .join(' · ')
+            : undefined,
+        )}
+        {cell(
+          'Agent time',
+          d?.agentMs ? duration(d.agentMs) : '—',
+          d?.agentMs && d.messages.count > 1 ? `about ${duration(d.agentMs / d.messages.count)} a message` : undefined,
+          'How long the agent worked on your messages, from each one to its last reply, added up',
+        )}
+        {cell(
+          'Lines changed',
+          lines ? (
+            <>
+              <span className="text-ok">+{compact(lines.added)}</span>{' '}
+              <span className="text-bad">−{compact(lines.removed)}</span>
+            </>
+          ) : (
+            '—'
+          ),
+        )}
         {cell('Tool calls', d ? compact(d.tools.calls) : '—', d?.tools.failed ? `${d.tools.failed} failed` : undefined)}
       </dl>
       {pct != null && c && (
-        <div className="flex items-center gap-3 text-detail" data-tip={`${compact(c.used)} of ${compact(c.window)} tokens in the conversation ${live?.context ? 'now' : `as of its last reply`}. Compaction behavior depends on the provider and model.`}>
+        <div
+          className="flex items-center gap-3 text-detail"
+          data-tip={`${compact(c.used)} of ${compact(c.window)} tokens in the conversation ${live?.context ? 'now' : `as of its last reply`}. Compaction behavior depends on the provider and model.`}
+        >
           <span className="text-muted">Context</span>
           <span className="h-1.5 grow overflow-hidden rounded-full bg-sunken">
-            <span className={cx('block h-full rounded-full', pct >= 90 ? 'bg-bad-fill' : pct >= 70 ? 'bg-warn-fill' : 'bg-ink/50')} style={{ width: `${Math.max(2, pct)}%` }} />
+            <span
+              className={cx(
+                'block h-full rounded-full',
+                pct >= 90 ? 'bg-bad-fill' : pct >= 70 ? 'bg-warn-fill' : 'bg-ink/50',
+              )}
+              style={{ width: `${Math.max(2, pct)}%` }}
+            />
           </span>
           <b className={cx('tnum', pct >= 90 ? 'text-bad' : pct >= 70 ? 'text-warn' : '')}>{pct}%</b>
         </div>
       )}
       {proc && (
         <p className="text-detail text-muted">
-          {proc.runtimeShared ? 'This chat uses the shared Codex runtime. Per-chat memory and CPU are unavailable.' : `Using ${Math.round((proc.memBytes + proc.toolsMemBytes) / 1024 ** 2)} MB of memory with its ${plural(proc.tools, 'MCP server or tool', 'MCP servers and tools')}${proc.cpuPct != null ? `, ${proc.cpuPct < 10 ? proc.cpuPct.toFixed(1) : Math.round(proc.cpuPct)}% CPU` : ''}.`}
+          {proc.runtimeShared
+            ? 'This chat uses the shared Codex runtime. Per-chat memory and CPU are unavailable.'
+            : `Using ${Math.round((proc.memBytes + proc.toolsMemBytes) / 1024 ** 2)} MB of memory with its ${plural(proc.tools, 'MCP server or tool', 'MCP servers and tools')}${proc.cpuPct != null ? `, ${proc.cpuPct < 10 ? proc.cpuPct.toFixed(1) : Math.round(proc.cpuPct)}% CPU` : ''}.`}
         </p>
       )}
     </div>
   );
 }
 
-const CostOverTime = memo(function CostOverTime({ d }: { d: Detail }) {
+const CostOverTime = memo(function CostOverTime({ d }: { d: SessionDetail }) {
   useChanged();
   const tl = d.timeline;
   if (!tl || tl.costs.length < 2 || !tl.costs.some((c) => c > 0)) return null;
-  const label = (t: number) => (tl.step >= 86_400_000 ? dayLabel(t) : tl.step >= 3_600_000 ? `${dayLabel(t)} ${clock(t)}` : clock(t));
+  const label = (t: number) =>
+    tl.step >= 86_400_000 ? dayLabel(t) : tl.step >= 3_600_000 ? `${dayLabel(t)} ${clock(t)}` : clock(t);
   const stepText = tl.step >= 86_400_000 ? 'day' : tl.step >= 3_600_000 ? 'hour' : '10 minutes';
   const max = Math.max(...tl.costs);
   const last = tl.from + (tl.costs.length - 1) * tl.step;
@@ -431,8 +635,15 @@ const CostOverTime = memo(function CostOverTime({ d }: { d: Detail }) {
     <Section title="Cost over time" sub={`per ${stepText}`}>
       <div className="flex h-20 items-end gap-[2px]" role="img" aria-label={`Cost per ${stepText}`}>
         {tl.costs.map((c, i) => (
-          <span key={i} data-tip={`${label(tl.from + i * tl.step)} · ≈ ${money(c)}`} className="flex h-full min-w-[2px] grow flex-col justify-end">
-            <span className={cx('block rounded-t-[2px]', sourceInfo(d.source).bg, c <= 0 && 'opacity-0')} style={{ height: `${Math.max(c > 0 ? 3 : 0, (c / max) * 100)}%` }} />
+          <span
+            key={i}
+            data-tip={`${label(tl.from + i * tl.step)} · ≈ ${money(c)}`}
+            className="flex h-full min-w-[2px] grow flex-col justify-end"
+          >
+            <span
+              className={cx('block rounded-t-[2px]', sourceInfo(d.source).bg, c <= 0 && 'opacity-0')}
+              style={{ height: `${Math.max(c > 0 ? 3 : 0, (c / max) * 100)}%` }}
+            />
           </span>
         ))}
       </div>
@@ -444,7 +655,16 @@ const CostOverTime = memo(function CostOverTime({ d }: { d: Detail }) {
   );
 });
 
-const Messages = memo(function Messages({ d, current, onOpen }: { d: Detail; current: number | null; onOpen: (t: number) => void; today: number }) {
+const Messages = memo(function Messages({
+  d,
+  current,
+  onOpen,
+}: {
+  d: SessionDetail;
+  current: number | null;
+  onOpen: (t: number) => void;
+  today: number;
+}) {
   useChanged();
   const list = d.messages.list;
   if (!list.length) return null;
@@ -460,7 +680,10 @@ const Messages = memo(function Messages({ d, current, onOpen }: { d: Detail; cur
             onClick={() => onOpen(m.t)}
             onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), onOpen(m.t))}
             data-tip={`${m.text || ''}\n${whenText(m.t)} · ≈ ${money(m.cost)} · kept the agent busy ${duration(m.ms)}\nClick for what it led to`}
-            className={cx('grid cursor-pointer grid-cols-[96px_minmax(0,1fr)_auto] items-center gap-2.5 rounded-sm px-2 py-1.5 text-detail hover:bg-sunken', current === m.t && 'bg-sunken')}
+            className={cx(
+              'grid cursor-pointer grid-cols-[96px_minmax(0,1fr)_auto] items-center gap-2.5 rounded-sm px-2 py-1.5 text-detail hover:bg-sunken',
+              current === m.t && 'bg-sunken',
+            )}
           >
             <time className="whitespace-nowrap text-muted tnum">{whenText(m.t)}</time>
             <span className="truncate">“{clip(m.text || 'Untitled', 90)}”</span>
@@ -471,7 +694,11 @@ const Messages = memo(function Messages({ d, current, onOpen }: { d: Detail; cur
           </li>
         ))}
       </ul>
-      {d.messages.count > list.length && <p className="text-detail text-muted">The latest {list.length} of {d.messages.count}.</p>}
+      {d.messages.count > list.length && (
+        <p className="text-detail text-muted">
+          The latest {list.length} of {d.messages.count}.
+        </p>
+      )}
     </Section>
   );
 });
@@ -485,7 +712,10 @@ function Files({ live }: { live: Live | null }) {
         {files.map((f) => (
           <li key={f.path} data-tip={f.path} className="flex items-center gap-2">
             <span className="grow truncate font-mono text-[12px]">{f.name}</span>
-            <span className="tnum"><span className="text-ok">+{compact(f.added)}</span> <span className="text-bad">−{compact(f.removed)}</span></span>
+            <span className="tnum">
+              <span className="text-ok">+{compact(f.added)}</span>{' '}
+              <span className="text-bad">−{compact(f.removed)}</span>
+            </span>
           </li>
         ))}
       </ul>
@@ -493,12 +723,15 @@ function Files({ live }: { live: Live | null }) {
   );
 }
 
-function Subagents({ d, liveSubs }: { d: Detail | null; liveSubs: Live[] }) {
+function Subagents({ d, liveSubs }: { d: SessionDetail | null; liveSubs: Live[] }) {
   const list = d?.subagents?.list || [];
   if (!list.length && !liveSubs.length) return null;
   const count = d?.subagents?.count || liveSubs.length;
   return (
-    <Section title="Subagents" sub={`${plural(count, 'subagent')}${list.length < (d?.subagents?.count || 0) ? `, the ${list.length} priciest` : ''}`}>
+    <Section
+      title="Subagents"
+      sub={`${plural(count, 'subagent')}${list.length < (d?.subagents?.count || 0) ? `, the ${list.length} priciest` : ''}`}
+    >
       <ul className="flex flex-col gap-1 text-detail">
         {liveSubs.map((a) => (
           <li key={a.id} className="flex items-center gap-2">
@@ -508,7 +741,11 @@ function Subagents({ d, liveSubs }: { d: Detail | null; liveSubs: Live[] }) {
           </li>
         ))}
         {list.map((x, i) => (
-          <li key={i} className="flex items-center gap-2" data-tip={`${x.title}\n${x.firstAt ? whenText(x.firstAt) : ''} · ${plural(x.calls, 'tool call')}`}>
+          <li
+            key={i}
+            className="flex items-center gap-2"
+            data-tip={`${x.title}\n${x.firstAt ? whenText(x.firstAt) : ''} · ${plural(x.calls, 'tool call')}`}
+          >
             <span className="size-1.5 shrink-0 rounded-full bg-faint" aria-hidden />
             <span className="grow truncate">{clip(x.title, 70)}</span>
             <b className="font-medium tnum">
@@ -522,7 +759,7 @@ function Subagents({ d, liveSubs }: { d: Detail | null; liveSubs: Live[] }) {
   );
 }
 
-const ModelsAndTools = memo(function ModelsAndTools({ d }: { d: Detail }) {
+const ModelsAndTools = memo(function ModelsAndTools({ d }: { d: SessionDetail }) {
   useChanged();
   const models = d.models.filter((m) => m.cost > 0.005);
   const toolLine = `${plural(d.tools.calls, 'tool call')}${d.tools.failed ? ` · ${d.tools.failed} failed` : ''}${d.tools.denied ? ` · ${d.tools.denied} denied by you` : ''}${d.compactions ? ` · compacted ${d.compactions === 1 ? 'once' : `${d.compactions} times`}` : ''}`;
@@ -534,9 +771,17 @@ const ModelsAndTools = memo(function ModelsAndTools({ d }: { d: Detail }) {
             {models.map((m) => {
               const pct = d.cost > 0 ? Math.round((m.cost / d.cost) * 100) : 0;
               return (
-                <li key={m.name} className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto_36px] items-center gap-2.5">
+                <li
+                  key={m.name}
+                  className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto_36px] items-center gap-2.5"
+                >
                   <span className="truncate">{m.name}</span>
-                  <span className="h-1.5 overflow-hidden rounded-full bg-sunken"><span className="block h-full rounded-full bg-ink/60" style={{ width: `${Math.max(pct ? 2 : 0, pct)}%` }} /></span>
+                  <span className="h-1.5 overflow-hidden rounded-full bg-sunken">
+                    <span
+                      className="block h-full rounded-full bg-ink/60"
+                      style={{ width: `${Math.max(pct ? 2 : 0, pct)}%` }}
+                    />
+                  </span>
                   <span className="tnum">{money(m.cost)}</span>
                   <span className="text-right text-muted tnum">{pct}%</span>
                 </li>
@@ -549,7 +794,9 @@ const ModelsAndTools = memo(function ModelsAndTools({ d }: { d: Detail }) {
         <Section title="Tools" sub={toolLine}>
           <div className="flex flex-wrap gap-1.5">
             {d.tools.top.map(([name, n]) => (
-              <span key={name} className="rounded-full border border-line px-2 py-0.5 text-label">{name} <b>{n}</b></span>
+              <span key={name} className="rounded-full border border-line px-2 py-0.5 text-label">
+                {name} <b>{n}</b>
+              </span>
             ))}
           </div>
         </Section>
@@ -558,7 +805,7 @@ const ModelsAndTools = memo(function ModelsAndTools({ d }: { d: Detail }) {
   );
 });
 
-function Actions({ id, live, d }: { id: string; live: Live | null; d: Detail | null }) {
+function Actions({ id, live, d }: { id: string; live: Live | null; d: SessionResponse | null }) {
   // The folder it was started in, where Claude Code can find it to resume (the history knows it best).
   const cwd = d?.cwd || live?.cwd || null;
   const r = d?.resume;
@@ -569,29 +816,52 @@ function Actions({ id, live, d }: { id: string; live: Live | null; d: Detail | n
       await post(`/api/resume?id=${encodeURIComponent(id)}`);
       note('Opened in a new Terminal window');
     } catch (e) {
-      note((e as Error).message.includes('422') ? "Couldn't open Terminal" : "Couldn't reach Overtime's server", { level: 'warn' });
+      note((e as Error).message.includes('422') ? "Couldn't open Terminal" : "Couldn't reach Overtime's server", {
+        level: 'warn',
+      });
     }
   };
   const items = [
     command && (
-      <Button key="terminal" size="sm" variant="primary" icon={<Play size={13} strokeWidth={2.2} aria-hidden />} data-tip={`Opens a new Terminal window in its folder and runs ${command || 'its resume command'}`} onClick={resumeInTerminal}>
+      <Button
+        key="terminal"
+        size="sm"
+        variant="primary"
+        icon={<Play size={13} strokeWidth={2.2} aria-hidden />}
+        data-tip={`Opens a new Terminal window in its folder and runs ${command || 'its resume command'}`}
+        onClick={resumeInTerminal}
+      >
         Resume in Terminal
       </Button>
     ),
     r?.app ? (
-      <a key="app" href={r.app.url} data-tip={`Opens this session in the ${r.app.name} app`} className="inline-flex h-7 items-center gap-1.5 rounded-control border border-line bg-card px-2.5 text-detail font-medium text-ink no-underline hover:bg-sunken">
+      <a
+        key="app"
+        href={r.app.url}
+        data-tip={`Opens this session in the ${r.app.name} app`}
+        className="inline-flex h-7 items-center gap-1.5 rounded-control border border-line bg-card px-2.5 text-detail font-medium text-ink no-underline hover:bg-sunken"
+      >
         <ExternalLink size={13} strokeWidth={2} aria-hidden />
         Open in the {r.app.name} app
       </a>
     ) : r?.appMissing ? (
-      <span key="app" aria-disabled="true" data-tip={`This session was ${r.appMissing.why}, so the ${r.appMissing.name} app can't open it. Resume it in Terminal instead.`} className="inline-flex h-7 items-center gap-1.5 rounded-control border border-line px-2.5 text-detail font-medium text-muted opacity-60">
+      <span
+        key="app"
+        aria-disabled="true"
+        data-tip={`This session was ${r.appMissing.why}, so the ${r.appMissing.name} app can't open it. Resume it in Terminal instead.`}
+        className="inline-flex h-7 items-center gap-1.5 rounded-control border border-line px-2.5 text-detail font-medium text-muted opacity-60"
+      >
         <ExternalLink size={13} strokeWidth={2} aria-hidden />
         Open in the {r.appMissing.name} app
       </span>
     ) : null,
     resume && <CopyButton key="resume" text={resume} label="Copy resume command" />,
     cwd && (
-      <a key="vscode" href={`vscode://file/${encodeURI(cwd)}`} className="inline-flex h-7 items-center gap-1.5 rounded-control border border-line bg-card px-2.5 text-detail font-medium text-ink no-underline hover:bg-sunken">
+      <a
+        key="vscode"
+        href={`vscode://file/${encodeURI(cwd)}`}
+        className="inline-flex h-7 items-center gap-1.5 rounded-control border border-line bg-card px-2.5 text-detail font-medium text-ink no-underline hover:bg-sunken"
+      >
         <Folder size={13} strokeWidth={2} aria-hidden />
         Open folder in VS Code
       </a>
@@ -609,7 +879,19 @@ function Actions({ id, live, d }: { id: string; live: Live | null; d: Detail | n
 
 // ── The panel ────────────────────────────────────────────────────────────────
 
-function Head({ id, own, meta, docked, roomy }: { id: string; own: string; meta: ReactNode; docked: boolean; roomy: boolean }) {
+function Head({
+  id,
+  own,
+  meta,
+  docked,
+  roomy,
+}: {
+  id: string;
+  own: string;
+  meta: ReactNode;
+  docked: boolean;
+  roomy: boolean;
+}) {
   useChanged();
   const [renaming, setRenaming] = useState(false);
   const field = useRef<HTMLInputElement>(null);
@@ -660,7 +942,11 @@ function Head({ id, own, meta, docked, roomy }: { id: string; own: string; meta:
             className="h-8 rounded-control border border-line-strong bg-card px-2 text-title font-semibold outline-none"
           />
         ) : (
-          <h2 id="session-title" className="text-title font-semibold leading-snug" data-tip={customName(id) ? `Renamed. Originally: ${own}` : undefined}>
+          <h2
+            id="session-title"
+            className="text-title font-semibold leading-snug"
+            data-tip={customName(id) ? `Renamed. Originally: ${own}` : undefined}
+          >
             {title}
           </h2>
         )}
@@ -681,29 +967,62 @@ function Head({ id, own, meta, docked, roomy }: { id: string; own: string; meta:
         >
           <Pin size={15} strokeWidth={2} fill={pinned ? 'currentColor' : 'none'} aria-hidden />
         </IconButton>
-        <IconButton label="Rename" tip="Rename this session, on this dashboard only" variant="quiet" size="sm" onMouseDown={(e) => renaming && e.preventDefault()} onClick={() => (renaming ? finish(true) : setRenaming(true))}>
+        <IconButton
+          label="Rename"
+          tip="Rename this session, on this dashboard only"
+          variant="quiet"
+          size="sm"
+          onMouseDown={(e) => renaming && e.preventDefault()}
+          onClick={() => (renaming ? finish(true) : setRenaming(true))}
+        >
           <Pencil size={15} strokeWidth={2} aria-hidden />
         </IconButton>
-        <IconButton label="Compare with another session" tip="Compare with another session" variant="quiet" size="sm" onClick={() => useCompare.getState().show(id)}>
+        <IconButton
+          label="Compare with another session"
+          tip="Compare with another session"
+          variant="quiet"
+          size="sm"
+          onClick={() => useCompare.getState().show(id)}
+        >
           <ArrowLeftRight size={15} strokeWidth={2} aria-hidden />
         </IconButton>
         {inPopover ? (
-          <IconButton label="Open in the window" tip="Open this session in the dashboard window" variant="quiet" size="sm" onClick={() => openInWindow(`#session=${id}`)}>
+          <IconButton
+            label="Open in the window"
+            tip="Open this session in the dashboard window"
+            variant="quiet"
+            size="sm"
+            onClick={() => openInWindow(`#session=${id}`)}
+          >
             <ExternalLink size={15} strokeWidth={2} aria-hidden />
           </IconButton>
         ) : (
           <IconButton
             label={docked ? 'Float over the page' : 'Dock beside the page'}
-            tip={docked ? 'Float it over the page again' : roomy ? 'Dock it beside the page, and keep it open while you look around' : 'Dock it beside the page, once the window is wider'}
+            tip={
+              docked
+                ? 'Float it over the page again'
+                : roomy
+                  ? 'Dock it beside the page, and keep it open while you look around'
+                  : 'Dock it beside the page, once the window is wider'
+            }
             variant="quiet"
             size="sm"
             aria-pressed={docked}
             onClick={() => {
               setDocked(!docked);
-              if (!docked && !roomy) note('Docked. There isn’t room beside the page in a window this narrow, so it floats until the window is wider', { level: 'info' });
+              if (!docked && !roomy)
+                note(
+                  'Docked. There isn’t room beside the page in a window this narrow, so it floats until the window is wider',
+                  { level: 'info' },
+                );
             }}
           >
-            {docked ? <PanelRightClose size={15} strokeWidth={2} aria-hidden /> : <PanelRightOpen size={15} strokeWidth={2} aria-hidden />}
+            {docked ? (
+              <PanelRightClose size={15} strokeWidth={2} aria-hidden />
+            ) : (
+              <PanelRightOpen size={15} strokeWidth={2} aria-hidden />
+            )}
           </IconButton>
         )}
         <IconButton label="Close" tip="Close (Esc)" variant="quiet" size="sm" onClick={closeSession} data-close>
@@ -728,9 +1047,10 @@ export function SessionPanel() {
   useMinute();
   const today = calendarDay(serverNow());
   // Only this session from the live feed: it, its subagents, and how it's running on this Mac.
-  const live = (useLive((s) => (id ? s.snap?.agents.find((a) => a.id === id) : undefined)) as unknown as Live | undefined) || null;
-  const liveSubs = useLive(useShallow((s) => (id ? s.snap?.agents.filter((a) => a.parentId === id) || [] : []))) as unknown as Live[];
-  const proc = (useLive(useShallow((s) => (id ? s.snap?.openSessions?.sessions.find((x) => x.id === id) : undefined))) as unknown as Proc | undefined) || null;
+  const live = useLive((s) => (id ? s.snap?.agents.find((a) => a.id === id) : undefined)) || null;
+  const liveSubs = useLive(useShallow((s) => (id ? s.snap?.agents.filter((a) => a.parentId === id) || [] : [])));
+  const proc =
+    useLive(useShallow((s) => (id ? s.snap?.openSessions?.sessions.find((x) => x.id === id) : undefined))) || null;
   const detail = useSessionDetail(id);
   const body = useRef<HTMLDivElement>(null);
   const panel = useRef<HTMLElement>(null);
@@ -748,25 +1068,36 @@ export function SessionPanel() {
   );
 
   // A new session starts at its top, at the message it was opened at, if any.
+  // Only then: docking or undocking it later mustn't move the focus.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: runs for a newly opened session only, reading how it's shown at that moment
   useEffect(() => {
     setFocusAt(session?.at ?? null);
     body.current?.scrollTo(0, 0);
     // Floating, the close button takes the focus; docked, the page keeps it.
-    if (session && !beside) setTimeout(() => panel.current?.querySelector<HTMLElement>('[data-close]')?.focus({ preventScroll: true }), 0);
+    if (session && !beside)
+      setTimeout(() => panel.current?.querySelector<HTMLElement>('[data-close]')?.focus({ preventScroll: true }), 0);
   }, [session?.id, session?.at]);
 
   // Esc closes it, unless a dialog is open over it.
   useEffect(() => {
     if (!id) return;
     const onKey = (e: globalThis.KeyboardEvent) => {
-      if (e.key === 'Escape' && !document.querySelector('[role="dialog"]:not([data-session-panel])') && !(e.target as HTMLElement)?.closest?.('input, textarea')) closeSession();
+      if (
+        e.key === 'Escape' &&
+        !document.querySelector('[role="dialog"]:not([data-session-panel])') &&
+        !(e.target as HTMLElement)?.closest?.('input, textarea')
+      )
+        closeSession();
     };
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
   }, [id, closeSession]);
 
   // The open session's rows are marked on the page while it's docked, so you can see which it is.
-  const marker = beside && id ? `[data-session="${CSS.escape(id)}"]{background:color-mix(in srgb,var(--accent) 7%,transparent);box-shadow:inset 3px 0 0 var(--accent)}` : '';
+  const marker =
+    beside && id
+      ? `[data-session="${CSS.escape(id)}"]{background:color-mix(in srgb,var(--accent) 7%,transparent);box-shadow:inset 3px 0 0 var(--accent)}`
+      : '';
 
   const drag = useRef(false);
   const down = (e: PointerEvent<HTMLDivElement>) => {
@@ -784,10 +1115,14 @@ export function SessionPanel() {
   };
 
   if (!id) return null;
-  const d = (detail.data as Detail | undefined) || null;
+  const d = detail.data || null;
   const own = live?.title || d?.title || proc?.title || 'Untitled session';
   const project = live?.project || d?.project || proc?.project;
-  const started = d?.firstAt ? `Started ${whenText(d.firstAt)}` : live?.startedAt ? `Started ${whenText(live.startedAt)}` : '';
+  const started = d?.firstAt
+    ? `Started ${whenText(d.firstAt)}`
+    : live?.startedAt
+      ? `Started ${whenText(live.startedAt)}`
+      : '';
   const meta = [
     sourceInfo(live?.source || d?.source || proc?.source).name,
     project ? (
@@ -807,7 +1142,15 @@ export function SessionPanel() {
       {i < meta.length - 1 && <span aria-hidden>·</span>}
     </span>
   ));
-  const status = detail.isLoading ? null : demo ? 'The demo has no history, so only what the session is doing now shows here.' : detail.isError && (detail.error as { status?: number })?.status === 404 ? 'No history for this session in the last 31 days of transcripts.' : detail.isError ? "Couldn't reach Overtime's server for this session's history." : null;
+  const status = detail.isLoading
+    ? null
+    : demo
+      ? 'The demo has no history, so only what the session is doing now shows here.'
+      : detail.isError && (detail.error as { status?: number })?.status === 404
+        ? 'No history for this session in the last 31 days of transcripts.'
+        : detail.isError
+          ? "Couldn't reach Overtime's server for this session's history."
+          : null;
 
   const content = (
     <aside
@@ -828,6 +1171,9 @@ export function SessionPanel() {
           role="separator"
           aria-orientation="vertical"
           aria-label="Panel width"
+          aria-valuenow={width}
+          aria-valuemin={DRAWER.min}
+          aria-valuemax={DRAWER.max}
           tabIndex={0}
           onPointerDown={down}
           onPointerMove={move}
@@ -847,13 +1193,29 @@ export function SessionPanel() {
       <Head id={id} own={own} meta={metaLine} docked={docked} roomy={roomy} />
       <div ref={body} className="min-h-0 grow overflow-y-auto pb-6">
         <Status live={live} d={d} proc={proc} />
-        {focusAt != null && <TurnView id={id} at={focusAt} terms={focusAt === session?.at ? terms : noTerms} onClose={closeTurn} today={today} />}
+        {focusAt != null && (
+          <TurnView
+            id={id}
+            at={focusAt}
+            terms={focusAt === session?.at ? terms : noTerms}
+            onClose={closeTurn}
+            today={today}
+          />
+        )}
         <Notes id={id} />
         <div className="border-t border-line">
           <Stats live={live} d={d} proc={proc} />
-          {detail.isLoading && <div className="px-5 pb-3"><Skeleton lines={3} /></div>}
+          {detail.isLoading && (
+            <div className="px-5 pb-3">
+              <Skeleton lines={3} />
+            </div>
+          )}
           {status && <p className="px-5 pb-3 text-detail text-muted">{status}</p>}
-          {d?.partial && <p className="px-5 pb-3 text-detail text-muted">Some of its models have no known price, so costs marked + show what the rest cost.</p>}
+          {d?.partial && (
+            <p className="px-5 pb-3 text-detail text-muted">
+              Some of its models have no known price, so costs marked + show what the rest cost.
+            </p>
+          )}
         </div>
         {d && <CostOverTime d={d} />}
         {d && <Messages d={d} current={focusAt} onOpen={openAt} today={today} />}

@@ -13,8 +13,27 @@ import { useLimits, refreshCodex, refreshLimits } from '@/data/limits';
 import { useLive } from '@/data/live';
 import { demo } from '@/data/api';
 import { ago, clock, duration, money, weekday, whenText } from '@/lib/format';
-import { codexQuota, emptyText, exactNotice, limitInfo, providerName, resetText, windowName, type LimitsInput, type QuotaItem } from '@/lib/limits';
-import { claudeWindow, codexChartWindows, codexWindow, dailyShare, isActive, shareText, windowsModel, type ChartResult, type WindowPlan } from '@/lib/usage';
+import {
+  codexQuota,
+  emptyText,
+  exactNotice,
+  limitInfo,
+  providerName,
+  resetText,
+  windowName,
+  type LimitsInput,
+  type QuotaItem,
+} from '@/lib/limits';
+import {
+  claudeWindow,
+  codexChartWindows,
+  codexWindow,
+  dailyShare,
+  isActive,
+  shareText,
+  windowsModel,
+  type ChartResult,
+} from '@/lib/usage';
 import { Card, CardHead } from '@/components/Card';
 import { Stat } from '@/components/Stat';
 import { Seg } from '@/components/Seg';
@@ -28,21 +47,10 @@ import { cx } from '@/components/cx';
 import { PageHeader } from '@/app/PageHeader';
 import { NoPlan } from '@/cards/Band';
 import { plansIn } from '@/lib/sources';
+import { readSetting, writeSetting } from '@/lib/storage';
 
-const WINDOW_KEY = 'overtime-window-kind';
-const CODEX_WINDOW_KEY = 'overtime-codex-window';
-const read = (key: string, value: string, fallback: string) => {
-  try {
-    return localStorage.getItem(key) === value ? value : fallback;
-  } catch {
-    return fallback;
-  }
-};
-const write = (key: string, value: string) => {
-  try {
-    localStorage.setItem(key, value);
-  } catch {}
-};
+const WINDOW_KEY = 'window-kind';
+const CODEX_WINDOW_KEY = 'codex-window';
 
 const toneText = { ok: 'text-ok', warn: 'text-warn', bad: 'text-bad' };
 
@@ -51,7 +59,19 @@ function OutlookLine({ o }: { o: { level: string; text: string; tip: string } | 
   const bad = o.level === 'warn' || o.level === 'crit';
   const Icon = bad ? TriangleAlert : o.level === 'quiet' ? Moon : TrendingUp;
   return (
-    <p className={cx('flex items-center gap-1.5 text-detail font-semibold', o.level === 'crit' ? 'text-bad' : o.level === 'warn' ? 'text-warn' : o.level === 'quiet' ? 'text-muted' : 'text-ok')} data-tip={o.tip}>
+    <p
+      className={cx(
+        'flex items-center gap-1.5 text-detail font-semibold',
+        o.level === 'crit'
+          ? 'text-bad'
+          : o.level === 'warn'
+            ? 'text-warn'
+            : o.level === 'quiet'
+              ? 'text-muted'
+              : 'text-ok',
+      )}
+      data-tip={o.tip}
+    >
       <Icon size={14} strokeWidth={2} aria-hidden />
       {o.text}
     </p>
@@ -64,7 +84,12 @@ function OutlookLine({ o }: { o: { level: string; text: string; tip: string } | 
 function claudeSource(inp: LimitsInput) {
   const exact = inp.exactOn ? inp.exact : null;
   if (demo) return { text: 'Estimate (demo)', tip: '' };
-  if (exact?.status === 'ok') return { text: `Exact${exact.stale ? ', last known' : ''} · ${ago(inp.now - (exact.fetchedAt || inp.now))} ago`, tip: 'The same numbers as /usage in Claude Code, straight from Anthropic. They include claude.ai chats and every device.', live: true };
+  if (exact?.status === 'ok')
+    return {
+      text: `Exact${exact.stale ? ', last known' : ''} · ${ago(inp.now - (exact.fetchedAt || inp.now))} ago`,
+      tip: 'The same numbers as /usage in Claude Code, straight from Anthropic. They include claude.ai chats and every device.',
+      live: true,
+    };
   const hit = inp.limits?.session?.calibration?.lastHitAt;
   const paused = exact?.status === 'cooling';
   const local = !inp.exactOn;
@@ -122,7 +147,11 @@ function LimitHalf({ kind, inp }: { kind: 'session' | 'weekly'; inp: LimitsInput
           —<small className="ml-1.5 text-body font-medium text-muted">no % yet</small>
         </p>
         <Meter left={null} label={`${title} left`} />
-        {info.spent != null && <p className="text-detail text-muted">≈ {money(info.spent)} {info.rolling ? 'in the last 7 days' : 'used'}</p>}
+        {info.spent != null && (
+          <p className="text-detail text-muted">
+            ≈ {money(info.spent)} {info.rolling ? 'in the last 7 days' : 'used'}
+          </p>
+        )}
         <p className="text-detail text-muted">
           {kind === 'weekly'
             ? `You haven't hit the weekly limit yet, so there's nothing to estimate from.${inp.exactOn || demo ? '' : ' Turn on Exact from Anthropic to see the real %.'}`
@@ -140,23 +169,43 @@ function LimitHalf({ kind, inp }: { kind: 'session' | 'weekly'; inp: LimitsInput
   return (
     <div className="flex flex-col gap-3">
       {head(info.resetsAt)}
-      <p className={cx('text-figure font-bold tracking-[-0.02em] tnum', info.limited ? 'text-bad' : left < 30 ? toneText[toneFor(left)] : '')}>
+      <p
+        className={cx(
+          'text-figure font-bold tracking-[-0.02em] tnum',
+          info.limited ? 'text-bad' : left < 30 ? toneText[toneFor(left)] : '',
+        )}
+      >
         {info.limited ? 'Limit reached' : `${left}%`}
         {!info.limited && <small className="ml-1.5 text-body font-medium text-muted">left</small>}
       </p>
       <Meter left={left} projectedLeft={o ? 100 - projected : null} label={`${title} left`} />
       <p className="text-detail text-muted">
-        {used}% used{info.spent != null ? ` · ≈ ${money(info.spent)} ${kind === 'session' ? 'this session' : 'this week'}` : ''}
+        {used}% used
+        {info.spent != null ? ` · ≈ ${money(info.spent)} ${kind === 'session' ? 'this session' : 'this week'}` : ''}
       </p>
       <OutlookLine o={o} />
       {shareWords && (
-        <div className="mt-1 flex flex-col gap-1.5 rounded-row bg-sunken px-3 py-2.5" data-tip={shareWords.tip || undefined}>
+        <div
+          className="mt-1 flex flex-col gap-1.5 rounded-row bg-sunken px-3 py-2.5"
+          data-tip={shareWords.tip || undefined}
+        >
           <div className="flex items-baseline justify-between gap-2 text-detail">
             <span className="text-muted">Today's share of the week</span>
             <b className="font-semibold tnum">{shareWords.value}</b>
           </div>
-          {shareWords.ratio != null && <Meter size="sm" left={Math.max(0, 100 - Math.min(100, shareWords.ratio * 100))} label="Today's share left" />}
-          <p className={cx('flex items-center gap-1.5 text-detail', shareWords.over ? 'font-semibold text-bad' : 'text-muted')}>
+          {shareWords.ratio != null && (
+            <Meter
+              size="sm"
+              left={Math.max(0, 100 - Math.min(100, shareWords.ratio * 100))}
+              label="Today's share left"
+            />
+          )}
+          <p
+            className={cx(
+              'flex items-center gap-1.5 text-detail',
+              shareWords.over ? 'font-semibold text-bad' : 'text-muted',
+            )}
+          >
             {shareWords.over && <TriangleAlert size={13} strokeWidth={2} aria-hidden />}
             {shareWords.line}
           </p>
@@ -169,7 +218,8 @@ function LimitHalf({ kind, inp }: { kind: 'session' | 'weekly'; inp: LimitsInput
 function ChartBody({ r }: { r: ChartResult | null }) {
   if (!r) return <Skeleton lines={4} />;
   if ('empty' in r) return <Empty>{r.empty}</Empty>;
-  const Icon = r.tip.tone === 'bad' ? TriangleAlert : r.tip.tone === 'quiet' ? Moon : r.tip.tone === 'info' ? Info : TrendingUp;
+  const Icon =
+    r.tip.tone === 'bad' ? TriangleAlert : r.tip.tone === 'quiet' ? Moon : r.tip.tone === 'info' ? Info : TrendingUp;
   return (
     <div className="flex flex-col gap-3">
       <WindowChart c={r.chart} />
@@ -188,17 +238,36 @@ function ChartStats({ r }: { r: ChartResult | null }) {
   return (
     <dl className="flex gap-5 text-right [&_dd]:text-[1.0625rem]">
       <Stat label="Used" value={stats.used} />
-      <Stat label={stats.headLabel} value={<span className={chart.level === 'crit' ? 'text-bad' : chart.level === 'warn' ? 'text-warn' : ''}>{stats.head}</span>} />
-      <Stat label="Pace" value={<>{stats.pace}<small className="text-label text-muted">/{stats.perLabel}</small></>} tip="At your recent pace" />
+      <Stat
+        label={stats.headLabel}
+        value={
+          <span className={chart.level === 'crit' ? 'text-bad' : chart.level === 'warn' ? 'text-warn' : ''}>
+            {stats.head}
+          </span>
+        }
+      />
+      <Stat
+        label="Pace"
+        value={
+          <>
+            {stats.pace}
+            <small className="text-label text-muted">/{stats.perLabel}</small>
+          </>
+        }
+        tip="At your recent pace"
+      />
     </dl>
   );
 }
 
 function ClaudeWindowCard({ inp }: { inp: LimitsInput }) {
   const v = useChanged();
-  const [kind, setKind] = useState<'session' | 'weekly'>(() => read(WINDOW_KEY, 'weekly', 'session') as 'session' | 'weekly');
+  const [kind, setKind] = useState(() =>
+    readSetting<'session' | 'weekly'>(WINDOW_KEY, 'session', ['session', 'weekly']),
+  );
   const r = useMemo(() => claudeWindow(inp, kind), [inp, kind, v]); // eslint-disable-line react-hooks/exhaustive-deps
-  const note = 'How much of the limit this window has used so far, and where it goes at your recent pace. The shape comes from Claude Code on this Mac; the % is the same as on the limit card.';
+  const note =
+    'How much of the limit this window has used so far, and where it goes at your recent pace. The shape comes from Claude Code on this Mac; the % is the same as on the limit card.';
   return (
     <Card aria-label="This window">
       <CardHead
@@ -220,7 +289,7 @@ function ClaudeWindowCard({ inp }: { inp: LimitsInput }) {
         value={kind}
         onChange={(k) => {
           setKind(k);
-          write(WINDOW_KEY, k);
+          writeSetting(WINDOW_KEY, k);
         }}
         options={[
           ['session', 'Session'],
@@ -233,14 +302,16 @@ function ClaudeWindowCard({ inp }: { inp: LimitsInput }) {
 }
 
 /** Claude Code's insights, or everything's where there are no Claude Code ones of their own. */
-const claudeInsights = (s: ReturnType<typeof useLive.getState>) => s.snap?.analytics?.claude?.insights || s.snap?.analytics?.all?.insights;
+const claudeInsights = (s: ReturnType<typeof useLive.getState>) =>
+  s.snap?.analytics?.claude?.insights || s.snap?.analytics?.all?.insights;
 
 function WindowsCard({ inp }: { inp: LimitsInput }) {
   const v = useChanged();
-  const p = useLive((s) => claudeInsights(s)?.windows) as WindowPlan | undefined;
-  const hours = useLive((s) => claudeInsights(s)?.hours) as { typicalStop?: number | null } | undefined;
+  const p = useLive((s) => claudeInsights(s)?.windows);
+  const hours = useLive((s) => claudeInsights(s)?.hours);
   const m = useMemo(() => (p?.windows.length ? windowsModel(p, hours, inp) : null), [p, hours, inp, v]); // eslint-disable-line react-hooks/exhaustive-deps
-  const note = "A window starts with your first message after the last one ended (on a 10-minute mark) and resets 5 hours later. It's rebuilt from Claude Code on this Mac, so claude.ai chats aren't counted. How full each got is its cost against what a full window costs: from the exact % when that's on, otherwise from when you last hit the limit.";
+  const note =
+    "A window starts with your first message after the last one ended (on a 10-minute mark) and resets 5 hours later. It's rebuilt from Claude Code on this Mac, so claude.ai chats aren't counted. How full each got is its cost against what a full window costs: from the exact % when that's on, otherwise from when you last hit the limit.";
   const head = (
     <CardHead
       title="5-hour windows"
@@ -276,27 +347,62 @@ function WindowsCard({ inp }: { inp: LimitsInput }) {
       <div className="grid gap-5 @min-[900px]:grid-cols-[220px_minmax(0,1fr)]">
         <div className="flex flex-col gap-4">
           <div>
-            <p className="text-figure font-bold tracking-[-0.02em] tnum">{p.perDay != null ? p.perDay.toFixed(1).replace(/\.0$/, '') : '—'}</p>
+            <p className="text-figure font-bold tracking-[-0.02em] tnum">
+              {p.perDay != null ? p.perDay.toFixed(1).replace(/\.0$/, '') : '—'}
+            </p>
             <p className="text-detail text-muted">
               windows a day on the days you worked{f ? ` · fullest ${f.pct}% on ${weekday(f.start)}` : ''}
             </p>
           </div>
           <dl className="grid grid-cols-3 gap-3 @min-[900px]:grid-cols-1">
-            <Stat label="Today" value={<>{p.today} <small className="text-detail font-normal text-muted">{p.today === 1 ? 'window' : 'windows'}</small></>} tip="Windows started since midnight" />
-            <Stat label="Fullest" value={f ? `${f.pct}%` : '—'} tip={f ? `${weekday(f.start)} ${clock(f.start)} → ${clock(f.end)}: ≈ ${money(f.cost)}${m.cap ? `, where a full window is about ${money(m.cap)}` : ''}` : 'Turn on Exact from Anthropic, or hit a session limit once, to see how full your windows get.'} />
-            <Stat label="Limit hits" value={p.hits} sub={p.hits ? `${duration(p.lockedMs)} out` : undefined} tip="Windows where you hit the session limit, and how long you were locked out until they reset" />
+            <Stat
+              label="Today"
+              value={
+                <>
+                  {p.today}{' '}
+                  <small className="text-detail font-normal text-muted">{p.today === 1 ? 'window' : 'windows'}</small>
+                </>
+              }
+              tip="Windows started since midnight"
+            />
+            <Stat
+              label="Fullest"
+              value={f ? `${f.pct}%` : '—'}
+              tip={
+                f
+                  ? `${weekday(f.start)} ${clock(f.start)} → ${clock(f.end)}: ≈ ${money(f.cost)}${m.cap ? `, where a full window is about ${money(m.cap)}` : ''}`
+                  : 'Turn on Exact from Anthropic, or hit a session limit once, to see how full your windows get.'
+              }
+            />
+            <Stat
+              label="Limit hits"
+              value={p.hits}
+              sub={p.hits ? `${duration(p.lockedMs)} out` : undefined}
+              tip="Windows where you hit the session limit, and how long you were locked out until they reset"
+            />
           </dl>
         </div>
         <div className="min-w-0">
           <Calendar columns={m.columns} height={180} now={inp.now} dayHour={0} />
           <p className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-label text-muted" aria-hidden>
             <span className="inline-flex items-center gap-1.5">
-              <i className="h-2 w-3 rounded-[2px]" style={{ background: 'linear-gradient(90deg, color-mix(in srgb, var(--claude) 25%, var(--sunken)), var(--claude))' }} />
+              <i
+                className="h-2 w-3 rounded-[2px]"
+                style={{
+                  background:
+                    'linear-gradient(90deg, color-mix(in srgb, var(--claude) 25%, var(--sunken)), var(--claude))',
+                }}
+              />
               Darker is fuller
             </span>
             {m.anyHit && (
               <span className="inline-flex items-center gap-1.5">
-                <i className="h-2 w-3 rounded-[2px]" style={{ background: 'repeating-linear-gradient(135deg, var(--bad-fill) 0 2px, transparent 2px 4px)' }} />
+                <i
+                  className="h-2 w-3 rounded-[2px]"
+                  style={{
+                    background: 'repeating-linear-gradient(135deg, var(--bad-fill) 0 2px, transparent 2px 4px)',
+                  }}
+                />
                 Locked out
               </span>
             )}
@@ -324,18 +430,36 @@ function ClaudeSection() {
   return (
     <section aria-label="Claude Code" className="flex flex-col gap-[var(--page-gap)]">
       <SectionHead provider="claude" sub="Its windows, forecasts and planning">
-        <span data-tip={src.tip || undefined} className={cx('inline-flex items-center gap-1.5 text-detail', src.live ? 'text-ok' : 'text-muted')}>
+        <span
+          data-tip={src.tip || undefined}
+          className={cx('inline-flex items-center gap-1.5 text-detail', src.live ? 'text-ok' : 'text-muted')}
+        >
           {src.live && <i className="size-1.5 rounded-full bg-ok-fill" />}
           <EachSecond>{(now) => claudeSource({ ...inp, now }).text}</EachSecond>
           {!src.live && <Info size={13} strokeWidth={1.8} aria-hidden />}
         </span>
         {!demo && (
-          <Button size="sm" disabled={refreshing} onClick={() => refreshLimits()} data-tip={inp.exactOn ? 'Get the latest numbers from Anthropic now' : 'Re-read your transcripts now'} icon={<RefreshCw size={13} strokeWidth={2} className={refreshing ? 'animate-spin' : ''} aria-hidden />}>
+          <Button
+            size="sm"
+            disabled={refreshing}
+            onClick={() => refreshLimits()}
+            data-tip={inp.exactOn ? 'Get the latest numbers from Anthropic now' : 'Re-read your transcripts now'}
+            icon={<RefreshCw size={13} strokeWidth={2} className={refreshing ? 'animate-spin' : ''} aria-hidden />}
+          >
             {refreshing ? 'Refreshing…' : 'Refresh'}
           </Button>
         )}
       </SectionHead>
-      {notice && <p className={cx('rounded-row px-4 py-2.5 text-detail', notice.level === 'warn' ? 'bg-warn-soft text-warn' : 'bg-sunken text-muted')}>{notice.text}</p>}
+      {notice && (
+        <p
+          className={cx(
+            'rounded-row px-4 py-2.5 text-detail',
+            notice.level === 'warn' ? 'bg-warn-soft text-warn' : 'bg-sunken text-muted',
+          )}
+        >
+          {notice.text}
+        </p>
+      )}
       <Card band flush className="grid @min-[760px]:grid-cols-2" aria-label="Claude Code limits" aria-live="polite">
         <div className="border-line px-[var(--card-px)] py-[var(--card-py)] @max-[759px]:border-b @min-[760px]:border-r">
           <LimitHalf kind="session" inp={inp} />
@@ -372,7 +496,9 @@ function CodexRow({ w, now }: { w: QuotaItem; now: number }) {
     <div className="flex flex-col gap-1.5">
       <div className="flex items-baseline justify-between gap-3">
         <span className="text-detail font-semibold">{w.label}</span>
-        <b className={cx('text-stat font-bold tnum', w.limited ? 'text-bad' : left < 30 ? toneText[toneFor(left)] : '')}>
+        <b
+          className={cx('text-stat font-bold tnum', w.limited ? 'text-bad' : left < 30 ? toneText[toneFor(left)] : '')}
+        >
           {w.limited ? 'Limit reached' : `${left}%`}
           {!w.limited && <small className="ml-1 text-detail font-medium text-muted">left</small>}
         </b>
@@ -391,11 +517,18 @@ function CodexSection() {
   const { items, input: inp } = useQuota('codex');
   const refreshing = useLimits((s) => s.codexRefreshing);
   const exactOn = useLimits((s) => s.codexExactOn);
-  const [kind, setKind] = useState(() => read(CODEX_WINDOW_KEY, 'secondary', 'primary'));
+  const [kind, setKind] = useState(() => readSetting<string>(CODEX_WINDOW_KEY, 'primary', ['primary', 'secondary']));
   const first = items[0];
   const now = inp.now;
-  const SOURCE: Record<string, string> = { exact: 'Live check', estimate: 'Estimate', recorded: 'As Codex last recorded it' };
-  const sub = (t: number) => (first ? `${SOURCE[first.source || ''] || ''}${first.observedAt ? ` · ${ago(Math.max(0, t - first.observedAt))} ago` : ''}${first.stale ? ' · old reading' : ''}` : 'Unavailable');
+  const SOURCE: Record<string, string> = {
+    exact: 'Live check',
+    estimate: 'Estimate',
+    recorded: 'As Codex last recorded it',
+  };
+  const sub = (t: number) =>
+    first
+      ? `${SOURCE[first.source || ''] || ''}${first.observedAt ? ` · ${ago(Math.max(0, t - first.observedAt))} ago` : ''}${first.stale ? ' · old reading' : ''}`
+      : 'Unavailable';
   const windows = useMemo(() => codexChartWindows(inp), [inp]);
   const w = windows.find((x) => x.kind === kind) || windows[0];
   const r = useMemo(() => codexWindow(inp, w), [inp, w, v]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -407,7 +540,17 @@ function CodexSection() {
           <EachSecond>{sub}</EachSecond>
         </span>
         {!demo && (
-          <Button size="sm" disabled={refreshing} onClick={() => refreshCodex()} data-tip={exactOn ? 'Ask Codex for the latest numbers now' : 'Re-read Codex’s transcripts now. Turn on the live check in Settings to ask Codex itself.'} icon={<RefreshCw size={13} strokeWidth={2} className={refreshing ? 'animate-spin' : ''} aria-hidden />}>
+          <Button
+            size="sm"
+            disabled={refreshing}
+            onClick={() => refreshCodex()}
+            data-tip={
+              exactOn
+                ? 'Ask Codex for the latest numbers now'
+                : 'Re-read Codex’s transcripts now. Turn on the live check in Settings to ask Codex itself.'
+            }
+            icon={<RefreshCw size={13} strokeWidth={2} className={refreshing ? 'animate-spin' : ''} aria-hidden />}
+          >
             {refreshing ? 'Checking…' : 'Refresh'}
           </Button>
         )}
@@ -422,10 +565,18 @@ function CodexSection() {
             ))}
           </div>
         )}
-        {first?.stale && <p className="text-detail text-warn">Pace forecasts are paused until a newer reading is available.</p>}
-        {exactOn && inp.codexExact?.status === 'error' && <p className="text-detail text-warn">{inp.codexExact.message}</p>}
+        {first?.stale && (
+          <p className="text-detail text-warn">Pace forecasts are paused until a newer reading is available.</p>
+        )}
+        {exactOn && inp.codexExact?.status === 'error' && (
+          <p className="text-detail text-warn">{inp.codexExact.message}</p>
+        )}
         <p className="text-detail text-muted">
-          These cover all your Codex use, on this Mac and anywhere else. {first?.source === 'recorded' ? 'Codex writes them into its transcripts each time you use it; turn on the live check in Settings to update them when you haven’t. ' : ''}Forecasts come from how fast they filled while you used Codex here.
+          These cover all your Codex use, on this Mac and anywhere else.{' '}
+          {first?.source === 'recorded'
+            ? 'Codex writes them into its transcripts each time you use it; turn on the live check in Settings to update them when you haven’t. '
+            : ''}
+          Forecasts come from how fast they filled while you used Codex here.
         </p>
       </Card>
       <Card aria-label="This Codex window">
@@ -435,7 +586,10 @@ function CodexSection() {
           tools={
             <>
               <ChartStats r={r} />
-              <span data-tip="How full this Codex window got, from the readings Codex writes into its transcripts each time you use it on this Mac, and where it goes at your recent pace. Use elsewhere shows up the next time you use Codex here." className="text-muted">
+              <span
+                data-tip="How full this Codex window got, from the readings Codex writes into its transcripts each time you use it on this Mac, and where it goes at your recent pace. Use elsewhere shows up the next time you use Codex here."
+                className="text-muted"
+              >
                 <Info size={15} strokeWidth={1.8} aria-label="About this chart" />
               </span>
             </>
@@ -449,7 +603,7 @@ function CodexSection() {
             value={w.kind}
             onChange={(k) => {
               setKind(k);
-              write(CODEX_WINDOW_KEY, k);
+              writeSetting(CODEX_WINDOW_KEY, k);
             }}
             options={windows.map((x) => [x.kind, windowName(x.durationMs, x.kind)] as [string, string])}
           />
@@ -484,8 +638,11 @@ export function Usage() {
       <PageHeader title="Usage" id="h-usage" sub="How much of each plan is left, and when it resets" />
       {plans.includes('claude') && <ClaudeSection />}
       {plans.includes('codex') && <CodexSection />}
-      {provider !== 'all' && !plans.length && <Card><NoPlan source={provider} /></Card>}
+      {provider !== 'all' && !plans.length && (
+        <Card>
+          <NoPlan source={provider} />
+        </Card>
+      )}
     </div>
   );
 }
-

@@ -1,13 +1,43 @@
 // What electron-builder writes for updates, read without Electron so it can be
 // tested: app-update.yml inside the built app (where to look, from `publish` in
 // package.json) and latest-mac.yml in each release (the version, and each file
-// with its size and SHA-512). Only the little YAML those two use.
+// with its size and SHA-512). Only the little YAML those two use. And the
+// signature beside latest-mac.yml, which says the release is Overtime's own.
+
+import { createPrivateKey, createPublicKey, sign, verify } from 'node:crypto';
+
+/** The signature of latest-mac.yml, published beside it. */
+export const SIGNATURE_FILE = 'latest-mac.yml.sig';
+
+/** latest-mac.yml's text signed with the release key (Ed25519, PEM), as base64. */
+export function signFeed(text, privateKey) {
+  return sign(null, Buffer.from(text, 'utf8'), createPrivateKey(privateKey)).toString('base64');
+}
+
+/** Whether `signature` (base64) is the release key's signature of exactly this text. */
+export function verifyFeed(text, signature, publicKey) {
+  try {
+    const sig = Buffer.from(String(signature || '').trim(), 'base64');
+    return sig.length === 64 && verify(null, Buffer.from(String(text), 'utf8'), createPublicKey(publicKey), sig);
+  } catch {
+    return false;
+  }
+}
+
+/** What a release's latest-mac.yml says, but only when its signature checks out; null otherwise. */
+export function trustedFeed(text, signature, publicKey) {
+  return verifyFeed(text, signature, publicKey) ? parseYaml(text) : null;
+}
 
 const unquote = (v) => {
   const t = v.trim();
   if (/^'.*'$/.test(t)) return t.slice(1, -1).replace(/''/g, "'");
   if (/^".*"$/.test(t)) {
-    try { return JSON.parse(t); } catch { return t.slice(1, -1); }
+    try {
+      return JSON.parse(t);
+    } catch {
+      return t.slice(1, -1);
+    }
   }
   return t;
 };
@@ -42,7 +72,9 @@ export function parseYaml(text) {
 }
 
 const parts = (v) => {
-  const [main, pre = ''] = String(v || '').replace(/^v/, '').split('-', 2);
+  const [main, pre = ''] = String(v || '')
+    .replace(/^v/, '')
+    .split('-', 2);
   return { nums: main.split('.').map((n) => Number.parseInt(n, 10) || 0), pre };
 };
 
@@ -63,7 +95,8 @@ export function isNewer(a, b) {
 /** The release's zip for this Mac's chip: { url, sha512, size }, or null. */
 export function pickZip(info, arch = process.arch) {
   const zips = (Array.isArray(info?.files) ? info.files : []).filter((f) => /\.zip$/i.test(f.url || '') && f.sha512);
-  const file = zips.find((f) => new RegExp(`[-_.]${arch}[-_.]`, 'i').test(f.url)) || (zips.length === 1 ? zips[0] : null);
+  const file =
+    zips.find((f) => new RegExp(`[-_.]${arch}[-_.]`, 'i').test(f.url)) || (zips.length === 1 ? zips[0] : null);
   return file ? { url: file.url, sha512: file.sha512, size: Number(file.size) || 0 } : null;
 }
 
@@ -71,7 +104,11 @@ export function pickZip(info, arch = process.arch) {
 export function updateSource(config) {
   if (config?.provider === 'github' && config.owner && config.repo) {
     const repo = `https://github.com/${config.owner}/${config.repo}`;
-    return { feed: `${repo}/releases/latest/download/`, page: `${repo}/releases/latest`, where: `github.com/${config.owner}/${config.repo}` };
+    return {
+      feed: `${repo}/releases/latest/download/`,
+      page: `${repo}/releases/latest`,
+      where: `github.com/${config.owner}/${config.repo}`,
+    };
   }
   if (config?.provider === 'generic' && /^https:\/\//.test(config.url || '')) {
     const feed = config.url.endsWith('/') ? config.url : `${config.url}/`;

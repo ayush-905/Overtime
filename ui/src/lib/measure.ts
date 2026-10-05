@@ -5,24 +5,21 @@
 
 import { env } from './env';
 import { compact, costCol, costText, money } from './format';
-import { changed } from './bus';
+import { readSetting, writeSetting } from './storage';
 
-export const MEASURE_KEY = 'overtime-measure';
-export const MEASURES: [string, string][] = [['cost', 'Cost'], ['tokens', 'Tokens']];
+export const MEASURE_KEY = 'measure';
+export const MEASURES: [string, string][] = [
+  ['cost', 'Cost'],
+  ['tokens', 'Tokens'],
+];
 
-export function readMeasure(): 'cost' | 'tokens' {
-  try { return localStorage.getItem(MEASURE_KEY) === 'tokens' ? 'tokens' : 'cost'; } catch { return 'cost'; }
-}
+export const readMeasure = () => readSetting<'cost' | 'tokens'>(MEASURE_KEY, 'cost', ['cost', 'tokens']);
 
 export function setMeasure(next: string) {
   const m = next === 'tokens' ? 'tokens' : 'cost';
   if (m === env.measure) return;
   env.measure = m;
-  try {
-    if (m === 'cost') localStorage.removeItem(MEASURE_KEY);
-    else localStorage.setItem(MEASURE_KEY, m);
-  } catch {}
-  changed('prefs');
+  writeSetting(MEASURE_KEY, m === 'cost' ? null : m, 'prefs');
 }
 
 type Measured = { cost?: number | null; tokens?: number | null; partial?: boolean };
@@ -37,10 +34,12 @@ export const measureOf = (x: Measured | null | undefined) => (byTokens() ? x?.to
 export const something = (v: number) => (byTokens() ? v > 0 : v > 0.005);
 
 /** Its figure in a column: $1.20+, or 1.2M. */
-export const measureCol = (x: Measured) => (byTokens() ? (x.tokens ? compact(x.tokens) : '—') : costCol(x.cost, x.partial));
+export const measureCol = (x: Measured) =>
+  byTokens() ? (x.tokens ? compact(x.tokens) : '—') : costCol(x.cost, x.partial);
 
 /** Its figure on its own: $1.20+, or 1.2M tokens. */
-export const measureText = (x: Measured) => (byTokens() ? `${compact(x.tokens || 0)} tokens` : costText(x.cost, x.partial));
+export const measureText = (x: Measured) =>
+  byTokens() ? `${compact(x.tokens || 0)} tokens` : costText(x.cost, x.partial);
 
 /** A bare figure by the measure, like a chart's: ≈ $1.20, or 1.2M tokens. */
 export const valueText = (v: number) => (byTokens() ? `${compact(v)} tokens` : `≈ ${money(v)}`);
@@ -49,4 +48,5 @@ export const valueText = (v: number) => (byTokens() ? `${compact(v)} tokens` : `
 export const valueShort = (v: number) => (byTokens() ? compact(v) : money(v));
 
 /** The figure it isn't compared by, for a tooltip: ≈ $1.20, or 1.2M tokens. */
-export const otherText = (x: Measured) => (byTokens() ? `≈ ${costText(x.cost || 0, x.partial)}` : `${compact(x.tokens || 0)} tokens`);
+export const otherText = (x: Measured) =>
+  byTokens() ? `≈ ${costText(x.cost || 0, x.partial)}` : `${compact(x.tokens || 0)} tokens`;

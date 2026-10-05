@@ -13,33 +13,35 @@ import { useChanged, useMinute } from './hooks';
 import { serverNow } from '@/lib/env';
 import { quotaItems, type LimitsInput, type QuotaItem } from '@/lib/limits';
 import { readAlertPrefs } from '@/lib/alertPrefs';
-import type { LiveAgent } from '@/lib/agents';
 import type { Provider } from '@/lib/prefs';
 import { sourcesIn, type Source } from '@/lib/sources';
-import type { Agent, AnalyticsView, OpenSessions } from './types';
+import type { Agent, AnalyticsView, Insights, OpenSessions } from './types';
 
 /** The provider in view: all of them, or one. */
 export const useProvider = () => useLive((s) => s.provider);
 
-/** One of the provider in view's insights, by its key (`trend`, `hours`, `topSessions`…). */
-export function useInsight<T = unknown>(key: string): T | undefined {
-  return useLive((s) => s.snap?.analytics?.[s.provider]?.insights?.[key]) as T | undefined;
+/** One of the provider in view's insights, by its key (`trend`, `hours`, `topSessions`…); undefined until they come. */
+export function useInsight<K extends keyof Insights>(key: K): Insights[K] | undefined {
+  return useLive((s) => s.snap?.analytics?.[s.provider]?.insights?.[key]);
 }
 
 /** Whether the provider in view's insights have come yet. */
 export const useHasInsights = () => useLive((s) => !!s.snap?.analytics?.[s.provider]?.insights);
 
 /** One insight for each of `sources`, whatever the filter: each provider's own trend, to split a chart by provider. */
-export function useInsightOf<T = unknown>(sources: readonly string[], key: string): (T | undefined)[] {
-  return useLive(useShallow((s) => sources.map((p) => s.snap?.analytics?.[p as Source]?.insights?.[key] as T | undefined)));
+export function useInsightOf<K extends keyof Insights>(
+  sources: readonly Source[],
+  key: K,
+): (Insights[K] | undefined)[] {
+  return useLive(useShallow((s) => sources.map((p) => s.snap?.analytics?.[p]?.insights?.[key])));
 }
 
 /** What the provider in view spent: today, yesterday by now, the last 7 and 30 days, this month. */
 export const useSpend = (): AnalyticsView['spend'] => useLive((s) => s.snap?.analytics?.[s.provider]?.spend ?? null);
 
 /** Each of `sources`' spending, whatever the filter. */
-export function useSpendOf(sources: readonly string[]): AnalyticsView['spend'][] {
-  return useLive(useShallow((s) => sources.map((p) => s.snap?.analytics?.[p as Source]?.spend ?? null)));
+export function useSpendOf(sources: readonly Source[]): AnalyticsView['spend'][] {
+  return useLive(useShallow((s) => sources.map((p) => s.snap?.analytics?.[p]?.spend ?? null)));
 }
 
 /** Today for the provider in view: sessions, tool calls, lines changed, and each session's share. */
@@ -53,20 +55,20 @@ export function useSources(): Source[] {
 
 // ── The live agents ──────────────────────────────────────────────────────────
 
-const NO_AGENTS: LiveAgent[] = [];
-const lastFor = new Map<Provider, { from: Agent[]; list: LiveAgent[] }>();
+const NO_AGENTS: Agent[] = [];
+const lastFor = new Map<Provider, { from: Agent[]; list: Agent[] }>();
 
 /**
  * The agents of one provider, worked out once for each list of agents. While
  * that provider's agents are the same ones, unchanged, it's the same list as
  * before, so what reads it doesn't redraw when another provider's agent changes.
  */
-function agentsIn(all: Agent[] | undefined, provider: Provider): LiveAgent[] {
+function agentsIn(all: Agent[] | undefined, provider: Provider): Agent[] {
   if (!all) return NO_AGENTS;
-  if (provider === 'all') return all as unknown as LiveAgent[];
+  if (provider === 'all') return all;
   const last = lastFor.get(provider);
   if (last?.from === all) return last.list;
-  const list = all.filter((a) => a.source === provider) as unknown as LiveAgent[];
+  const list = all.filter((a) => a.source === provider);
   const same = last && last.list.length === list.length && list.every((a, i) => a === last.list[i]);
   const kept = same ? last.list : list;
   lastFor.set(provider, { from: all, list: kept });
@@ -91,8 +93,10 @@ export const useOpenSessions = () =>
   useLive((s) => {
     const from = s.snap?.openSessions || null;
     if (openFor?.from === from && openFor.provider === s.provider) return openFor.open;
-    const mine = (x: { source: string }) => s.provider === 'all' || x.source === s.provider;
-    const open = from ? { ...from, sessions: from.sessions.filter(mine), sharedRuntimes: (from.sharedRuntimes || []).filter(mine) } : null;
+    const mine = (x: { source: Source }) => s.provider === 'all' || x.source === s.provider;
+    const open: OpenSessions | null = from
+      ? { ...from, sessions: from.sessions.filter(mine), sharedRuntimes: (from.sharedRuntimes || []).filter(mine) }
+      : null;
     openFor = { from, provider: s.provider, open };
     return open;
   });
@@ -114,12 +118,14 @@ export function useLimitsInput(): LimitsInput {
   const codexExactOn = useLimits((s) => s.codexExactOn);
   const codexExact = useLimits((s) => s.codexExact);
   const input = useMemo(
-    () => ({ now: serverNow(), limits: limits as LimitsInput['limits'], exactOn, exact: exact as LimitsInput['exact'], codexRecorded: codexRecorded as LimitsInput['codexRecorded'], codexExactOn, codexExact: codexExact as LimitsInput['codexExact'] }),
+    (): LimitsInput => ({ now: serverNow(), limits, exactOn, exact, codexRecorded, codexExactOn, codexExact }),
     [minute, reset, limits, exactOn, exact, codexRecorded, codexExactOn, codexExact], // eslint-disable-line react-hooks/exhaustive-deps
   );
   // A window that resets before the minute is up.
   useEffect(() => {
-    const next = Math.min(...quotaItems(input, 'all').map((w) => (w.resetsAt && w.resetsAt > input.now ? w.resetsAt : Infinity)));
+    const next = Math.min(
+      ...quotaItems(input, 'all').map((w) => (w.resetsAt && w.resetsAt > input.now ? w.resetsAt : Infinity)),
+    );
     if (next - input.now > 60_000) return;
     const t = setTimeout(() => setReset((n) => n + 1), next - input.now + 100);
     return () => clearTimeout(t);

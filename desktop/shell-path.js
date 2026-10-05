@@ -11,7 +11,15 @@ import path from 'node:path';
 
 const MARK = '__OVERTIME_PATH__';
 const home = os.homedir();
-const USUAL = ['/opt/homebrew/bin', '/opt/homebrew/sbin', '/usr/local/bin', path.join(home, '.local', 'bin'), path.join(home, '.npm-global', 'bin'), path.join(home, '.bun', 'bin'), path.join(home, '.volta', 'bin')];
+const USUAL = [
+  '/opt/homebrew/bin',
+  '/opt/homebrew/sbin',
+  '/usr/local/bin',
+  path.join(home, '.local', 'bin'),
+  path.join(home, '.npm-global', 'bin'),
+  path.join(home, '.bun', 'bin'),
+  path.join(home, '.volta', 'bin'),
+];
 
 /** Every folder once, in the order first seen. */
 const join = (...lists) => [...new Set(lists.flatMap((l) => String(l || '').split(':')).filter(Boolean))].join(':');
@@ -22,10 +30,15 @@ function askShell(timeoutMs) {
   return new Promise((resolve) => {
     // -i and -l, so it reads .zshrc and .zprofile as Terminal does. The marks
     // keep out anything those print on their own.
-    execFile(shell, ['-ilc', `printf '${MARK}%s${MARK}' "$PATH"`], { timeout: timeoutMs, env: { ...process.env, DISABLE_AUTO_UPDATE: 'true' } }, (error, stdout) => {
-      const found = String(stdout || '').split(MARK)[1];
-      resolve(found || null);
-    });
+    execFile(
+      shell,
+      ['-ilc', `printf '${MARK}%s${MARK}' "$PATH"`],
+      { timeout: timeoutMs, env: { ...process.env, DISABLE_AUTO_UPDATE: 'true' } },
+      (_error, stdout) => {
+        const found = String(stdout || '').split(MARK)[1];
+        resolve(found || null);
+      },
+    );
   });
 }
 

@@ -1,10 +1,18 @@
 // What the formatting reads: the clock you chose, when your working day starts,
-// the currency and your names and colours for projects, and how far this
-// machine's clock is from the server's. The prefs store (data/prefs.ts) and the
-// live store keep it up to date; the functions in format.ts read it, so they work
-// the same inside React and out.
+// the currency and your names and colours for projects, how far this machine's
+// clock is from the server's, the section on screen and what things are compared
+// by. Your settings (lib/prefs.ts, lib/measure.ts), the live feed (data/live.ts)
+// and the router keep it up to date; the functions in format.ts read it, so they
+// work the same inside React and out.
 
-export type Currency = { code: string; symbol: string; rate: number; locale: string; whole: boolean; rates: Record<string, number> };
+export type Currency = {
+  code: string;
+  symbol: string;
+  rate: number;
+  locale: string;
+  whole: boolean;
+  rates: Record<string, number>;
+};
 
 export type ProjectPref = { alias?: string; hue?: number | null };
 

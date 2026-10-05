@@ -13,7 +13,20 @@
 // run beside your own: OVERTIME_PORT picks the port it prefers (4777),
 // OVERTIME_DIR where it keeps settings, and OVERTIME_DEBUG=1 logs to the terminal.
 
-import { app, BrowserWindow, Menu, Notification, Tray, dialog, ipcMain, nativeImage, nativeTheme, screen, session, shell } from 'electron';
+import {
+  app,
+  BrowserWindow,
+  Menu,
+  Notification,
+  Tray,
+  dialog,
+  ipcMain,
+  nativeImage,
+  nativeTheme,
+  screen,
+  session,
+  shell,
+} from 'electron';
 import { createWriteStream, mkdirSync, renameSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -62,7 +75,11 @@ let glance = null; // what the compact view last said: plan windows, today's cos
 let prefs = readPrefs();
 
 const ours = (url) => {
-  try { return !!base && new URL(url).origin === base; } catch { return false; }
+  try {
+    return !!base && new URL(url).origin === base;
+  } catch {
+    return false;
+  }
 };
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 const background = () => (nativeTheme.shouldUseDarkColors ? '#141619' : '#f3efe7');
@@ -115,7 +132,11 @@ function onScreen(b) {
   if (!b) return null;
   const x = b.x + b.width / 2;
   const y = b.y + 12;
-  return screen.getAllDisplays().some(({ workArea: a }) => x >= a.x && x < a.x + a.width && y >= a.y && y < a.y + a.height) ? b : null;
+  return screen
+    .getAllDisplays()
+    .some(({ workArea: a }) => x >= a.x && x < a.x + a.width && y >= a.y && y < a.y + a.height)
+    ? b
+    : null;
 }
 
 function keepBounds(win, key) {
@@ -160,7 +181,9 @@ function createMain({ show = true } = {}) {
   mainWin.on('swipe', (_e, dir) => {
     if (dir === 'left' || dir === 'right') mainWin.webContents.send('ao:go', dir === 'left' ? 'back' : 'forward');
   });
-  mainWin.on('closed', () => { mainWin = null; });
+  mainWin.on('closed', () => {
+    mainWin = null;
+  });
 }
 
 /** Bring the dashboard up, at a section or session if given one (#usage, #session=…). */
@@ -171,7 +194,8 @@ async function showMain(hash = '') {
   const wc = mainWin.webContents;
   if (hash && hash !== '#') {
     const here = wc.getURL();
-    if (!wc.isLoading() && ours(here) && new URL(here).pathname === UI) wc.executeJavaScript(`location.hash = ${JSON.stringify(hash)}`).catch(() => {});
+    if (!wc.isLoading() && ours(here) && new URL(here).pathname === UI)
+      wc.executeJavaScript(`location.hash = ${JSON.stringify(hash)}`).catch(() => {});
     else mainWin.loadURL(`${base}${UI}${hash}`);
   }
   if (mainWin.isMinimized()) mainWin.restore();
@@ -270,7 +294,7 @@ function createPopover() {
     e.preventDefault();
     popover.hide();
   });
-  popover.webContents.on('before-input-event', (e, input) => {
+  popover.webContents.on('before-input-event', (_e, input) => {
     if (input.type === 'keyDown' && input.key === 'Escape') popover.hide();
   });
 }
@@ -329,7 +353,9 @@ function summary() {
   if (!glance) return [base ? 'Waiting for the first numbers' : 'Starting'];
   const agents = glance.needs
     ? `${glance.needs} ${glance.needs === 1 ? 'agent needs' : 'agents need'} you`
-    : glance.working ? `${glance.working} ${glance.working === 1 ? 'agent' : 'agents'} working` : 'No agent needs you';
+    : glance.working
+      ? `${glance.working} ${glance.working === 1 ? 'agent' : 'agents'} working`
+      : 'No agent needs you';
   return [...glance.windows, glance.cost ? `Cost today ≈ ${glance.cost}` : '', agents].filter(Boolean);
 }
 
@@ -344,7 +370,9 @@ function paintTray() {
   tray.setTitle(title, { fontType: 'monospacedDigit' });
   tray.setToolTip(['Overtime', ...summary()].join('\n'));
   app.dock?.setBadge(glance?.needs ? String(glance.needs) : '');
-  log(`menu bar: ${picture ? `every limit (${picture.getSize().width}×${picture.getSize().height}pt)` : `"${title}"`}${glance?.needs ? ` with a dot (${glance.needs} need you)` : ''}`);
+  log(
+    `menu bar: ${picture ? `every limit (${picture.getSize().width}×${picture.getSize().height}pt)` : `"${title}"`}${glance?.needs ? ` with a dot (${glance.needs} need you)` : ''}`,
+  );
 }
 
 function trayMenu() {
@@ -355,7 +383,11 @@ function trayMenu() {
     { type: 'separator' },
     { label: 'Open Overtime', click: () => showMain() },
     { label: 'Open the Pixel Office', click: showOffice },
-    { label: 'Open in Browser', enabled: !!host?.port, click: () => shell.openExternal(`http://localhost:${host.port}/`) },
+    {
+      label: 'Open in Browser',
+      enabled: !!host?.port,
+      click: () => shell.openExternal(`http://localhost:${host.port}/`),
+    },
     { type: 'separator' },
     {
       label: 'Show in Menu Bar',
@@ -363,14 +395,20 @@ function trayMenu() {
         label: shows[id],
         type: 'radio',
         checked: prefs.menuBarShows === id,
-        click: () => { prefs = savePrefs({ menuBarShows: id }); paintTray(); },
+        click: () => {
+          prefs = savePrefs({ menuBarShows: id });
+          paintTray();
+        },
       })),
     },
     {
       label: 'Hide from Dock When Closed',
       type: 'checkbox',
       checked: prefs.hideDockWhenClosed,
-      click: (item) => { prefs = savePrefs({ hideDockWhenClosed: item.checked }); leaveDockIfClosed(); },
+      click: (item) => {
+        prefs = savePrefs({ hideDockWhenClosed: item.checked });
+        leaveDockIfClosed();
+      },
     },
     // Only the built app: from `npm run app` it would be Electron itself that opens at login.
     {
@@ -403,11 +441,19 @@ function cleanGlance(g) {
     left: Number.isFinite(g.left) ? clamp(Math.round(g.left), 0, 100) : null,
     limited: !!g.limited,
     cost: text(g.cost, 24),
-    windows: Array.isArray(g.windows) ? g.windows.slice(0, 8).map((w) => text(w, 80)).filter(Boolean) : [],
+    windows: Array.isArray(g.windows)
+      ? g.windows
+          .slice(0, 8)
+          .map((w) => text(w, 80))
+          .filter(Boolean)
+      : [],
     needs: count(g.needs),
     working: count(g.working),
     // The menu bar's picture of every limit, as the page drew it: a small PNG.
-    image: typeof g.image === 'string' && g.image.startsWith('data:image/png;base64,') && g.image.length < 400_000 ? g.image : '',
+    image:
+      typeof g.image === 'string' && g.image.startsWith('data:image/png;base64,') && g.image.length < 400_000
+        ? g.image
+        : '',
   };
 }
 
@@ -433,7 +479,7 @@ ipcMain.on('ao:glance', (e, g) => {
 });
 // From the popover: this section or session, in the window instead.
 ipcMain.on('ao:open-window', (e, hash) => {
-  if (e.sender !== popover?.webContents) return;
+  if (e.sender !== popover?.webContents || !ours(e.senderFrame?.url)) return;
   popover.hide();
   showMain(typeof hash === 'string' && /^#[\w=?&%.:-]*$/.test(hash) ? hash : '#overview');
 });
@@ -441,7 +487,15 @@ ipcMain.on('ao:open-window', (e, hash) => {
 // ── The app's menu ─────────────────────────────────────────────────────────
 
 function appMenu() {
-  const go = [['Overview', ''], ['Sessions', '#sessions'], ['Projects', '#projects'], ['Usage', '#usage'], ['Cost', '#cost'], ['Agents', '#agents'], ['You', '#you']];
+  const go = [
+    ['Overview', ''],
+    ['Sessions', '#sessions'],
+    ['Projects', '#projects'],
+    ['Usage', '#usage'],
+    ['Cost', '#cost'],
+    ['Agents', '#agents'],
+    ['You', '#you'],
+  ];
   return Menu.buildFromTemplate([
     {
       role: 'appMenu',
@@ -490,13 +544,19 @@ function appMenu() {
         { label: 'Back', accelerator: 'Command+[', registerAccelerator: false, click: () => goStep('back') },
         { label: 'Forward', accelerator: 'Command+]', registerAccelerator: false, click: () => goStep('forward') },
         { type: 'separator' },
-        ...go.map(([label, hash], i) => ({ label, accelerator: `Command+${i + 1}`, click: () => showMain(hash || '#overview') })),
+        ...go.map(([label, hash], i) => ({
+          label,
+          accelerator: `Command+${i + 1}`,
+          click: () => showMain(hash || '#overview'),
+        })),
       ],
     },
     { role: 'windowMenu' },
     {
       role: 'help',
-      submenu: [{ label: 'Show the Log', click: () => shell.showItemInFolder(path.join(app.getPath('logs'), 'overtime.log')) }],
+      submenu: [
+        { label: 'Show the Log', click: () => shell.showItemInFolder(path.join(app.getPath('logs'), 'overtime.log')) },
+      ],
     },
   ]);
 }
@@ -511,9 +571,11 @@ function goStep(dir) {
 /** The menus' update item, as things stand. */
 function updateItem() {
   const s = updater?.status() || { state: 'idle' };
-  if (!updater?.supported) return { label: app.isPackaged ? 'Check for Updates…' : 'Check for Updates… (in the built app)', enabled: false };
+  if (!updater?.supported)
+    return { label: app.isPackaged ? 'Check for Updates…' : 'Check for Updates… (in the built app)', enabled: false };
   if (s.state === 'ready') return { label: `Restart to Update to ${s.version}`, click: restartToUpdate };
-  if (s.state === 'downloading') return { label: `Downloading ${s.version}…${s.progress ? ` ${s.progress}%` : ''}`, enabled: false };
+  if (s.state === 'downloading')
+    return { label: `Downloading ${s.version}…${s.progress ? ` ${s.progress}%` : ''}`, enabled: false };
   if (s.state === 'checking') return { label: 'Checking for Updates…', enabled: false };
   return { label: 'Check for Updates…', click: checkForUpdates };
 }
@@ -525,21 +587,44 @@ function restartToUpdate() {
 /** Asked for from a menu: says what it found. */
 async function checkForUpdates() {
   const s = await updater.check();
-  const say = (message, detail, buttons = ['OK']) => dialog.showMessageBox({ type: 'info', message, detail, buttons, defaultId: 0, cancelId: buttons.length - 1 });
+  const say = (message, detail, buttons = ['OK']) =>
+    dialog.showMessageBox({ type: 'info', message, detail, buttons, defaultId: 0, cancelId: buttons.length - 1 });
   if (s.state === 'latest') say("You're up to date", `Overtime ${app.getVersion()} is the newest version.`);
-  else if (s.state === 'downloading') say(`Downloading Overtime ${s.version}`, "You'll get a notification when it's ready. It installs when you quit, or restart to update then.");
+  else if (s.state === 'downloading')
+    say(
+      `Downloading Overtime ${s.version}`,
+      "You'll get a notification when it's ready. It installs when you quit, or restart to update then.",
+    );
   else if (s.state === 'ready') {
-    if ((await say(`Overtime ${s.version} is ready`, 'Restart now to update, or it installs when you quit.', ['Restart Now', 'Later'])).response === 0) restartToUpdate();
+    if (
+      (
+        await say(`Overtime ${s.version} is ready`, 'Restart now to update, or it installs when you quit.', [
+          'Restart Now',
+          'Later',
+        ])
+      ).response === 0
+    )
+      restartToUpdate();
   } else if (s.state === 'manual') {
-    if ((await say(`Overtime ${s.version} is out`, s.message, ['Download', 'Later'])).response === 0) shell.openExternal(updater.source.page);
-  } else if (s.state === 'error') dialog.showMessageBox({ type: 'warning', message: "Couldn't check for updates", detail: s.message, buttons: ['OK'] });
+    if ((await say(`Overtime ${s.version} is out`, s.message, ['Download', 'Later'])).response === 0)
+      shell.openExternal(updater.source.page);
+  } else if (s.state === 'error')
+    dialog.showMessageBox({
+      type: 'warning',
+      message: "Couldn't check for updates",
+      detail: s.message,
+      buttons: ['OK'],
+    });
 }
 
 let lastUpdateState = 'idle';
 /** Each step redraws the menus; a version ready to install says so once. */
 function updateChanged(s) {
   if (s.state !== lastUpdateState && s.state === 'ready' && Notification.isSupported()) {
-    const n = new Notification({ title: `Overtime ${s.version} is ready`, body: 'It installs when you quit. Click to restart and update now.' });
+    const n = new Notification({
+      title: `Overtime ${s.version} is ready`,
+      body: 'It installs when you quit. Click to restart and update now.',
+    });
     n.on('click', restartToUpdate);
     n.show();
   }
@@ -566,23 +651,39 @@ async function start() {
     const logs = app.getPath('logs');
     mkdirSync(logs, { recursive: true });
     // The last run's log is kept beside this one's, so why it stopped can still be read after a relaunch.
-    try { renameSync(path.join(logs, 'overtime.log'), path.join(logs, 'overtime.old.log')); } catch {}
+    try {
+      renameSync(path.join(logs, 'overtime.log'), path.join(logs, 'overtime.old.log'));
+    } catch {}
     logFile = createWriteStream(path.join(logs, 'overtime.log'), { flags: 'w' });
   } catch {}
   Menu.setApplicationMenu(appMenu());
-  app.setAboutPanelOptions({ applicationName: 'Overtime', applicationVersion: app.getVersion(), credits: 'Your Claude Code, Codex and Pi limits, costs and agents, on this Mac.' });
+  app.setAboutPanelOptions({
+    applicationName: 'Overtime',
+    applicationVersion: app.getVersion(),
+    credits: 'Your Claude Code, Codex and Pi limits, costs and agents, on this Mac.',
+  });
   if (!app.isPackaged) app.dock?.setIcon(path.join(ICONS, 'icon.png'));
 
   // Only notifications and copying, and only for the app's own pages.
   const allowed = new Set(['notifications', 'clipboard-sanitized-write']);
-  session.defaultSession.setPermissionRequestHandler((wc, permission, done, details) => done(allowed.has(permission) && ours(details.requestingUrl || wc.getURL())));
-  session.defaultSession.setPermissionCheckHandler((wc, permission, origin) => allowed.has(permission) && ours(origin));
+  session.defaultSession.setPermissionRequestHandler((wc, permission, done, details) =>
+    done(allowed.has(permission) && ours(details.requestingUrl || wc.getURL())),
+  );
+  session.defaultSession.setPermissionCheckHandler(
+    (_wc, permission, origin) => allowed.has(permission) && ours(origin),
+  );
 
   // The menu bar icon comes first, so there's something to see while the server starts.
   createTray();
   const PATH = await loginPath();
   log(`PATH: ${PATH}`);
-  host = createServerHost({ entry: path.join(ROOT, 'server.js'), port: PORT, env: { ...process.env, PATH }, log, onPort: movePort });
+  host = createServerHost({
+    entry: path.join(ROOT, 'server.js'),
+    port: PORT,
+    env: { ...process.env, PATH },
+    log,
+    onPort: movePort,
+  });
   try {
     await host.start();
   } catch (error) {
@@ -616,6 +717,6 @@ if (!app.requestSingleInstanceLock()) {
   });
   // Every window closed: still in the menu bar.
   app.on('window-all-closed', () => {});
-  app.on('web-contents-created', (e, wc) => wc.on('will-attach-webview', (ev) => ev.preventDefault()));
+  app.on('web-contents-created', (_e, wc) => wc.on('will-attach-webview', (ev) => ev.preventDefault()));
   app.whenReady().then(start);
 }

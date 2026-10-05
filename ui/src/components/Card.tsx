@@ -11,7 +11,12 @@ type CardProps = HTMLAttributes<HTMLElement> & { as?: 'section' | 'article' | 'd
 export function Card({ as: Tag = 'section', band, flush, className, children, ...rest }: CardProps) {
   return (
     <Tag
-      className={cx('min-w-0 border border-line bg-card shadow-card', band ? 'rounded-band' : 'rounded-card', !flush && 'px-[var(--card-px)] py-[var(--card-py)]', className)}
+      className={cx(
+        'min-w-0 border border-line bg-card shadow-card',
+        band ? 'rounded-band' : 'rounded-card',
+        !flush && 'px-[var(--card-px)] py-[var(--card-py)]',
+        className,
+      )}
       {...rest}
     >
       {children}
@@ -20,7 +25,19 @@ export function Card({ as: Tag = 'section', band, flush, className, children, ..
 }
 
 /** A card's title, what it covers, and its tools. */
-export function CardHead({ title, sub, tools, level = 2, className }: { title: ReactNode; sub?: ReactNode; tools?: ReactNode; level?: 2 | 3; className?: string }) {
+export function CardHead({
+  title,
+  sub,
+  tools,
+  level = 2,
+  className,
+}: {
+  title: ReactNode;
+  sub?: ReactNode;
+  tools?: ReactNode;
+  level?: 2 | 3;
+  className?: string;
+}) {
   const H = level === 2 ? 'h2' : 'h3';
   return (
     // The title gives way first (its line under it wraps), so the tools keep to its row until there's truly no room.

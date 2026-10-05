@@ -16,7 +16,14 @@ export async function scratch(t, prefix = 'overtime-test-') {
 
 /** server.js on a port, reading only what's in `dir`; resolves once it says where it is. */
 export function startServer(t, dir, port) {
-  const env = { ...process.env, PORT: String(port), OVERTIME_DIR: path.join(dir, 'data'), CLAUDE_PROJECTS_DIR: path.join(dir, 'claude'), CODEX_SESSIONS_DIR: path.join(dir, 'codex'), PI_SESSIONS_DIR: path.join(dir, 'pi') };
+  const env = {
+    ...process.env,
+    PORT: String(port),
+    OVERTIME_DIR: path.join(dir, 'data'),
+    CLAUDE_PROJECTS_DIR: path.join(dir, 'claude'),
+    CODEX_SESSIONS_DIR: path.join(dir, 'codex'),
+    PI_SESSIONS_DIR: path.join(dir, 'pi'),
+  };
   const child = spawn(process.execPath, ['server.js'], { cwd: ROOT, env, stdio: ['ignore', 'pipe', 'pipe'] });
   t.after(() => child.kill());
   let out = '';
@@ -31,7 +38,9 @@ export function startServer(t, dir, port) {
       const m = out.match(/open at http:\/\/localhost:(\d+)/);
       if (m) done({ child, port: Number(m[1]) });
     });
-    child.stderr.on('data', (d) => { out += d; });
+    child.stderr.on('data', (d) => {
+      out += d;
+    });
     child.on('exit', (code) => done({ child, code, out }));
   });
 }

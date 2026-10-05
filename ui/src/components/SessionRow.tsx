@@ -9,7 +9,7 @@ import { Pin, StickyNote } from 'lucide-react';
 import { useLive } from '@/data/live';
 import { useChanged } from '@/data/hooks';
 import { isPinned, noteFor, tagsFor, titleFor } from '@/lib/labels';
-import { liveStateOf, type LiveAgent } from '@/lib/agents';
+import { liveStateOf } from '@/lib/agents';
 import { compact, projectName } from '@/lib/format';
 import { useUi } from '@/app/ui';
 import { Avatar, ProjectDot, TagCount } from './Bits';
@@ -26,7 +26,10 @@ export function ContextMark({ context, live }: { context: Context; live?: boolea
   return (
     <span
       data-tip={`Context ${pct}% full: ${compact(context.used)} of ${compact(context.window)} tokens${live ? ', now' : ', as of its last reply'}. Close to full, it gets compacted, or starts forgetting the start of the conversation.`}
-      className={cx('shrink-0 rounded-sm px-1.5 text-label font-semibold', pct >= 90 ? 'bg-bad-soft text-bad' : 'bg-warn-soft text-warn')}
+      className={cx(
+        'shrink-0 rounded-sm px-1.5 text-label font-semibold',
+        pct >= 90 ? 'bg-bad-soft text-bad' : 'bg-warn-soft text-warn',
+      )}
     >
       {pct}% full
     </span>
@@ -59,15 +62,44 @@ export type SessionRowProps = {
   className?: string;
 };
 
-export function SessionRow({ id, source, title, now, project, meta = [], end, endSub, endTip, tip, context, at = null, q = '', cols, folded, quote, endClassName, className }: SessionRowProps) {
+export function SessionRow({
+  id,
+  source,
+  title,
+  now,
+  project,
+  meta = [],
+  end,
+  endSub,
+  endTip,
+  tip,
+  context,
+  at = null,
+  q = '',
+  cols,
+  folded,
+  quote,
+  endClassName,
+  className,
+}: SessionRowProps) {
   useChanged();
-  const live = useLive((s) => (id ? (s.snap?.agents.find((a) => a.id === id) as unknown as LiveAgent | undefined) : undefined));
+  const live = useLive((s) => (id ? s.snap?.agents.find((a) => a.id === id) : undefined));
   const openSession = useUi((s) => s.openSession);
   const status = live ? liveStateOf(live) : null;
   const tags = tagsFor(id);
   const note = noteFor(id);
   const line = [
-    now ? <span key="now" className={cx('font-medium', status === 'needs' ? 'text-warn' : status === 'working' ? 'text-ok' : 'text-muted')}>{now}</span> : null,
+    now ? (
+      <span
+        key="now"
+        className={cx(
+          'font-medium',
+          status === 'needs' ? 'text-warn' : status === 'working' ? 'text-ok' : 'text-muted',
+        )}
+      >
+        {now}
+      </span>
+    ) : null,
     project ? (
       <span key="project">
         <ProjectDot name={project} className="mr-1.5 align-middle" />
@@ -91,7 +123,11 @@ export function SessionRow({ id, source, title, now, project, meta = [], end, en
           open();
         }
       }}
-      className={cx('flex min-w-0 items-center gap-3 py-[var(--row-py)] outline-offset-[-2px]', id && 'cursor-pointer', className)}
+      className={cx(
+        'flex min-w-0 items-center gap-3 py-[var(--row-py)] outline-offset-[-2px]',
+        id && 'cursor-pointer',
+        className,
+      )}
     >
       <Avatar source={source} status={status} size={20} />
       <span className="flex min-w-0 grow flex-col">

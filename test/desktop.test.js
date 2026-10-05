@@ -11,7 +11,15 @@ test('the server takes any free port with PORT=0, says who it is there, and only
   const dir = await scratch(t);
   await mkdir(path.join(dir, 'claude', 'project'), { recursive: true });
   const sessionId = '12345678-1234-1234-1234-123456789012';
-  await writeFile(path.join(dir, 'claude', 'project', `${sessionId}.jsonl`), JSON.stringify({ type: 'user', timestamp: new Date().toISOString(), cwd: '/work/shop', message: { content: 'Private fixture prompt' } }) + '\n');
+  await writeFile(
+    path.join(dir, 'claude', 'project', `${sessionId}.jsonl`),
+    `${JSON.stringify({
+      type: 'user',
+      timestamp: new Date().toISOString(),
+      cwd: '/work/shop',
+      message: { content: 'Private fixture prompt' },
+    })}\n`,
+  );
   const { port } = await startServer(t, dir, 0);
   assert.ok(port > 0 && port !== 4777);
   const hello = await (await fetch(`http://127.0.0.1:${port}/api/hello`)).json();
@@ -29,7 +37,11 @@ test('the server takes any free port with PORT=0, says who it is there, and only
   }
   // A page pointing some other name at 127.0.0.1 is still turned away.
   const status = await new Promise((resolve, reject) => {
-    http.get({ host: '127.0.0.1', port, path: '/api/hello', headers: { Host: 'evil.example' } }, (res) => resolve(res.statusCode)).on('error', reject);
+    http
+      .get({ host: '127.0.0.1', port, path: '/api/hello', headers: { Host: 'evil.example' } }, (res) =>
+        resolve(res.statusCode),
+      )
+      .on('error', reject);
   });
   assert.equal(status, 403);
 
@@ -45,9 +57,17 @@ test("the server keeps going after a request it can't read and a transcript line
   const now = new Date().toISOString();
   const lines = [
     { type: 'user', timestamp: now, cwd: '/work/shop', message: { content: 'Tidy the shop' } },
-    { type: 'assistant', timestamp: now, cwd: '/work/shop', message: { id: 'm1', content: [{ type: 'tool_use', id: 't1', input: {} }] } },
+    {
+      type: 'assistant',
+      timestamp: now,
+      cwd: '/work/shop',
+      message: { id: 'm1', content: [{ type: 'tool_use', id: 't1', input: {} }] },
+    },
   ];
-  await writeFile(path.join(dir, 'claude', 'project', '12345678-1234-1234-1234-123456789012.jsonl'), lines.map((x) => JSON.stringify(x)).join('\n') + '\n');
+  await writeFile(
+    path.join(dir, 'claude', 'project', '12345678-1234-1234-1234-123456789012.jsonl'),
+    `${lines.map((x) => JSON.stringify(x)).join('\n')}\n`,
+  );
   const { port, code, out } = await startServer(t, dir, 0);
   assert.ok(port, `it started: ${code} ${out}`);
   const status = await new Promise((resolve, reject) => {
@@ -76,13 +96,18 @@ test('settings changed just before the server stops are saved', async (t) => {
 test('the app knows Overtime on a port, and nothing else', async (t) => {
   const { hello } = await import('../desktop/hello.js');
   /** A stand-in on a free port, answering with `routes[path]` or a 404. */
-  const serve = (routes) => new Promise((resolve) => {
-    const server = http.createServer((req, res) => {
-      const body = routes[req.url];
-      res.writeHead(body ? 200 : 404, { 'Content-Type': 'application/json' }).end(body ? JSON.stringify(body) : 'Not found');
-    }).listen(0, '127.0.0.1', () => resolve(server.address().port));
-    t.after(() => server.close());
-  });
+  const serve = (routes) =>
+    new Promise((resolve) => {
+      const server = http
+        .createServer((req, res) => {
+          const body = routes[req.url];
+          res
+            .writeHead(body ? 200 : 404, { 'Content-Type': 'application/json' })
+            .end(body ? JSON.stringify(body) : 'Not found');
+        })
+        .listen(0, '127.0.0.1', () => resolve(server.address().port));
+      t.after(() => server.close());
+    });
   const current = await serve({ '/api/hello': { app: 'overtime', version: '0.3.0' } });
   assert.equal((await hello(current)).version, '0.3.0');
   // Anything else on the port, even another app's /api/hello, isn't it.
@@ -94,7 +119,10 @@ test('the app knows Overtime on a port, and nothing else', async (t) => {
 
 test("the app's PATH keeps the one it had, even when the login shell doesn't answer", async (t) => {
   const before = [process.env.SHELL, process.env.PATH];
-  t.after(() => { process.env.SHELL = before[0]; process.env.PATH = before[1]; });
+  t.after(() => {
+    process.env.SHELL = before[0];
+    process.env.PATH = before[1];
+  });
   process.env.SHELL = '/nonexistent/shell';
   process.env.PATH = '/usr/bin:/bin:/usr/bin';
   const { loginPath } = await import('../desktop/shell-path.js');
@@ -107,12 +135,24 @@ test("the app's settings: what's saved is checked, and anything unknown falls ba
   const dir = await scratch(t);
   const before = process.env.OVERTIME_DIR;
   process.env.OVERTIME_DIR = dir;
-  t.after(() => { if (before == null) delete process.env.OVERTIME_DIR; else process.env.OVERTIME_DIR = before; });
+  t.after(() => {
+    if (before == null) delete process.env.OVERTIME_DIR;
+    else process.env.OVERTIME_DIR = before;
+  });
   const { readPrefs, savePrefs } = await import(`../desktop/prefs.js?${Date.now()}`);
-  assert.deepEqual(readPrefs(), { menuBarShows: 'limits', hideDockWhenClosed: false, bounds: null, officeBounds: null });
+  assert.deepEqual(readPrefs(), {
+    menuBarShows: 'limits',
+    hideDockWhenClosed: false,
+    bounds: null,
+    officeBounds: null,
+  });
   savePrefs({ menuBarShows: 'cost', bounds: { x: 10, y: 20, width: 900, height: 700 } });
   assert.equal(JSON.parse(await readFile(path.join(dir, 'desktop.json'), 'utf8')).menuBarShows, 'cost');
-  const next = savePrefs({ menuBarShows: 'loud', hideDockWhenClosed: 'yes', officeBounds: { x: 0, y: 0, width: 5, height: 5 } });
+  const next = savePrefs({
+    menuBarShows: 'loud',
+    hideDockWhenClosed: 'yes',
+    officeBounds: { x: 0, y: 0, width: 5, height: 5 },
+  });
   assert.equal(next.menuBarShows, 'limits');
   assert.equal(next.hideDockWhenClosed, false);
   assert.equal(next.officeBounds, null);
@@ -150,11 +190,19 @@ releaseDate: '2026-09-29T10:00:00.000Z'
   assert.equal(isNewer('0.3.0', '0.3.0'), false);
   assert.equal(isNewer('0.2.9', '0.3.0'), false);
 
-  const github = updateSource(parseYaml('owner: ayush-905\nrepo: overtime\nprovider: github\nupdaterCacheDirName: overtime-updater\n'));
+  const github = updateSource(
+    parseYaml('owner: ayush-905\nrepo: overtime\nprovider: github\nupdaterCacheDirName: overtime-updater\n'),
+  );
   assert.equal(github.feed, 'https://github.com/ayush-905/overtime/releases/latest/download/');
-  assert.equal(new URL('overtime-0.4.0-arm64.zip', github.feed).href, 'https://github.com/ayush-905/overtime/releases/latest/download/overtime-0.4.0-arm64.zip');
+  assert.equal(
+    new URL('overtime-0.4.0-arm64.zip', github.feed).href,
+    'https://github.com/ayush-905/overtime/releases/latest/download/overtime-0.4.0-arm64.zip',
+  );
   assert.equal(updateSource({ provider: 'generic', url: 'http://insecure.example/updates' }), null);
-  assert.equal(updateSource({ provider: 'generic', url: 'https://example.com/updates' }).feed, 'https://example.com/updates/');
+  assert.equal(
+    updateSource({ provider: 'generic', url: 'https://example.com/updates' }).feed,
+    'https://example.com/updates/',
+  );
 });
 
 test('the swap waits for the app to quit, puts the new one in its place, and puts the old one back if it must', async (t) => {
@@ -182,7 +230,16 @@ test('the swap waits for the app to quit, puts the new one in its place, and put
   await assert.rejects(access(downloads));
 
   // Nothing to move in: the app it had stays.
-  execFileSync('/bin/sh', ['-c', SWAP_SCRIPT, 'test', '999999', running, path.join(dir, 'missing.app'), '0', downloads]);
+  execFileSync('/bin/sh', [
+    '-c',
+    SWAP_SCRIPT,
+    'test',
+    '999999',
+    running,
+    path.join(dir, 'missing.app'),
+    '0',
+    downloads,
+  ]);
   assert.equal(await read(path.join(running, 'Contents', 'version'), 'utf8'), '2');
   await assert.rejects(access(`${running}.replaced`));
 });
@@ -206,7 +263,13 @@ test('the dashboard is at / and /mini, with your settings in its page and its bu
   assert.match(asset.headers.get('content-type'), /javascript/);
   assert.match(asset.headers.get('cache-control'), /immutable/);
   // Nothing outside web/app can be reached from there.
-  for (const bad of ['/assets/../../../server.js', '/%2e%2e/server.js', '/assets/x/y.js', '/assets/..%2fserver.js', '/dashboard/app.js']) {
+  for (const bad of [
+    '/assets/../../../server.js',
+    '/%2e%2e/server.js',
+    '/assets/x/y.js',
+    '/assets/..%2fserver.js',
+    '/dashboard/app.js',
+  ]) {
     assert.equal((await fetch(`${base}${bad}`)).status, 404, bad);
   }
 });

@@ -2,7 +2,9 @@
 // 3h 20m, Tue 12 Sept, ₹1,78,721, 229.5M (golden tests in golden.test.ts hold
 // them). A working day starts at the hour set in Settings.
 
+import { workDayStart } from '@shared/sums.js';
 import { env, serverNow } from './env';
+import type { WorkingHours } from '@/data/types';
 
 export const MINUTE = 60_000;
 export const HOUR = 3_600_000;
@@ -10,7 +12,8 @@ export const DAY = 86_400_000;
 
 export const workdayHour = () => env.workdayHour;
 
-export const hourLabel = (h: number) => (env.clock24 ? `${String(h).padStart(2, '0')}:00` : `${h % 12 || 12}${h < 12 ? 'am' : 'pm'}`);
+export const hourLabel = (h: number) =>
+  env.clock24 ? `${String(h).padStart(2, '0')}:00` : `${h % 12 || 12}${h < 12 ? 'am' : 'pm'}`;
 
 export const dayLabel = (t: number) => new Date(t).toLocaleDateString([], { month: 'short', day: 'numeric' });
 
@@ -19,7 +22,9 @@ export const weekday = (t: number) => new Date(t).toLocaleDateString([], { weekd
 export function clock(t: number) {
   const d = new Date(t);
   const m = String(d.getMinutes()).padStart(2, '0');
-  return env.clock24 ? `${String(d.getHours()).padStart(2, '0')}:${m}` : `${d.getHours() % 12 || 12}:${m}${d.getHours() < 12 ? 'am' : 'pm'}`;
+  return env.clock24
+    ? `${String(d.getHours()).padStart(2, '0')}:${m}`
+    : `${d.getHours() % 12 || 12}:${m}${d.getHours() < 12 ? 'am' : 'pm'}`;
 }
 
 export function whenText(t: number | null | undefined) {
@@ -27,18 +32,12 @@ export function whenText(t: number | null | undefined) {
   return new Date(t).toDateString() === new Date().toDateString() ? clock(t) : `${weekday(t)} ${clock(t)}`;
 }
 
-/** The start (4am, unless you changed it) of the working day `t` belongs to, moved by `days`. */
-export function workDay(t: number, days = 0) {
-  const hour = workdayHour();
-  const d = new Date(t);
-  if (d.getHours() < hour) d.setDate(d.getDate() - 1);
-  d.setDate(d.getDate() + days);
-  d.setHours(hour, 0, 0, 0);
-  return d.getTime();
-}
+/** The start (4am, unless you changed it) of the working day `t` belongs to, moved by `days`. The demo works its days out the same way. */
+export const workDay = (t: number, days = 0) => workDayStart(t, workdayHour(), days);
 
 /** How a working day reads in a note: "from 4am to 4am", or "midnight to midnight". */
-export const dayRuns = () => (workdayHour() ? `from ${hourLabel(workdayHour())} to ${hourLabel(workdayHour())}` : 'from midnight to midnight');
+export const dayRuns = () =>
+  workdayHour() ? `from ${hourLabel(workdayHour())} to ${hourLabel(workdayHour())}` : 'from midnight to midnight';
 
 /** A label under each day of a run: its initial for two weeks or less; for more, the date every fifth day back from today. */
 export function dayTicks(starts: number[]) {
@@ -92,19 +91,26 @@ export function hoursText(ms: number) {
   return `${Math.round(ms / MINUTE)}m`;
 }
 
-/** How a stretch of time compares with the one before, once both are an hour or more: "↑ 12%". */
-export const change = (now: number, before: number) => {
-  if (!(before >= HOUR)) return '';
+/**
+ * How `now` compares with `before`, as every card writes it: "↑ 12%" or "↓ 3%".
+ * Empty when it's less than `least` percent either way, so each card can say
+ * "about the same" in its own words. `before` must be more than nothing.
+ */
+export function changeText(now: number, before: number, least = 5) {
   const pct = Math.round(((now - before) / before) * 100);
-  return Math.abs(pct) >= 5 ? `${pct > 0 ? '↑' : '↓'} ${Math.abs(pct)}%` : '';
-};
+  return Math.abs(pct) >= least ? `${pct > 0 ? '↑' : '↓'} ${Math.abs(pct)}%` : '';
+}
+
+/** How a stretch of time compares with the one before, once that was an hour or more: "↑ 12%". */
+export const change = (now: number, before: number) => (before >= HOUR ? changeText(now, before) : '');
 
 export const pctOf = (n: number, d: number) => {
   const v = d ? (n / d) * 100 : 0;
   return v > 0 && v < 1 ? v.toFixed(1) : String(Math.round(v));
 };
 
-export const longDate = (t: number) => new Date(t).toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' });
+export const longDate = (t: number) =>
+  new Date(t).toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' });
 
 export const plural = (n: number, word: string, many = `${word}s`) => `${n} ${n === 1 ? word : many}`;
 
@@ -122,14 +128,16 @@ export function bytesText(n: number | null | undefined) {
   return `${(n / 1024 ** 3).toFixed(1)} GB`;
 }
 
-export const cpuText = (pct: number | null | undefined) => (pct == null ? '—' : `${pct < 10 ? pct.toFixed(1) : Math.round(pct)}%`);
+export const cpuText = (pct: number | null | undefined) =>
+  pct == null ? '—' : `${pct < 10 ? pct.toFixed(1) : Math.round(pct)}%`;
 
-type Hours = { days?: { stretches?: [number, number][] }[] } | null | undefined;
+type Hours = Pick<WorkingHours, 'days'> | null | undefined;
 
 /** Active time between two moments, from the working-hours stretches. */
 export function activeBetween(hours: Hours, from: number, to: number) {
   let ms = 0;
-  for (const d of hours?.days || []) for (const [a, b] of d.stretches || []) ms += Math.max(0, Math.min(b, to) - Math.max(a, from));
+  for (const d of hours?.days || [])
+    for (const [a, b] of d.stretches || []) ms += Math.max(0, Math.min(b, to) - Math.max(a, from));
   return ms;
 }
 
@@ -137,7 +145,7 @@ export function activeBetween(hours: Hours, from: number, to: number) {
 
 export function clip(text: unknown, max: number) {
   const s = String(text ?? '');
-  return s.length > max ? s.slice(0, max - 1) + '…' : s;
+  return s.length > max ? `${s.slice(0, max - 1)}…` : s;
 }
 
 export function ago(ms: number) {
@@ -181,7 +189,8 @@ export function moneyCol(n: number | null | undefined) {
 }
 
 /** A cost with "+" when some prices were missing, so it's what the rest cost. */
-export const costText = (cost: number | null | undefined, partial?: boolean) => (cost == null ? '—' : `${money(cost)}${partial ? '+' : ''}`);
+export const costText = (cost: number | null | undefined, partial?: boolean) =>
+  cost == null ? '—' : `${money(cost)}${partial ? '+' : ''}`;
 
 export const costCol = (cost: number | null | undefined, partial?: boolean) => `${moneyCol(cost)}${partial ? '+' : ''}`;
 

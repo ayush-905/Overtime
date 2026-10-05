@@ -6,7 +6,9 @@ const quota = vi.hoisted(() => ({ items: [] as QuotaItem[] }));
 vi.mock('@/data/scope', () => ({ useQuota: () => ({ items: quota.items }) }));
 import { SideUsage } from './SideUsage';
 
-beforeEach(() => { quota.items = []; });
+beforeEach(() => {
+  quota.items = [];
+});
 
 test('the sidebar keeps its Usage link when no readings are available', () => {
   const full = renderToStaticMarkup(<SideUsage folded={false} />);

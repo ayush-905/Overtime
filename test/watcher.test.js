@@ -14,7 +14,7 @@ async function claudeFolder(t, lines) {
   t.after(() => rm(dir, { recursive: true, force: true }));
   await mkdir(path.join(dir, 'shop'));
   const file = path.join(dir, 'shop', `${SESSION}.jsonl`);
-  await writeFile(file, lines.map((x) => (typeof x === 'string' ? x : JSON.stringify(x))).join('\n') + '\n');
+  await writeFile(file, `${lines.map((x) => (typeof x === 'string' ? x : JSON.stringify(x))).join('\n')}\n`);
   return { dir, file };
 }
 
@@ -24,8 +24,30 @@ function turns(n, { from = 0, pad = 0 } = {}) {
   const at = (i) => new Date(start + i).toISOString();
   const lines = [];
   for (let i = from; i < from + n; i++) {
-    lines.push({ type: 'user', timestamp: at(i), cwd: '/work/shop', message: { role: 'user', content: `Look at file ${i}` } });
-    lines.push({ type: 'assistant', timestamp: at(i), cwd: '/work/shop', message: { id: `m${i}`, model: 'claude-sonnet-4-5', usage: { input_tokens: 10, output_tokens: 5 }, content: [{ type: 'tool_use', id: `t${i}`, name: 'Read', input: { file_path: `/work/shop/f${i}.js`, note: 'x'.repeat(pad) } }] } });
+    lines.push({
+      type: 'user',
+      timestamp: at(i),
+      cwd: '/work/shop',
+      message: { role: 'user', content: `Look at file ${i}` },
+    });
+    lines.push({
+      type: 'assistant',
+      timestamp: at(i),
+      cwd: '/work/shop',
+      message: {
+        id: `m${i}`,
+        model: 'claude-sonnet-4-5',
+        usage: { input_tokens: 10, output_tokens: 5 },
+        content: [
+          {
+            type: 'tool_use',
+            id: `t${i}`,
+            name: 'Read',
+            input: { file_path: `/work/shop/f${i}.js`, note: 'x'.repeat(pad) },
+          },
+        ],
+      },
+    });
   }
   return lines;
 }
@@ -43,7 +65,9 @@ test('a transcript is counted once even when a tick comes while discovery is sti
 
   const watcher = createWatcher({ claudeDir: dir, feed: createFeed() });
   let done = false;
-  const discovering = watcher.discover().finally(() => { done = true; });
+  const discovering = watcher.discover().finally(() => {
+    done = true;
+  });
   // A second discovery while the first is under way joins it.
   const again = watcher.discover();
   while (!done) {
@@ -62,7 +86,12 @@ test('a transcript that gets shorter is read again from the start, not on top of
   const { dir, file } = await claudeFolder(t, turns(50));
   const watcher = await read(dir);
   assert.equal(watcher.agents.get(SESSION).turns, 50);
-  await writeFile(file, turns(3, { from: 100 }).map((x) => JSON.stringify(x)).join('\n') + '\n');
+  await writeFile(
+    file,
+    `${turns(3, { from: 100 })
+      .map((x) => JSON.stringify(x))
+      .join('\n')}\n`,
+  );
   await watcher.tick();
   const a = watcher.agents.get(SESSION);
   assert.equal(a.turns, 3);
@@ -70,12 +99,18 @@ test('a transcript that gets shorter is read again from the start, not on top of
 });
 
 test("a line the reader can't make sense of is passed over, and the lines after it still count", async (t) => {
-  const broken = { type: 'assistant', timestamp: new Date().toISOString(), message: { id: 'bad', content: [{ type: 'tool_use', id: 'tx', input: {} }] } };
+  const broken = {
+    type: 'assistant',
+    timestamp: new Date().toISOString(),
+    message: { id: 'bad', content: [{ type: 'tool_use', id: 'tx', input: {} }] },
+  };
   const { dir } = await claudeFolder(t, [...turns(2), broken, 'not json', ...turns(2, { from: 2 })]);
   const errors = [];
   const error = console.error;
   console.error = (...parts) => errors.push(parts.join(' '));
-  t.after(() => { console.error = error; });
+  t.after(() => {
+    console.error = error;
+  });
   const watcher = await read(dir);
   assert.equal(watcher.agents.get(SESSION).turns, 4);
   // Said once, for the file it was in.

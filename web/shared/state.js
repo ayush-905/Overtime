@@ -30,7 +30,9 @@ export function select(id) {
 
 export function setFilter(project) {
   state.filter = state.filter === project ? null : project;
-  try { localStorage.setItem('overtime-filter', state.filter || ''); } catch {}
+  try {
+    localStorage.setItem('overtime-filter', state.filter || '');
+  } catch {}
   emit('filter', state.filter);
 }
 
@@ -57,7 +59,11 @@ const CURRENCY_KEY = 'overtime-currency';
 
 let projectPrefs = {}; // project folder name → { alias, hue }
 function loadProjects() {
-  try { projectPrefs = JSON.parse(localStorage.getItem(PROJECTS_KEY) || '{}') || {}; } catch { projectPrefs = {}; }
+  try {
+    projectPrefs = JSON.parse(localStorage.getItem(PROJECTS_KEY) || '{}') || {};
+  } catch {
+    projectPrefs = {};
+  }
 }
 loadProjects();
 
@@ -94,7 +100,9 @@ const currency = { code: 'USD', symbol: '$', rate: 1, locale: 'en-US', whole: fa
 
 function loadCurrency() {
   let saved = {};
-  try { saved = JSON.parse(localStorage.getItem(CURRENCY_KEY) || '{}') || {}; } catch {}
+  try {
+    saved = JSON.parse(localStorage.getItem(CURRENCY_KEY) || '{}') || {};
+  } catch {}
   const code = CURRENCIES[saved.code] ? saved.code : 'USD';
   const def = CURRENCIES[code];
   const rates = saved.rates && typeof saved.rates === 'object' ? saved.rates : {};
@@ -112,11 +120,15 @@ if (typeof window !== 'undefined') {
 }
 
 /** Text made safe to put in HTML. */
-export const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+export const esc = (s) =>
+  String(s ?? '').replace(
+    /[&<>"']/g,
+    (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c],
+  );
 
 export function clip(text, max) {
   const s = String(text ?? '');
-  return s.length > max ? s.slice(0, max - 1) + '…' : s;
+  return s.length > max ? `${s.slice(0, max - 1)}…` : s;
 }
 
 export function ago(ms) {

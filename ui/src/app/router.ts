@@ -11,8 +11,9 @@ import { PAGES, type Page } from '@/lib/nav';
 import { parseHash, type Params } from '@/lib/route';
 import { env } from '@/lib/env';
 import { inPopover } from '@/data/desktop';
+import { readSetting, writeSetting } from '@/lib/storage';
 
-const PAGE_KEY = 'overtime-page';
+const PAGE_KEY = 'page';
 
 export const MINI = /\/mini\/?$/.test(location.pathname);
 /** The dashboard proper, which chimes and remembers where you were: not /mini, not the popover. */
@@ -30,14 +31,7 @@ type RouteState = {
   sessionHandled: () => void;
 };
 
-function savedPage(): Page {
-  if (!MAIN) return 'overview';
-  try {
-    const saved = localStorage.getItem(PAGE_KEY);
-    if ((PAGES as readonly string[]).includes(saved || '')) return saved as Page;
-  } catch {}
-  return 'overview';
-}
+const savedPage = (): Page => (MAIN ? readSetting<Page>(PAGE_KEY, 'overview', PAGES) : 'overview');
 
 export const useRoute = create<RouteState>((set) => ({
   page: savedPage(),
@@ -46,7 +40,8 @@ export const useRoute = create<RouteState>((set) => ({
   sessionHandled: () => set({ session: null }),
 }));
 
-const isPage = (p: string): p is RoutePage => (PAGES as readonly string[]).includes(p) || (HIDDEN_PAGES as readonly string[]).includes(p);
+const isPage = (p: string): p is RoutePage =>
+  (PAGES as readonly string[]).includes(p) || (HIDDEN_PAGES as readonly string[]).includes(p);
 
 function route() {
   const hash = location.hash.replace('#', '');
@@ -69,7 +64,7 @@ function show(page: RoutePage, params: Params) {
   const was = useRoute.getState().page;
   env.page = page;
   useRoute.setState({ page, params });
-  if (MAIN && page !== 'parts') try { localStorage.setItem(PAGE_KEY, page); } catch {}
+  if (MAIN && page !== 'parts') writeSetting(PAGE_KEY, page);
   if (page !== was) window.scrollTo(0, 0);
 }
 

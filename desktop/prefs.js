@@ -14,12 +14,14 @@ const FILE = path.join(DIR, 'desktop.json');
 export const MENU_BAR = ['limits', 'closest', 'cost', 'icon'];
 const DEFAULTS = { menuBarShows: 'limits', hideDockWhenClosed: false, bounds: null, officeBounds: null };
 
-const isBounds = (b) => b && ['x', 'y', 'width', 'height'].every((k) => Number.isFinite(b[k])) && b.width >= 200 && b.height >= 200;
+const isBounds = (b) =>
+  b && ['x', 'y', 'width', 'height'].every((k) => Number.isFinite(b[k])) && b.width >= 200 && b.height >= 200;
 
 function clean(raw) {
   return {
     menuBarShows: MENU_BAR.includes(raw?.menuBarShows) ? raw.menuBarShows : DEFAULTS.menuBarShows,
-    hideDockWhenClosed: typeof raw?.hideDockWhenClosed === 'boolean' ? raw.hideDockWhenClosed : DEFAULTS.hideDockWhenClosed,
+    hideDockWhenClosed:
+      typeof raw?.hideDockWhenClosed === 'boolean' ? raw.hideDockWhenClosed : DEFAULTS.hideDockWhenClosed,
     bounds: isBounds(raw?.bounds) ? raw.bounds : null,
     officeBounds: isBounds(raw?.officeBounds) ? raw.officeBounds : null,
   };
@@ -29,7 +31,11 @@ let prefs = null;
 
 export function readPrefs() {
   if (!prefs) {
-    try { prefs = clean(JSON.parse(readFileSync(FILE, 'utf8'))); } catch { prefs = clean({}); }
+    try {
+      prefs = clean(JSON.parse(readFileSync(FILE, 'utf8')));
+    } catch {
+      prefs = clean({});
+    }
   }
   return prefs;
 }

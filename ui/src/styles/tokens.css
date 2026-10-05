@@ -63,7 +63,7 @@
 }
 
 @media (prefers-color-scheme: dark) {
-  :root:not([data-theme='light']) {
+  :root:not([data-theme="light"]) {
     --bg: #131518;
     --side: var(--p-side-d, #16181c);
     --card: #1b1e23;
@@ -102,7 +102,7 @@
   }
 }
 
-:root[data-theme='dark'] {
+:root[data-theme="dark"] {
   --bg: #131518;
   --side: var(--p-side-d, #16181c);
   --card: #1b1e23;
@@ -140,7 +140,7 @@
   color-scheme: dark;
 }
 
-:root[data-density='compact'] {
+:root[data-density="compact"] {
   --card-px: 18px;
   --card-py: 14px;
   --row-py: 7px;
@@ -154,6 +154,12 @@
   --page-gap: 12px;
 }
 
-:root[data-text='small'] { --text-scale: 0.93; }
-:root[data-text='large'] { --text-scale: 1.07; }
-:root[data-text='larger'] { --text-scale: 1.14; }
+:root[data-text="small"] {
+  --text-scale: 0.93;
+}
+:root[data-text="large"] {
+  --text-scale: 1.07;
+}
+:root[data-text="larger"] {
+  --text-scale: 1.14;
+}

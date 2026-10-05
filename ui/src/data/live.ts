@@ -13,9 +13,10 @@ import { create } from 'zustand';
 import { createMerger } from '@shared/live.js';
 import { env } from '@/lib/env';
 import { changed } from '@/lib/bus';
-import { readProvider, saveProvider, type Provider } from '@/lib/prefs';
+import { PROVIDER_KEY, readProvider, saveProvider, type Provider } from '@/lib/prefs';
+import { onOtherTab } from '@/lib/storage';
 import { demo, post } from './api';
-import type { Snapshot } from './types';
+import type { Prefs, Snapshot } from './types';
 
 type LiveState = {
   snap: Snapshot | null;
@@ -45,7 +46,9 @@ function apply(snap: Snapshot) {
   if (snap.prefs) env.workdayHour = snap.prefs.workdayHour ?? 4;
   // A provider with no folder on this Mac (any more) has nothing to show: show them all, without forgetting the choice.
   const { provider } = useLive.getState();
-  useLive.setState(snap.analytics && provider !== 'all' && !snap.analytics[provider] ? { snap, provider: 'all' } : { snap });
+  useLive.setState(
+    snap.analytics && provider !== 'all' && !snap.analytics[provider] ? { snap, provider: 'all' } : { snap },
+  );
   if (prefs !== lastPrefs) {
     lastPrefs = prefs;
     changed('prefs');
@@ -57,9 +60,9 @@ function apply(snap: Snapshot) {
  * conversations), and show it at once rather than with the next snapshot.
  * Throws when the server can't be reached, so the caller can say so.
  */
-export async function setServerPrefs(patch: Partial<NonNullable<Snapshot['prefs']>>) {
-  let prefs = { ...(useLive.getState().snap?.prefs || { workdayHour: 4, search: true }), ...patch };
-  if (!demo) prefs = await post<NonNullable<Snapshot['prefs']>>('/api/prefs', patch);
+export async function setServerPrefs(patch: Partial<Prefs>) {
+  let prefs: Prefs = { ...(useLive.getState().snap?.prefs || { workdayHour: 4, search: true }), ...patch };
+  if (!demo) prefs = await post<Prefs>('/api/prefs', patch);
   const snap = useLive.getState().snap;
   if (snap) apply({ ...snap, prefs });
 }
@@ -71,7 +74,8 @@ export function connectLive() {
   if (started) return;
   started = true;
   if (demo) {
-    import('@shared/demo.js').then((m) => m.startDemo(apply));
+    // Its working days start when yours do, as the cards count them.
+    import('@shared/demo.js').then((m) => m.startDemo(apply, { workdayHour: () => env.workdayHour }));
     return;
   }
   const merge = createMerger();
@@ -88,12 +92,13 @@ export function connectLive() {
 }
 
 // Another tab changed the provider filter.
-window.addEventListener('storage', (e) => {
-  if (e.key === 'overtime-provider') useLive.setState({ provider: readProvider() });
+onOtherTab((key) => {
+  if (key === PROVIDER_KEY) useLive.setState({ provider: readProvider() });
 });
 
 /** An agent is working while it's thinking, using a tool or replying. */
 export const WORKING = ['thinking', 'working', 'replying'];
 
 /** The main agents that need you, whatever the filter: for the title, the badges and the Dock. */
-export const needsCount = (snap: Snapshot | null) => (snap?.agents || []).filter((a) => a.kind === 'main' && a.needsYou).length;
+export const needsCount = (snap: Snapshot | null) =>
+  (snap?.agents || []).filter((a) => a.kind === 'main' && a.needsYou).length;

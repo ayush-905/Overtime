@@ -1,9 +1,12 @@
 // Updates from GitHub Releases, installed by the app itself. It looks where the
 // build says (app-update.yml, from `publish` in package.json) half a minute
-// after it starts and every 6 hours, or when you ask. A newer version downloads
-// in the background and has to match the size and SHA-512 its release lists;
-// unpacked, it has to be this app, at that version, with its signature intact.
-// Then it replaces this one when you quit, or at once if you restart to update.
+// after it starts and every 6 hours, or when you ask. A release counts only when
+// its latest-mac.yml is signed with Overtime's release key (update-key.js), so
+// nobody else can ship one, even with the GitHub account. A newer version
+// downloads in the background and has to match the size and SHA-512 that signed
+// file lists; unpacked, it has to be this app, at that version, with its code
+// signature intact. Then it replaces this one when you quit, or at once if you
+// restart to update.
 //
 // Electron's own updater (Squirrel) only installs updates to an app signed with
 // an Apple Developer ID, so this swaps the app itself, as Sparkle does: a small
@@ -17,19 +20,24 @@ import { once } from 'node:events';
 import { accessSync, constants, createWriteStream, promises as fsp, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { Readable } from 'node:stream';
-import { SWAP_SCRIPT, isNewer, parseYaml, pickZip, updateSource } from './update-info.js';
+import { SIGNATURE_FILE, SWAP_SCRIPT, isNewer, parseYaml, pickZip, trustedFeed, updateSource } from './update-info.js';
+import { UPDATE_KEY } from './update-key.js';
 
 const FIRST_CHECK_MS = 30_000;
 const CHECK_EVERY_MS = 6 * 3_600_000;
 
-const run = (cmd, args) => new Promise((resolve, reject) => {
-  execFile(cmd, args, { timeout: 120_000, maxBuffer: 4 * 1024 * 1024 }, (error, stdout, stderr) => (error ? reject(new Error(String(stderr || error.message).trim())) : resolve(String(stdout).trim())));
-});
+const run = (cmd, args) =>
+  new Promise((resolve, reject) => {
+    execFile(cmd, args, { timeout: 120_000, maxBuffer: 4 * 1024 * 1024 }, (error, stdout, stderr) =>
+      error ? reject(new Error(String(stderr || error.message).trim())) : resolve(String(stdout).trim()),
+    );
+  });
 
 /** Where to look: the build's app-update.yml, or for a trial a feed on this Mac (OVERTIME_UPDATE_FEED). */
 function readSource() {
   const trial = process.env.OVERTIME_UPDATE_FEED;
-  if (trial && /^http:\/\/(127\.0\.0\.1|localhost)(:\d+)?\//.test(trial)) return { feed: trial, page: trial, where: new URL(trial).host };
+  if (trial && /^http:\/\/(127\.0\.0\.1|localhost)(:\d+)?\//.test(trial))
+    return { feed: trial, page: trial, where: new URL(trial).host };
   try {
     return updateSource(parseYaml(readFileSync(path.join(process.resourcesPath, 'app-update.yml'), 'utf8')));
   } catch {
@@ -97,8 +105,10 @@ export function createUpdater({ log = () => {}, onChange = () => {} } = {}) {
       }
     }
     await new Promise((resolve, reject) => out.end((error) => (error ? reject(error) : resolve())));
-    if (file.size && got !== file.size) throw new Error(`The download was ${got} bytes, not the ${file.size} its release lists.`);
-    if (hash.digest('base64') !== file.sha512) throw new Error("The download doesn't match the checksum its release lists.");
+    if (file.size && got !== file.size)
+      throw new Error(`The download was ${got} bytes, not the ${file.size} its release lists.`);
+    if (hash.digest('base64') !== file.sha512)
+      throw new Error("The download doesn't match the checksum its release lists.");
 
     const into = path.join(dir, `v${version}`);
     await fsp.mkdir(into);
@@ -107,8 +117,13 @@ export function createUpdater({ log = () => {}, onChange = () => {} } = {}) {
     const name = (await fsp.readdir(into)).find((n) => n.endsWith('.app'));
     if (!name) throw new Error('The download has no app in it.');
     const next = path.join(into, name);
-    const plist = (of, key) => run('/usr/bin/plutil', ['-extract', key, 'raw', '-o', '-', path.join(of, 'Contents', 'Info.plist')]);
-    const [id, ours, theirs] = await Promise.all([plist(next, 'CFBundleIdentifier'), plist(bundle, 'CFBundleIdentifier'), plist(next, 'CFBundleShortVersionString')]);
+    const plist = (of, key) =>
+      run('/usr/bin/plutil', ['-extract', key, 'raw', '-o', '-', path.join(of, 'Contents', 'Info.plist')]);
+    const [id, ours, theirs] = await Promise.all([
+      plist(next, 'CFBundleIdentifier'),
+      plist(bundle, 'CFBundleIdentifier'),
+      plist(next, 'CFBundleShortVersionString'),
+    ]);
     if (id !== ours) throw new Error(`The download is a different app (${id}).`);
     if (theirs !== version) throw new Error(`The download is version ${theirs}, not ${version}.`);
     await run('/usr/bin/codesign', ['--verify', '--deep', '--strict', next]);
@@ -121,19 +136,32 @@ export function createUpdater({ log = () => {}, onChange = () => {} } = {}) {
     set({ state: 'checking' });
     let info;
     try {
-      const res = await fetch(`${source.feed}latest-mac.yml`, { signal: AbortSignal.timeout(20_000), cache: 'no-store' });
+      const get = (name) => fetch(`${source.feed}${name}`, { signal: AbortSignal.timeout(20_000), cache: 'no-store' });
+      const [res, sig] = await Promise.all([get('latest-mac.yml'), get(SIGNATURE_FILE)]);
       if (res.status === 404) throw new Error(`There's no release on ${source.where} yet.`);
       if (!res.ok) throw new Error(`${source.where} answered with ${res.status}.`);
-      info = parseYaml(await res.text());
+      // Nothing in it counts until the signature says it's Overtime's own: not even the version.
+      info = trustedFeed(await res.text(), sig.ok ? await sig.text() : '', UPDATE_KEY);
+      if (!info)
+        throw new Error(
+          `The newest release on ${source.where} isn't signed with Overtime's release key, so it won't be installed.`,
+        );
       if (!info.version) throw new Error(`The release on ${source.where} doesn't say its version.`);
     } catch (error) {
       if (error.name === 'TimeoutError') return fail(`${source.where} didn't answer.`);
       // fetch says only "fetch failed"; the reason is underneath, like ENOTFOUND when offline.
-      return fail(error.cause ? `Couldn't reach ${source.where} (${error.cause.code || error.cause.message}).` : error.message);
+      return fail(
+        error.cause ? `Couldn't reach ${source.where} (${error.cause.code || error.cause.message}).` : error.message,
+      );
     }
     const version = String(info.version);
     if (!isNewer(version, app.getVersion())) return set({ state: 'latest', version, checkedAt: Date.now() });
-    if (!replaceable()) return set({ state: 'manual', version, message: `It can't replace itself where it is (${path.dirname(bundle)}). Move it to Applications, or download the new version.` });
+    if (!replaceable())
+      return set({
+        state: 'manual',
+        version,
+        message: `It can't replace itself where it is (${path.dirname(bundle)}). Move it to Applications, or download the new version.`,
+      });
     const file = pickZip(info);
     if (!file) return fail(`The release has no zip for this Mac (${process.arch}).`, version);
     log(`update: downloading ${version}`);
@@ -141,13 +169,15 @@ export function createUpdater({ log = () => {}, onChange = () => {} } = {}) {
     // Left in the background, or with the screen locked, macOS naps the app, and a
     // download would all but stop; it stays awake until this one's done.
     const awake = powerSaveBlocker.start('prevent-app-suspension');
-    fetchUpdate(version, file).then(
-      (next) => {
-        log(`update: ${version} is ready`);
-        set({ state: 'ready', version, app: next });
-      },
-      (error) => fail(error.message, version),
-    ).finally(() => powerSaveBlocker.stop(awake));
+    fetchUpdate(version, file)
+      .then(
+        (next) => {
+          log(`update: ${version} is ready`);
+          set({ state: 'ready', version, app: next });
+        },
+        (error) => fail(error.message, version),
+      )
+      .finally(() => powerSaveBlocker.stop(awake));
     return status;
   }
 
@@ -155,7 +185,11 @@ export function createUpdater({ log = () => {}, onChange = () => {} } = {}) {
   function install({ relaunch = false } = {}) {
     if (status.state !== 'ready' || installing) return false;
     installing = true;
-    spawn('/bin/sh', ['-c', SWAP_SCRIPT, 'overtime-update', String(process.pid), bundle, status.app, relaunch ? '1' : '0', dir], { detached: true, stdio: 'ignore' }).unref();
+    spawn(
+      '/bin/sh',
+      ['-c', SWAP_SCRIPT, 'overtime-update', String(process.pid), bundle, status.app, relaunch ? '1' : '0', dir],
+      { detached: true, stdio: 'ignore' },
+    ).unref();
     log(`update: installing ${status.version} once the app quits${relaunch ? ', then opening it' : ''}`);
     return true;
   }

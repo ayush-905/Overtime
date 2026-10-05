@@ -6,7 +6,8 @@ import { watchFolders } from '../lib/folder-watch.js';
 import { scratch } from './helpers.js';
 
 const until = async (check, ms = 3000) => {
-  for (const end = Date.now() + ms; Date.now() < end; await new Promise((resolve) => setTimeout(resolve, 25))) if (check()) return true;
+  for (const end = Date.now() + ms; Date.now() < end; await new Promise((resolve) => setTimeout(resolve, 25)))
+    if (check()) return true;
   return false;
 };
 

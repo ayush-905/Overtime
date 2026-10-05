@@ -3,8 +3,22 @@
 // can be undone.
 
 import { useEffect, useState } from 'react';
-import { DndContext, KeyboardSensor, PointerSensor, closestCenter, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core';
-import { SortableContext, arrayMove, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
+import {
+  DndContext,
+  KeyboardSensor,
+  PointerSensor,
+  closestCenter,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from '@dnd-kit/core';
+import {
+  SortableContext,
+  arrayMove,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { ChevronDown, ChevronUp, GripVertical } from 'lucide-react';
 import { Dialog } from '@/components/Dialog';
@@ -16,7 +30,19 @@ import { offerUndo } from '@/app/toasts';
 import { useUi } from '@/app/ui';
 import { CATALOG, readLayout, saveLayout, usualLayout, type Layout } from './layout';
 
-function Row({ id, index, count, layout, change }: { id: string; index: number; count: number; layout: Layout; change: (next: Layout, undo?: string) => void }) {
+function Row({
+  id,
+  index,
+  count,
+  layout,
+  change,
+}: {
+  id: string;
+  index: number;
+  count: number;
+  layout: Layout;
+  change: (next: Layout, undo?: string) => void;
+}) {
   const card = CATALOG.find((c) => c.id === id)!;
   const shown = !layout.hidden.includes(id);
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
@@ -25,14 +51,27 @@ function Row({ id, index, count, layout, change }: { id: string; index: number; 
     <li
       ref={setNodeRef}
       style={{ transform: CSS.Translate.toString(transform), transition }}
-      className={cx('flex items-center gap-3 rounded-row border border-line bg-card px-3 py-2', isDragging && 'relative z-10 shadow-raised', !shown && 'opacity-60')}
+      className={cx(
+        'flex items-center gap-3 rounded-row border border-line bg-card px-3 py-2',
+        isDragging && 'relative z-10 shadow-raised',
+        !shown && 'opacity-60',
+      )}
     >
-      <button type="button" className="grid size-7 cursor-grab place-items-center text-muted" aria-label={`Move ${card.name}`} {...attributes} {...listeners}>
+      <button
+        type="button"
+        className="grid size-7 cursor-grab place-items-center text-muted"
+        aria-label={`Move ${card.name}`}
+        {...attributes}
+        {...listeners}
+      >
         <GripVertical size={16} strokeWidth={1.8} aria-hidden />
       </button>
       <span className="grow">
         <b className="font-semibold">{card.name}</b>
-        <small className="ml-2 text-label text-muted">{card.section && `${card.section} · `}{card.span === 12 ? 'Full width' : card.span === 7 ? 'Wide' : card.span === 6 ? 'Half width' : 'Narrow'}</small>
+        <small className="ml-2 text-label text-muted">
+          {card.section && `${card.section} · `}
+          {card.span === 12 ? 'Full width' : card.span === 7 ? 'Wide' : card.span === 6 ? 'Half width' : 'Narrow'}
+        </small>
       </span>
       <IconButton label="Move earlier" variant="quiet" size="sm" disabled={index === 0} onClick={() => move(-1)}>
         <ChevronUp size={15} strokeWidth={2} aria-hidden />
@@ -43,7 +82,12 @@ function Row({ id, index, count, layout, change }: { id: string; index: number; 
       <Switch
         checked={shown}
         label={`Show ${card.name}`}
-        onChange={(on) => change({ ...layout, hidden: on ? layout.hidden.filter((x) => x !== id) : [...layout.hidden, id] }, on ? undefined : `Removed “${card.name}” from the Overview`)}
+        onChange={(on) =>
+          change(
+            { ...layout, hidden: on ? layout.hidden.filter((x) => x !== id) : [...layout.hidden, id] },
+            on ? undefined : `Removed “${card.name}” from the Overview`,
+          )
+        }
       />
     </li>
   );
@@ -55,7 +99,10 @@ export function CustomizeDialog() {
   const v = useChanged();
   const [layout, setLayout] = useState(readLayout);
   useEffect(() => setLayout(readLayout()), [v, open]);
-  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }), useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }));
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
   const change = (next: Layout, undo?: string) => {
     const before = layout;
     setLayout(next);
@@ -64,7 +111,14 @@ export function CustomizeDialog() {
   };
   const onDragEnd = (e: DragEndEvent) => {
     if (!e.over || e.active.id === e.over.id) return;
-    change({ ...layout, order: arrayMove(layout.order, layout.order.indexOf(String(e.active.id)), layout.order.indexOf(String(e.over.id))) });
+    change({
+      ...layout,
+      order: arrayMove(
+        layout.order,
+        layout.order.indexOf(String(e.active.id)),
+        layout.order.indexOf(String(e.over.id)),
+      ),
+    });
   };
   return (
     <Dialog

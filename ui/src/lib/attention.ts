@@ -1,27 +1,62 @@
 import { doingText, sinceFor, WORKING, type LiveAgent } from './agents';
 import { stuckState, stuckText } from './limits';
 
-export type AttentionItem = { agent: LiveAgent; label: string; detail: string; action: string; tone: 'warn' | 'bad'; since: number; priority: number };
+export type AttentionItem = {
+  agent: LiveAgent;
+  label: string;
+  detail: string;
+  action: string;
+  tone: 'warn' | 'bad';
+  since: number;
+  priority: number;
+};
 export type WorkingItem = { agent: LiveAgent; doing: string; since: number; subagents: number };
 
 /** One actionable row per main session; a stuck subagent belongs to its parent. */
 export function attentionItems(agents: LiveAgent[], now: number, stuckMinutes: number): AttentionItem[] {
   const labels: Record<string, [string, string]> = {
-    approval: ['Approval needed', 'Open approval'], question: ['Has a question', 'Open question'],
-    plan: ['Plan ready', 'Review plan'], turn: ['Turn finished', 'Open session'],
+    approval: ['Approval needed', 'Open approval'],
+    question: ['Has a question', 'Open question'],
+    plan: ['Plan ready', 'Review plan'],
+    turn: ['Turn finished', 'Open session'],
   };
-  return agents.filter((a) => a.kind === 'main').flatMap<AttentionItem>((agent) => {
-    const since = sinceFor(agent) ?? agent.lastActivity;
-    if (agent.needsYou) {
-      const [label, action] = labels[agent.needsYou] || ['Needs you', 'Open session'];
-      return [{ agent, label: agent.endReason === 'interrupted' && agent.needsYou === 'turn' ? 'Turn interrupted' : label, detail: 'Waiting for you', action, tone: 'warn' as const, since, priority: agent.needsYou === 'turn' ? 2 : 0 }];
-    }
-    if (!WORKING.includes(agent.status)) return [];
-    const own = stuckState(agent, now, stuckMinutes);
-    const sub = agents.find((a) => a.kind === 'sub' && a.parentId === agent.id && stuckState(a, now, stuckMinutes));
-    const stuck = own || (sub && stuckState(sub, now, stuckMinutes));
-    return stuck ? [{ agent, label: 'May be stuck', detail: `${own ? '' : 'Subagent: '}${stuckText(stuck, now)}`, action: 'Inspect session', tone: 'bad' as const, since: stuck.since, priority: 1 }] : [];
-  }).sort((a, b) => a.priority - b.priority || a.since - b.since || a.agent.id.localeCompare(b.agent.id));
+  return agents
+    .filter((a) => a.kind === 'main')
+    .flatMap<AttentionItem>((agent) => {
+      const since = sinceFor(agent) ?? agent.lastActivity;
+      if (agent.needsYou) {
+        const [label, action] = labels[agent.needsYou] || ['Needs you', 'Open session'];
+        return [
+          {
+            agent,
+            label: agent.endReason === 'interrupted' && agent.needsYou === 'turn' ? 'Turn interrupted' : label,
+            detail: 'Waiting for you',
+            action,
+            tone: 'warn' as const,
+            since,
+            priority: agent.needsYou === 'turn' ? 2 : 0,
+          },
+        ];
+      }
+      if (!WORKING.includes(agent.status)) return [];
+      const own = stuckState(agent, now, stuckMinutes);
+      const sub = agents.find((a) => a.kind === 'sub' && a.parentId === agent.id && stuckState(a, now, stuckMinutes));
+      const stuck = own || (sub && stuckState(sub, now, stuckMinutes));
+      return stuck
+        ? [
+            {
+              agent,
+              label: 'May be stuck',
+              detail: `${own ? '' : 'Subagent: '}${stuckText(stuck, now)}`,
+              action: 'Inspect session',
+              tone: 'bad' as const,
+              since: stuck.since,
+              priority: 1,
+            },
+          ]
+        : [];
+    })
+    .sort((a, b) => a.priority - b.priority || a.since - b.since || a.agent.id.localeCompare(b.agent.id));
 }
 
 /**

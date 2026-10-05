@@ -5,17 +5,48 @@
 
 import { ago, duration, HOUR, MINUTE, DAY, whenText } from './format';
 import { SOURCE, isSource } from './sources';
+import type {
+  CodexWindow as ApiCodexWindow,
+  EstimateSession,
+  EstimateWeekly,
+  ExactWindowSpend,
+  LimitsEstimate,
+} from '@/data/types';
 
-// ── What the server and the checks send ─────────────────────────────────────
+// ── What the server and the checks send, as this reads it ───────────────────
+// Each is the server's type (data/types.ts), or a view of it that tests can
+// build in part; the server's always fits, without a cast.
 
-type EstimateWindow = { active?: boolean; start?: number; resetsAt: number | null; limited: boolean; used: number | null; pct: number | null; capacity: number | null; rolling?: boolean; calibration?: { lastHitAt?: number } | null };
-/** Local spend in steps: `costs[i]` is what the step starting at `from + i * step` cost. */
-export type SpendSeries = { from: number; step: number; costs: number[] };
-export type Estimate = { source: string; session: EstimateWindow; weekly: EstimateWindow; rates?: { cost30m?: number; cost24h?: number; cost7d?: number }; spend?: { today?: { cost: number } }; computedAt?: number; usage?: { fine: SpendSeries; hourly: SpendSeries } };
-type ExactWindow = { pct: number; resetsAt: number; spend?: { cost: number } };
-export type Exact = { status: string; message?: string; fetchedAt?: number; stale?: boolean; retryAt?: number; session?: ExactWindow; weekly?: ExactWindow };
-export type CodexWindow = { bucketId: string; bucketName?: string; kind: string; durationMs?: number; usedPercent: number | null; resetsAt: number | null; pace?: { rate: number; basis: string; history?: [number, number][] } | null };
-export type CodexQuota = { status?: string; source?: string; message?: string; observedAt?: number; stale?: boolean; windows?: CodexWindow[] };
+export type { SpendSeries } from '@/data/types';
+/** The session or weekly window of the estimate: the two read alike. */
+type EstimateWindow = Omit<EstimateSession, 'active' | 'start'> &
+  Partial<Pick<EstimateSession, 'active' | 'start'>> &
+  Partial<Pick<EstimateWeekly, 'rolling'>>;
+/** Claude Code's plan limits estimated on this Mac (the snapshot's `limits`). */
+export type Estimate = Omit<LimitsEstimate, 'session' | 'weekly'> & { session: EstimateWindow; weekly: EstimateWindow };
+type ExactWindow = Pick<ExactWindowSpend, 'pct' | 'resetsAt'> & { spend?: { cost: number } | null };
+/** Anthropic's numbers (/api/limits/exact), or why there are none. */
+export type Exact = {
+  status: string;
+  message?: string;
+  fetchedAt?: number;
+  stale?: boolean;
+  retryAt?: number;
+  session?: ExactWindow | null;
+  weekly?: ExactWindow | null;
+};
+/** One of Codex's plan windows. */
+export type CodexWindow = Pick<ApiCodexWindow, 'bucketId' | 'kind' | 'usedPercent' | 'resetsAt'> &
+  Partial<Pick<ApiCodexWindow, 'bucketName' | 'durationMs' | 'pace'>>;
+/** Codex's windows: what it recorded here (the snapshot's `codexLimits`), or its live check (/api/limits/codex). */
+export type CodexQuota = {
+  status?: string;
+  source?: string;
+  message?: string | null;
+  observedAt?: number;
+  stale?: boolean;
+  windows?: CodexWindow[];
+};
 
 /** Everything the plan windows are worked out from. */
 export type LimitsInput = {
@@ -28,7 +59,13 @@ export type LimitsInput = {
   codexExact: CodexQuota | null;
 };
 
-export type Outlook = { level: 'quiet' | 'ok' | 'warn' | 'crit'; text: string; tip: string; projected: number; runOutAt?: number };
+export type Outlook = {
+  level: 'quiet' | 'ok' | 'warn' | 'crit';
+  text: string;
+  tip: string;
+  projected: number;
+  runOutAt?: number;
+};
 
 // ── How fresh a reading is ───────────────────────────────────────────────────
 
@@ -41,7 +78,12 @@ export function quotaFreshness(window: { source?: string; observedAt?: number; s
 
 // ── Where a window is heading ────────────────────────────────────────────────
 
-const quietOutlook = (used: number, basis: string): Outlook => ({ level: 'quiet', text: 'Quiet lately, no risk right now', tip: `Little usage ${basis}.`, projected: used });
+const quietOutlook = (used: number, basis: string): Outlook => ({
+  level: 'quiet',
+  text: 'Quiet lately, no risk right now',
+  tip: `Little usage ${basis}.`,
+  projected: used,
+});
 
 /** Where a window at `used`% is heading at `rate` (% of the limit per ms): when it runs out, or where it ends up. */
 function forecast(used: number, rate: number, resetsAt: number, basis: string, now: number): Outlook {
@@ -56,7 +98,12 @@ function forecast(used: number, rate: number, resetsAt: number, basis: string, n
     };
   }
   const projected = used + rate * (resetsAt - now);
-  return { level: 'ok', text: `On pace for ~${Math.round(projected)}% by the reset`, tip: `Based on your pace ${basis}.`, projected };
+  return {
+    level: 'ok',
+    text: `On pace for ~${Math.round(projected)}% by the reset`,
+    tip: `Based on your pace ${basis}.`,
+    projected,
+  };
 }
 
 /**
@@ -64,7 +111,18 @@ function forecast(used: number, rate: number, resetsAt: number, basis: string, n
  * from the % used and what the window has cost (or, for the estimate, from how
  * much you had used when you last hit it).
  */
-function outlook({ pct, spent, capacity, resetsAt, limited }: { pct: number | null; spent: number | null; capacity?: number | null; resetsAt: number | null; limited: boolean }, rate: number, basis: string, now: number) {
+function outlook(
+  {
+    pct,
+    spent,
+    capacity,
+    resetsAt,
+    limited,
+  }: { pct: number | null; spent: number | null; capacity?: number | null; resetsAt: number | null; limited: boolean },
+  rate: number,
+  basis: string,
+  now: number,
+) {
   if (limited || !resetsAt || resetsAt <= now || spent == null) return null;
   const cap = pct != null && pct >= 3 && spent > 0.5 ? spent / (pct / 100) : capacity;
   if (!cap || cap <= spent) return null;
@@ -76,13 +134,22 @@ function outlook({ pct, spent, capacity, resetsAt, limited }: { pct: number | nu
 export type LimitInfo =
   | { missing: true }
   | { idle: true }
-  | { pct: number | null; resetsAt: number | null; limited: boolean; spent: number | null; active: true; stale?: boolean; rolling?: boolean; outlook: Outlook | null };
+  | {
+      pct: number | null;
+      resetsAt: number | null;
+      limited: boolean;
+      spent: number | null;
+      active: true;
+      stale?: boolean;
+      rolling?: boolean;
+      outlook: Outlook | null;
+    };
 
 /** Claude Code's session or weekly limit: the exact one when it's on and came back, else the estimate. */
 export function limitInfo(inp: LimitsInput, kind: 'session' | 'weekly'): LimitInfo | null {
   const est = inp.limits;
   const exact = inp.exactOn && inp.exact?.status === 'ok' ? inp.exact : null;
-  const rates = est?.rates || {};
+  const rates: Partial<Estimate['rates']> = est?.rates || {};
   const session = kind === 'session';
   const rate = session ? (rates.cost30m || 0) / (30 * MINUTE) : (rates.cost7d || 0) / (7 * DAY);
   const basis = session ? 'over the last 30 minutes' : 'over the last 7 days';
@@ -93,16 +160,38 @@ export function limitInfo(inp: LimitsInput, kind: 'session' | 'weekly'): LimitIn
     const limited = w.pct >= 100;
     const stale = quotaFreshness({ source: 'exact', observedAt: exact.fetchedAt, stale: exact.stale }, inp.now).stale;
     return {
-      pct: w.pct, resetsAt: w.resetsAt, limited, spent, active: true, stale,
-      outlook: stale ? null : outlook({ pct: w.pct, spent, capacity: est?.[kind]?.capacity, resetsAt: w.resetsAt, limited }, rate, basis, inp.now),
+      pct: w.pct,
+      resetsAt: w.resetsAt,
+      limited,
+      spent,
+      active: true,
+      stale,
+      outlook: stale
+        ? null
+        : outlook(
+            { pct: w.pct, spent, capacity: est?.[kind]?.capacity, resetsAt: w.resetsAt, limited },
+            rate,
+            basis,
+            inp.now,
+          ),
     };
   }
   if (!est) return null;
   const w = est[kind];
   if (session && !w.active) return { idle: true };
   return {
-    pct: w.pct, resetsAt: w.resetsAt, limited: w.limited, spent: w.used, active: true, rolling: w.rolling,
-    outlook: outlook({ pct: null, spent: w.used, capacity: w.capacity, resetsAt: w.resetsAt, limited: w.limited }, rate, basis, inp.now),
+    pct: w.pct,
+    resetsAt: w.resetsAt,
+    limited: w.limited,
+    spent: w.used,
+    active: true,
+    rolling: w.rolling,
+    outlook: outlook(
+      { pct: null, spent: w.used, capacity: w.capacity, resetsAt: w.resetsAt, limited: w.limited },
+      rate,
+      basis,
+      inp.now,
+    ),
   };
 }
 
@@ -120,7 +209,12 @@ export function codexQuota(inp: LimitsInput): CodexQuota | null {
 /** A Codex window's pace from its readings on this Mac; a live check's window borrows the recorded one's. */
 export function codexPace(inp: LimitsInput, w: CodexWindow) {
   if (w.pace) return w.pace;
-  return inp.codexRecorded?.windows?.find((r) => r.bucketId === w.bucketId && r.kind === w.kind && Math.abs((r.resetsAt || 0) - (w.resetsAt || 0)) < 5 * MINUTE)?.pace || null;
+  return (
+    inp.codexRecorded?.windows?.find(
+      (r) =>
+        r.bucketId === w.bucketId && r.kind === w.kind && Math.abs((r.resetsAt || 0) - (w.resetsAt || 0)) < 5 * MINUTE,
+    )?.pace || null
+  );
 }
 
 function codexOutlook(inp: LimitsInput, w: CodexWindow) {
@@ -131,7 +225,7 @@ function codexOutlook(inp: LimitsInput, w: CodexWindow) {
   return forecast(used, pace.rate, w.resetsAt, pace.basis, inp.now);
 }
 
-export function windowName(ms: number | undefined, kind: string) {
+export function windowName(ms: number | null | undefined, kind: string) {
   if (ms === 7 * DAY) return 'Weekly';
   if (ms) return ms >= HOUR ? `${Math.round((ms / HOUR) * 10) / 10}-hour` : `${Math.round(ms / MINUTE)}-minute`;
   return kind === 'primary' ? 'Primary' : 'Secondary';
@@ -163,7 +257,9 @@ export function quotaItems(inp: LimitsInput, provider = 'all'): QuotaItem[] {
   // Pi has no plan of its own, so its view has no windows.
   if (provider === 'all' || provider === 'claude') {
     const exact = inp.exactOn && inp.exact?.status === 'ok';
-    const stale = exact && quotaFreshness({ source: 'exact', observedAt: inp.exact!.fetchedAt, stale: inp.exact!.stale }, inp.now).stale;
+    const stale =
+      exact &&
+      quotaFreshness({ source: 'exact', observedAt: inp.exact!.fetchedAt, stale: inp.exact!.stale }, inp.now).stale;
     for (const kind of ['session', 'weekly'] as const) {
       const info = limitInfo(inp, kind);
       if (!info || 'missing' in info) continue;
@@ -173,7 +269,7 @@ export function quotaItems(inp: LimitsInput, provider = 'all'): QuotaItem[] {
         provider: 'claude',
         id: `claude:${kind}`,
         label: kind === 'session' ? '5-hour' : 'Weekly',
-        usedPercent: idle ? 0 : i!.limited ? 100 : i!.pct ?? null,
+        usedPercent: idle ? 0 : i!.limited ? 100 : (i!.pct ?? null),
         resetsAt: i?.resetsAt || null,
         idle,
         limited: !!i?.limited,
@@ -210,7 +306,11 @@ export function quotaItems(inp: LimitsInput, provider = 'all'): QuotaItem[] {
 
 // ── Saying where the numbers came from ────────────────────────────────────────
 
-const SOURCE_TEXT: Record<string, string> = { exact: 'Exact', estimate: 'Estimate', recorded: 'As Codex last recorded it' };
+const SOURCE_TEXT: Record<string, string> = {
+  exact: 'Exact',
+  estimate: 'Estimate',
+  recorded: 'As Codex last recorded it',
+};
 
 /** A provider's windows' line under its name: "Exact · 2m ago", "As Codex last recorded it · 22h ago · old reading". */
 export function sourceLine(items: QuotaItem[], now: number) {
@@ -228,12 +328,18 @@ export function emptyText(w: QuotaItem) {
 }
 
 /** When a window resets, as its row says it: "Resets 03:00 · in 4h 47m". */
-export const resetText = (w: QuotaItem, now: number) => (w.resetsAt && w.resetsAt > now ? `Resets ${whenText(w.resetsAt)} · in ${duration(w.resetsAt - now)}` : '');
+export const resetText = (w: QuotaItem, now: number) =>
+  w.resetsAt && w.resetsAt > now ? `Resets ${whenText(w.resetsAt)} · in ${duration(w.resetsAt - now)}` : '';
 
 /** A notice about the exact check, when it's paused or failed. */
 export function exactNotice(inp: LimitsInput) {
-  if (inp.exactOn && inp.exact?.status === 'cooling') return { level: 'info' as const, text: `Anthropic asked Overtime to check less often. Showing the estimate until ${whenText(inp.exact.retryAt!)}, then exact numbers come back on their own.` };
-  if (inp.exactOn && inp.exact && inp.exact.status !== 'ok') return { level: 'warn' as const, text: inp.exact.message || "Couldn't get exact numbers." };
+  if (inp.exactOn && inp.exact?.status === 'cooling')
+    return {
+      level: 'info' as const,
+      text: `Anthropic asked Overtime to check less often. Showing the estimate until ${whenText(inp.exact.retryAt!)}, then exact numbers come back on their own.`,
+    };
+  if (inp.exactOn && inp.exact && inp.exact.status !== 'ok')
+    return { level: 'warn' as const, text: inp.exact.message || "Couldn't get exact numbers." };
   return null;
 }
 
@@ -243,8 +349,17 @@ const WORKING = new Set(['thinking', 'working', 'replying']);
 const FAIL_RUN = 4; // this many failed tool calls in a row looks like going round in circles
 const FAIL_MANY = 6; // or this many failures in the time you set, most of the calls in it
 
-type StuckAgent = { needsYou?: string | null; status: string; results?: [number, number, string][]; tool?: { name?: string; startedAt?: number } | null; lastActivity?: number };
-export type Stuck = { kind: 'failing'; since: number; count: number; calls: number; inRow: boolean; name: string | null } | { kind: 'tool'; since: number; name?: string } | { kind: 'silent'; since: number };
+type StuckAgent = {
+  needsYou?: string | null;
+  status: string;
+  results?: [number, number, string][];
+  tool?: { name?: string; startedAt?: number } | null;
+  lastActivity?: number;
+};
+export type Stuck =
+  | { kind: 'failing'; since: number; count: number; calls: number; inRow: boolean; name: string | null }
+  | { kind: 'tool'; since: number; name?: string }
+  | { kind: 'silent'; since: number };
 
 /**
  * Whether a working agent looks stuck, given the minutes you set: its tool calls
@@ -261,13 +376,25 @@ export function stuckState(a: StuckAgent | null | undefined, now: number, minute
   for (let i = results.length - 1; i >= 0 && !results[i][1]; i--) run++;
   const recent = results.filter(([t]) => now - t <= limit);
   const fails = recent.filter(([, ok]) => !ok);
-  if (last && now - last[0] <= limit && (run >= FAIL_RUN || (fails.length >= FAIL_MANY && fails.length / recent.length >= 0.6))) {
+  if (
+    last &&
+    now - last[0] <= limit &&
+    (run >= FAIL_RUN || (fails.length >= FAIL_MANY && fails.length / recent.length >= 0.6))
+  ) {
     const inRun = run >= FAIL_RUN;
     const failed = inRun ? results.slice(-run) : fails;
     const names = new Set(failed.map((r) => r[2]));
-    return { kind: 'failing', since: failed[0][0], count: failed.length, calls: inRun ? run : recent.length, inRow: inRun, name: names.size === 1 ? [...names][0] : null };
+    return {
+      kind: 'failing',
+      since: failed[0][0],
+      count: failed.length,
+      calls: inRun ? run : recent.length,
+      inRow: inRun,
+      name: names.size === 1 ? [...names][0] : null,
+    };
   }
-  if (a.status === 'working' && a.tool?.startedAt && now - a.tool.startedAt >= limit) return { kind: 'tool', since: a.tool.startedAt, name: a.tool.name };
+  if (a.status === 'working' && a.tool?.startedAt && now - a.tool.startedAt >= limit)
+    return { kind: 'tool', since: a.tool.startedAt, name: a.tool.name };
   if (a.lastActivity && now - a.lastActivity >= limit) return { kind: 'silent', since: a.lastActivity };
   return null;
 }
@@ -275,7 +402,10 @@ export function stuckState(a: StuckAgent | null | undefined, now: number, minute
 /** Why an agent looks stuck, in a few words: "5 Bash calls failed in a row". */
 export function stuckText(s: Stuck | null, now: number) {
   if (!s) return '';
-  if (s.kind === 'failing') return s.inRow ? `${s.count} ${s.name ? `${s.name} calls` : 'tool calls'} failed in a row` : `${s.count} of its last ${s.calls} tool calls failed`;
+  if (s.kind === 'failing')
+    return s.inRow
+      ? `${s.count} ${s.name ? `${s.name} calls` : 'tool calls'} failed in a row`
+      : `${s.count} of its last ${s.calls} tool calls failed`;
   if (s.kind === 'tool') return `One ${s.name || 'tool'} call running for ${duration(now - s.since)}`;
   return `No progress for ${duration(now - s.since)}`;
 }

@@ -43,7 +43,14 @@ export function OverviewWidget({ id, expanded }: { id: string; expanded?: boolea
   const Widget = OVERVIEW_WIDGETS[id];
   const name = CATALOG.find((c) => c.id === id)!.name;
   return (
-    <Suspense fallback={<Card><CardHead title={name} /><Skeleton lines={4} /></Card>}>
+    <Suspense
+      fallback={
+        <Card>
+          <CardHead title={name} />
+          <Skeleton lines={4} />
+        </Card>
+      }
+    >
       <Widget expanded={expanded} />
     </Suspense>
   );

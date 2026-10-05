@@ -13,7 +13,8 @@ import { Card } from '@/components/Card';
 
 // The Overview comes with the page; the other sections load the first time they're opened,
 // so the window and the popover start sooner.
-const section = <K extends string>(load: () => Promise<Record<K, ComponentType>>, name: K) => lazy(() => load().then((m) => ({ default: m[name] })));
+const section = <K extends string>(load: () => Promise<Record<K, ComponentType>>, name: K) =>
+  lazy(() => load().then((m) => ({ default: m[name] })));
 const Sessions = section(() => import('@/pages/Sessions'), 'Sessions');
 const Projects = section(() => import('@/pages/Projects'), 'Projects');
 const Usage = section(() => import('@/pages/Usage'), 'Usage');
@@ -32,8 +33,7 @@ function Loading() {
 }
 import { useAlerts } from './alerts';
 import { useGlance } from './glance';
-import { useArrange } from '@/components/PageGrid';
-import { useCommand, useCompare, useProjectDialog, useReset } from './dialogs';
+import { useArrange, useCommand, useCompare, useExpand, useProjectDialog, useReset } from './dialogs';
 import { MAIN, startRouter, useRoute, type RoutePage } from './router';
 import { restoreScroll, startBack } from './back';
 import { useUi, usePanelDocked } from './ui';
@@ -44,7 +44,6 @@ import { TooltipLayer } from './Tooltip';
 import { Toasts } from './toasts';
 import { useCompact } from './layout';
 import { later, loadLater } from './later';
-import { useExpand } from '@/cards/Expand';
 import { inPopover } from '@/data/desktop';
 
 // What opens only now and then loads later (later.tsx), and is only there while it's open.
@@ -133,7 +132,10 @@ function Offline() {
   const connected = useLive((s) => s.connected);
   if (connected) return null;
   return (
-    <p role="status" className="flex items-center gap-2 rounded-row border border-warn-line bg-warn-soft px-3.5 py-2.5 text-detail text-warn">
+    <p
+      role="status"
+      className="flex items-center gap-2 rounded-row border border-warn-line bg-warn-soft px-3.5 py-2.5 text-detail text-warn"
+    >
       <WifiOff size={15} strokeWidth={1.9} aria-hidden />
       Lost touch with Overtime's server. The figures stop updating until it's back; trying again.
     </p>

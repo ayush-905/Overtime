@@ -5,16 +5,13 @@
 // (app/later.tsx), since most visits never expand a card.
 
 import { useEffect, type ReactNode } from 'react';
-import { create } from 'zustand';
 import { Maximize2 } from 'lucide-react';
 import { IconButton } from '@/components/Button';
 import { useUi } from '@/app/ui';
+import { useExpand } from '@/app/dialogs';
 import { later } from '@/app/later';
 
 const Dialog = later(() => import('@/components/Dialog').then((m) => m.Dialog));
-
-type ExpandState = { card: string | null; set: (card: string | null) => void };
-export const useExpand = create<ExpandState>((set) => ({ card: null, set: (card) => set({ card }) }));
 
 export function ExpandButton({ card }: { card: string }) {
   const set = useExpand((s) => s.set);
@@ -42,9 +39,18 @@ export function ExpandDialog({ cards }: { cards: Record<string, { name: string; 
   const c = card ? cards[card] : null;
   if (!c) return null;
   return (
-    <Dialog open onOpenChange={(open) => !open && set(null)} title={c.name} wide bare className="max-w-[1200px] bg-card">
+    <Dialog
+      open
+      onOpenChange={(open) => !open && set(null)}
+      title={c.name}
+      wide
+      bare
+      className="max-w-[1200px] bg-card"
+    >
       {/* The card is the dialog: no second border, and its tools clear the close button. */}
-      <div className="[&>section]:rounded-none [&>section]:border-0 [&>section]:shadow-none [&>section>header:first-child]:pr-10">{c.render()}</div>
+      <div className="[&>section]:rounded-none [&>section]:border-0 [&>section]:shadow-none [&>section>header:first-child]:pr-10">
+        {c.render()}
+      </div>
     </Dialog>
   );
 }

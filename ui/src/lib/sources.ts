@@ -25,21 +25,49 @@ type Info = {
 
 export const SOURCE: Record<Source, Info> = {
   claude: {
-    name: 'Claude Code', short: 'Claude', color: 'var(--claude)', bg: 'bg-claude', mark: claudeMark,
-    commands: { dir: '~/.claude/commands', prefix: '/', reads: ' in sessions you start after this', ready: 'New Claude Code sessions have it' },
+    name: 'Claude Code',
+    short: 'Claude',
+    color: 'var(--claude)',
+    bg: 'bg-claude',
+    mark: claudeMark,
+    commands: {
+      dir: '~/.claude/commands',
+      prefix: '/',
+      reads: ' in sessions you start after this',
+      ready: 'New Claude Code sessions have it',
+    },
   },
   codex: {
-    name: 'Codex', short: 'Codex', color: 'var(--codex)', bg: 'bg-codex', mark: codexMark,
-    commands: { dir: '~/.codex/prompts', prefix: '/prompts:', reads: ' when it starts', ready: 'Codex has it from its next start' },
+    name: 'Codex',
+    short: 'Codex',
+    color: 'var(--codex)',
+    bg: 'bg-codex',
+    mark: codexMark,
+    commands: {
+      dir: '~/.codex/prompts',
+      prefix: '/prompts:',
+      reads: ' when it starts',
+      ready: 'Codex has it from its next start',
+    },
   },
   pi: {
-    name: 'Pi', short: 'Pi', color: 'var(--pi)', bg: 'bg-pi', mark: piMark,
-    commands: { dir: '~/.pi/agent/prompts', prefix: '/', reads: ' when it starts, or after /reload', ready: 'New Pi sessions have it, and open ones after /reload' },
+    name: 'Pi',
+    short: 'Pi',
+    color: 'var(--pi)',
+    bg: 'bg-pi',
+    mark: piMark,
+    commands: {
+      dir: '~/.pi/agent/prompts',
+      prefix: '/',
+      reads: ' when it starts, or after /reload',
+      ready: 'New Pi sessions have it, and open ones after /reload',
+    },
   },
 };
 
 /** What we know about a source; an unknown one is treated as Claude Code, as the server does. */
-export const sourceInfo = (source: string | null | undefined): Info => SOURCE[(source || 'claude') as Source] || SOURCE.claude;
+export const sourceInfo = (source: string | null | undefined): Info =>
+  SOURCE[(source || 'claude') as Source] || SOURCE.claude;
 
 export const isSource = (v: unknown): v is Source => (SOURCES as readonly unknown[]).includes(v);
 
@@ -49,16 +77,19 @@ export type PlanSource = (typeof PLAN_SOURCES)[number];
 export const hasPlan = (s: string): s is PlanSource => (PLAN_SOURCES as readonly string[]).includes(s);
 
 /** The plans in view: every one on this Mac when they're all in view, else the one in view's, if it has one. */
-export const plansIn = (provider: string, sources: Source[]): PlanSource[] => (provider === 'all' ? sources.filter(hasPlan) : hasPlan(provider) ? [provider] : []);
+export const plansIn = (provider: string, sources: Source[]): PlanSource[] =>
+  provider === 'all' ? sources.filter(hasPlan) : hasPlan(provider) ? [provider] : [];
 
 /** Something for each source: { claude, codex, pi }. */
-export const bySourceOf = <T,>(make: (s: Source) => T) => Object.fromEntries(SOURCES.map((s) => [s, make(s)])) as Record<Source, T>;
+export const bySourceOf = <T>(make: (s: Source) => T) =>
+  Object.fromEntries(SOURCES.map((s) => [s, make(s)])) as Record<Source, T>;
 
 /** How you'd type a command of that name in a harness: /name, or /prompts:name in Codex. */
 export const commandUse = (source: string, name: string) => `${sourceInfo(source).commands.prefix}${name}`;
 
 /** "A", "A and B", "A, B and C". */
-export const andList = (words: string[]) => (words.length > 1 ? `${words.slice(0, -1).join(', ')} and ${words[words.length - 1]}` : words[0] || '');
+export const andList = (words: string[]) =>
+  words.length > 1 ? `${words.slice(0, -1).join(', ')} and ${words[words.length - 1]}` : words[0] || '';
 
 /** The sources whose views the server sent, in order: the ones with a folder on this Mac. */
 export function sourcesIn(analytics: Record<string, unknown> | null | undefined): Source[] {
