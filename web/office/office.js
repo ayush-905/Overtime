@@ -207,7 +207,7 @@ function addDesk(i, c, r) {
     x: desk.bin.x,
     y: desk.bin.y,
     baseY: desk.bin.y + 7,
-    dyn: (g, now, scene) => drawBin(g, desk.bin, scene.desks[i]),
+    dyn: (g, _now, scene) => drawBin(g, desk.bin, scene.desks[i]),
   });
   block(c, r, 2, 1);
 }

@@ -1,9 +1,10 @@
 // A plan window as a line: how full it got over time (an area), where it's
 // heading at your recent pace (dashed), and the limit. Columns under it tell
-// what each stretch cost.
+// what each stretch cost. A screen reader hears it as one picture: where the
+// window is now, and where it's heading.
 
 import type { WindowChart as Model } from '@/lib/usage';
-import { money } from '@/lib/format';
+import { clock, money } from '@/lib/format';
 import { cx } from './cx';
 
 const H = 200; // the drawing's own units; it's stretched to fit
@@ -25,6 +26,22 @@ export function WindowChart({ c, height = 190 }: { c: Model; height?: number }) 
   const leftPct = ((c.now - c.start) / length) * 100;
   const dot = (Math.min(c.nowValue, top) / top) * 100;
   const tone = c.level === 'crit' ? 'var(--bad-fill)' : c.level === 'warn' ? 'var(--warn-fill)' : 'var(--claude)';
+  // In "used" terms, as the figures beside it are.
+  const words = [
+    `This window, ${c.marks[0]} to ${c.marks[c.marks.length - 1].replace(/^Resets/, 'its reset at')}`,
+    c.pctMode ? `${Math.round(c.nowValue)}% used so far` : `≈ ${money(c.nowValue)} used so far`,
+    c.limited
+      ? 'limit reached'
+      : c.now >= c.end
+        ? ''
+        : c.runOut && c.runOut < c.end
+          ? `runs out around ${clock(c.runOut)} at your pace`
+          : c.pctMode
+            ? `about ${Math.round(Math.min(100, c.atReset))}% by the reset at your pace`
+            : `about ${money(c.atReset)} by the reset at your pace`,
+  ]
+    .filter(Boolean)
+    .join(', ');
   const gridline = (bottom: number, label: string, strong?: boolean) => (
     <div
       className={cx(
@@ -38,7 +55,7 @@ export function WindowChart({ c, height = 190 }: { c: Model; height?: number }) 
   );
   return (
     <div>
-      <div className="relative" style={{ height }}>
+      <div className="relative" style={{ height }} role="img" aria-label={words}>
         {c.pctMode ? (
           <>
             {gridline(100, 'Limit', true)}

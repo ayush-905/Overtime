@@ -5,9 +5,11 @@
 // files it read and changed, the commands it ran), from /api/turn: click the
 // message, or a search's match, which opens it with the words marked. It floats
 // over the page, or docks beside it (when the window has room) and stays open as
-// you look around. Its left edge drags it wider. It loads the first time it's
-// wanted (app/later.tsx), and redraws with its own session's changes, not every
-// message: its sections that come from the history only when that does.
+// you look around. Its session is in the address (router.ts), so a refresh keeps
+// it open and Copy link shares it. Its left edge drags it wider. It loads the
+// first time it's wanted (app/later.tsx), and redraws with its own session's
+// changes, not every message: its sections that come from the history only when
+// that does.
 
 import {
   memo,
@@ -27,6 +29,7 @@ import {
   Copy,
   ExternalLink,
   Folder,
+  Link2,
   PanelRightClose,
   PanelRightOpen,
   Pencil,
@@ -77,13 +80,15 @@ import {
 } from '@/lib/labels';
 import { doingText, liveStateOf, sinceFor } from '@/lib/agents';
 import { queryTerms } from '@/lib/search';
-import { pageLink } from '@/lib/route';
+import { pageLink, parseHash, sessionLink } from '@/lib/route';
+import { copyText } from '@/lib/copy';
 import { Empty, Marked, ProjectDot, Skeleton } from '@/components/Bits';
 import { Button, IconButton } from '@/components/Button';
 import { Ago } from '@/components/Clock';
 import { cx } from '@/components/cx';
 import { note, offerUndo } from './toasts';
 import { DRAWER, useUi, usePanelDocked } from './ui';
+import { MINI } from './router';
 import { useCompare } from './dialogs';
 import { sourceInfo } from '@/lib/sources';
 import type { Agent, OpenSession, SessionDetail, SessionResponse, TurnDetail } from '@/data/types';
@@ -151,6 +156,10 @@ function CopyButton({ text, label }: { text: string; label: string }) {
 /** A path as it reads in the session's folder. */
 const shortPath = (p: string, cwd: string | null) =>
   cwd && p.startsWith(`${cwd}/`) ? p.slice(cwd.length + 1) : p.replace(/^\/Users\/[^/]+/, '~');
+
+/** A link to a session: the address as it is, when it's this session over a section, or the session on its own. */
+const linkTo = (id: string) =>
+  !MINI && parseHash().params.session === id ? location.href : `${location.origin}/${sessionLink(id)}`;
 
 const shellQuote = (s: string) => `'${String(s).replace(/'/g, `'\\''`)}'`;
 
@@ -435,7 +444,7 @@ const Notes = memo(function Notes({ id }: { id: string }) {
   };
   return (
     <Section title="Notes and tags" sub="only on this dashboard">
-      <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="Tags">
+      <fieldset className="flex min-w-0 flex-wrap items-center gap-1.5" aria-label="Tags">
         {mine.map((t) => (
           <span
             key={t}
@@ -491,7 +500,7 @@ const Notes = memo(function Notes({ id }: { id: string }) {
             className="h-7 min-w-[140px] grow rounded-control border border-transparent bg-transparent px-1.5 text-detail outline-none placeholder:text-muted focus:border-line"
           />
         )}
-      </div>
+      </fieldset>
       {others.length > 0 && mine.length < MAX_TAGS && (
         <div className="flex flex-wrap items-center gap-1.5 text-label text-muted">
           <span>Your tags:</span>
@@ -672,25 +681,24 @@ const Messages = memo(function Messages({
     <Section title="Your messages" sub="what each one cost, subagents included · click one for what it led to">
       <ul className="-mx-2 flex flex-col">
         {list.map((m) => (
-          <li
-            key={m.t}
-            role="button"
-            tabIndex={0}
-            aria-current={current === m.t || undefined}
-            onClick={() => onOpen(m.t)}
-            onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), onOpen(m.t))}
-            data-tip={`${m.text || ''}\n${whenText(m.t)} · ≈ ${money(m.cost)} · kept the agent busy ${duration(m.ms)}\nClick for what it led to`}
-            className={cx(
-              'grid cursor-pointer grid-cols-[96px_minmax(0,1fr)_auto] items-center gap-2.5 rounded-sm px-2 py-1.5 text-detail hover:bg-sunken',
-              current === m.t && 'bg-sunken',
-            )}
-          >
-            <time className="whitespace-nowrap text-muted tnum">{whenText(m.t)}</time>
-            <span className="truncate">“{clip(m.text || 'Untitled', 90)}”</span>
-            <span className="text-right tnum">
-              {moneyCol(m.cost)}
-              {m.partial ? '+' : ''} <small className="ml-1 text-muted">{duration(m.ms)}</small>
-            </span>
+          <li key={m.t}>
+            <button
+              type="button"
+              aria-current={current === m.t || undefined}
+              onClick={() => onOpen(m.t)}
+              data-tip={`${m.text || ''}\n${whenText(m.t)} · ≈ ${money(m.cost)} · kept the agent busy ${duration(m.ms)}\nClick for what it led to`}
+              className={cx(
+                'grid w-full grid-cols-[96px_minmax(0,1fr)_auto] items-center gap-2.5 rounded-sm px-2 py-1.5 text-left text-detail hover:bg-sunken',
+                current === m.t && 'bg-sunken',
+              )}
+            >
+              <time className="whitespace-nowrap text-muted tnum">{whenText(m.t)}</time>
+              <span className="truncate">“{clip(m.text || 'Untitled', 90)}”</span>
+              <span className="text-right tnum">
+                {moneyCol(m.cost)}
+                {m.partial ? '+' : ''} <small className="ml-1 text-muted">{duration(m.ms)}</small>
+              </span>
+            </button>
           </li>
         ))}
       </ul>
@@ -978,6 +986,18 @@ function Head({
           <Pencil size={15} strokeWidth={2} aria-hidden />
         </IconButton>
         <IconButton
+          label="Copy link"
+          tip="Copy a link to this session"
+          variant="quiet"
+          size="sm"
+          onClick={async () => {
+            const ok = await copyText(linkTo(id));
+            note(ok ? 'Copied a link to this session' : "Couldn't copy to the clipboard", ok ? {} : { level: 'warn' });
+          }}
+        >
+          <Link2 size={15} strokeWidth={2} aria-hidden />
+        </IconButton>
+        <IconButton
           label="Compare with another session"
           tip="Compare with another session"
           variant="quiet"
@@ -1167,6 +1187,7 @@ export function SessionPanel() {
       style={{ width: inPopover ? '100vw' : beside ? width : Math.min(width, window.innerWidth) }}
     >
       {!inPopover && (
+        // biome-ignore lint/a11y/useSemanticElements: a splitter you can focus and move with the arrow keys, which an <hr> can't be
         <div
           role="separator"
           aria-orientation="vertical"

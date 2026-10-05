@@ -231,9 +231,6 @@
   gap: 10px;
   padding: 7px 0;
 }
-.working-row:hover .working-title {
-  text-decoration: underline;
-}
 .working-text {
   display: flex;
   align-items: baseline;
@@ -249,6 +246,9 @@
   text-overflow: ellipsis;
   white-space: nowrap;
   font-weight: 600;
+}
+.working-row:hover .working-title {
+  text-decoration: underline;
 }
 .working-detail {
   flex: 1 1 0;

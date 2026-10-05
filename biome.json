@@ -61,15 +61,6 @@
       "complexity": {
         "noImportantStyles": "off"
       },
-      "a11y": {
-        "useSemanticElements": "warn",
-        "noNoninteractiveElementToInteractiveRole": "warn",
-        "noNoninteractiveTabindex": "warn",
-        "noStaticElementInteractions": "warn",
-        "useAriaPropsSupportedByRole": "warn",
-        "useFocusableInteractive": "warn",
-        "noSvgWithoutTitle": "warn"
-      },
       "correctness": {
         "useExhaustiveDependencies": {
           "level": "error",

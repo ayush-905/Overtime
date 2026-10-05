@@ -2,15 +2,17 @@
 // mark with what it's doing on its corner, its title (with a pin, a note mark and
 // a count of its tags), one line of detail with what it's doing first, and the
 // figure that matters in that list on the right. How full its conversation is
-// shows only once it's getting full. A row opens the session's panel.
+// shows only once it's getting full. A row is a link to the session: it opens
+// its panel.
 
-import { Fragment, type ReactNode } from 'react';
+import { Fragment, type AnchorHTMLAttributes, type ReactNode } from 'react';
 import { Pin, StickyNote } from 'lucide-react';
 import { useLive } from '@/data/live';
 import { useChanged } from '@/data/hooks';
 import { isPinned, noteFor, tagsFor, titleFor } from '@/lib/labels';
 import { liveStateOf } from '@/lib/agents';
 import { compact, projectName } from '@/lib/format';
+import { sessionLink } from '@/lib/route';
 import { useUi } from '@/app/ui';
 import { Avatar, ProjectDot, TagCount } from './Bits';
 import { cx } from './cx';
@@ -33,6 +35,35 @@ export function ContextMark({ context, live }: { context: Context; live?: boolea
     >
       {pct}% full
     </span>
+  );
+}
+
+/** Plainly clicked: no other button, and no key held for a new tab or window. */
+const plainClick = (e: MouseEvent) =>
+  e.button === 0 && !e.metaKey && !e.ctrlKey && !e.shiftKey && !e.altKey && !e.defaultPrevented;
+
+/**
+ * A link to a session: a click opens its panel here, and ⌘-click, a middle click
+ * or Copy Link work as they do on any link.
+ */
+export function SessionLink({
+  id,
+  at = null,
+  q = '',
+  onClick,
+  ...rest
+}: { id: string; at?: number | null; q?: string } & AnchorHTMLAttributes<HTMLAnchorElement>) {
+  return (
+    <a
+      href={sessionLink(id)}
+      {...rest}
+      onClick={(e) => {
+        onClick?.(e);
+        if (!plainClick(e.nativeEvent)) return;
+        e.preventDefault();
+        useUi.getState().openSession(id, { at, q });
+      }}
+    />
   );
 }
 
@@ -84,7 +115,6 @@ export function SessionRow({
 }: SessionRowProps) {
   useChanged();
   const live = useLive((s) => (id ? s.snap?.agents.find((a) => a.id === id) : undefined));
-  const openSession = useUi((s) => s.openSession);
   const status = live ? liveStateOf(live) : null;
   const tags = tagsFor(id);
   const note = noteFor(id);
@@ -108,27 +138,12 @@ export function SessionRow({
     ) : null,
     ...meta.filter(Boolean),
   ].filter(Boolean);
-  const open = () => id && openSession(id, { at, q });
-  return (
-    <div
-      role={id ? 'button' : undefined}
-      tabIndex={id ? 0 : undefined}
-      data-row={id ? '' : undefined}
-      data-session={id || undefined}
-      data-tip={tip}
-      onClick={open}
-      onKeyDown={(e) => {
-        if (id && (e.key === 'Enter' || e.key === ' ')) {
-          e.preventDefault();
-          open();
-        }
-      }}
-      className={cx(
-        'flex min-w-0 items-center gap-3 py-[var(--row-py)] outline-offset-[-2px]',
-        id && 'cursor-pointer',
-        className,
-      )}
-    >
+  const shell = {
+    'data-tip': tip,
+    className: cx('flex min-w-0 items-center gap-3 py-[var(--row-py)] outline-offset-[-2px]', className),
+  };
+  const body = (
+    <>
       <Avatar source={source} status={status} size={20} />
       <span className="flex min-w-0 grow flex-col">
         <span className="flex min-w-0 items-center gap-2">
@@ -167,6 +182,13 @@ export function SessionRow({
           {endSub && <small className="text-label text-muted">{endSub}</small>}
         </span>
       )}
-    </div>
+    </>
+  );
+  return id ? (
+    <SessionLink id={id} at={at} q={q} data-row="" data-session={id} {...shell}>
+      {body}
+    </SessionLink>
+  ) : (
+    <div {...shell}>{body}</div>
   );
 }

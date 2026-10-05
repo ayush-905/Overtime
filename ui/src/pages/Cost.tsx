@@ -335,6 +335,7 @@ export function TrendCard() {
         }
       />
       <Plot
+        label="Daily cost"
         kind={kind}
         values={days.map((d, i) => ({ value: d.cost, current: i === n - 1, d, i }))}
         color={sourceInfo(provider === 'all' ? 'claude' : provider).color}

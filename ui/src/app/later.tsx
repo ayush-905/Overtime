@@ -1,8 +1,8 @@
 // What opens only now and then (the session panel, the palette, the dialogs, the
-// sidebar's drag to reorder) is left out of what the page loads first, so the
-// window and the popover start sooner. Each part loads the first time it's
-// wanted, and in a quiet moment after startup anyway (loadLater), so it's there
-// by the time you open it and opens at once.
+// sidebar's drag to reorder) and the sections besides the Overview are left out
+// of what the page loads first, so the window and the popover start sooner. Each
+// part loads the first time it's wanted, and in a quiet moment after startup
+// anyway (loadLater), so it's there by the time you open it and opens at once.
 
 import { useEffect, useState, type ComponentType } from 'react';
 
@@ -36,6 +36,11 @@ export function later<P extends object>(load: () => Promise<ComponentType<P>>, B
     return Part ? <Part {...props} /> : null;
   }
   return Later;
+}
+
+/** Something else to load in that quiet moment: a section's code, say. */
+export function loadInQuiet(load: () => Promise<unknown>) {
+  waiting.push(load);
 }
 
 /** Load every later part in the first quiet moment after startup. */

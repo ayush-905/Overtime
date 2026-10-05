@@ -32,10 +32,10 @@ export function Badge({ page, className = '' }: { page: Page; className?: string
   if (!badge) return null;
   return (
     <span
-      aria-label={badge.label}
       className={`inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-warn-soft px-1.5 text-label font-bold text-warn tnum ${className}`}
     >
-      {badge.count}
+      <span aria-hidden>{badge.count}</span>
+      <span className="sr-only">{badge.label}</span>
     </span>
   );
 }

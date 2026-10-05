@@ -469,6 +469,7 @@ export function ActiveHoursCard({ expanded = false }: { expanded?: boolean }) {
         sub={`a day on average, over the ${plural(worked.length, 'day')} you worked${today.activeMs ? ` · ${duration(today.activeMs)} today` : ''}`}
       />
       <Plot
+        label="Your active hours by day"
         kind={kind}
         values={days.map((d) => ({ value: d.activeMs, current: d === today, d }))}
         color="var(--you)"
@@ -600,7 +601,7 @@ export function WorkHoursCard() {
         value={typical ? `${atOffset(w.typicalStart!)} – ${atOffset(w.typicalStop!)}` : '—'}
         sub={`${typical ? `a typical day, first to last message${w.typicalLength ? ` (${hoursText(w.typicalLength)})` : ''}` : 'Not enough days yet for a typical day'}${sentOn(today) ? ` · today since ${clock(today.first)}` : ''}`}
       />
-      <Calendar columns={columns} height={170} now={now} />
+      <Calendar label="Your working hours, last 14 days" columns={columns} height={170} now={now} />
       <p className="flex flex-wrap gap-x-4 gap-y-1 text-label text-muted" aria-hidden>
         <span className="inline-flex items-center gap-1.5">
           <i className="size-2 rounded-[2px] bg-you" />
@@ -948,6 +949,7 @@ export function WaitingCard() {
         sub={`agents waited for your replies, across ${plural(w.replies, 'reply', 'replies')}`}
       />
       <Plot
+        label="Waiting for you, by day"
         kind={kind}
         values={w.days.map((d, i) => ({ value: d.ms, current: i === w.days.length - 1, d }))}
         color="var(--warn-fill)"
@@ -1080,6 +1082,7 @@ export function HoursCard() {
       />
       {kind === 'heat' && trend.grid ? (
         <HourGrid
+          label="When you work: cost by weekday and hour"
           grid={trend.grid}
           color="var(--claude)"
           tip={(d, h, v) =>
@@ -1088,6 +1091,7 @@ export function HoursCard() {
         />
       ) : (
         <Plot
+          label="When you work: cost by hour of the day"
           kind={kind}
           values={trend.hours.map((h, i) => ({ value: h.cost, h, i }))}
           color="var(--claude)"
@@ -1149,6 +1153,7 @@ export function WeekdaysCard() {
         tools={<ChartSwitch id="weekdays" kinds={WEEKDAY_KINDS} />}
       />
       <Plot
+        label="Which days you work"
         kind={kind}
         values={WEEK_ORDER.map((i) => ({ value: days[i].cost, d: days[i], i }))}
         color="var(--claude)"

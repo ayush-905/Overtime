@@ -392,7 +392,7 @@ function run(it: Item) {
   else if (it.kind === 'link') go(it.id);
   else if (it.kind === 'project') go(pageLink('projects', { p: it.id }));
   else if (it.kind === 'action') it.run();
-  else go(`#session=${encodeURIComponent(it.id)}`);
+  else useUi.getState().openSession(it.id);
 }
 
 export function Palette() {
@@ -400,7 +400,7 @@ export function Palette() {
   const setOpen = useUi((s) => s.setPaletteOpen);
   const [query, setQuery] = useState('');
   const [active, setActive] = useState(0);
-  const list = useRef<HTMLUListElement>(null);
+  const list = useRef<HTMLDivElement>(null);
   const { groups, searching } = useItems(open ? query : '', open);
   const items = groups.flatMap(([, g]) => g);
   const at = Math.min(active, Math.max(0, items.length - 1));
@@ -438,7 +438,7 @@ export function Palette() {
               type="text"
               role="combobox"
               aria-expanded="true"
-              aria-controls="pal-list"
+              aria-controls={items.length ? 'pal-list' : undefined}
               aria-autocomplete="list"
               aria-activedescendant={items.length ? `pal-${at}` : undefined}
               value={query}
@@ -465,20 +465,24 @@ export function Palette() {
               className="h-12 grow bg-transparent text-body outline-none placeholder:text-muted"
             />
           </label>
-          <ul id="pal-list" ref={list} role="listbox" aria-label="Results" className="overflow-y-auto p-1.5">
-            {groups.length ? (
-              groups.map(([name, group]) => (
-                <li key={name} role="presentation">
-                  <span className="block px-2.5 pb-1 pt-2.5 text-group font-semibold uppercase tracking-[0.06em] text-muted">
+          {groups.length ? (
+            <div id="pal-list" ref={list} role="listbox" aria-label="Results" className="overflow-y-auto p-1.5">
+              {groups.map(([name, group], g) => (
+                // biome-ignore lint/a11y/useSemanticElements: a group of options in a listbox, which a fieldset can't be
+                <div key={name} role="group" aria-labelledby={`pal-g${g}`}>
+                  <span
+                    id={`pal-g${g}`}
+                    className="block px-2.5 pb-1 pt-2.5 text-group font-semibold uppercase tracking-[0.06em] text-muted"
+                  >
                     {name}
                   </span>
-                  <ul role="presentation">
+                  <div>
                     {group.map((it) => {
                       const i = n++;
                       const on = i === at;
                       return (
-                        // biome-ignore lint/a11y/useKeyWithClickEvents: the search box takes the keys and points at this option (aria-activedescendant), as a combobox does
-                        <li
+                        // biome-ignore lint/a11y/useKeyWithClickEvents lint/a11y/useFocusableInteractive: the search box keeps the focus and takes the keys, pointing at this option (aria-activedescendant), as a combobox does
+                        <div
                           key={`${it.kind}:${it.id}`}
                           id={`pal-${i}`}
                           role="option"
@@ -526,20 +530,20 @@ export function Palette() {
                             </small>
                           )}
                           {on && <ChevronRight size={14} className="shrink-0 text-muted" aria-hidden />}
-                        </li>
+                        </div>
                       );
                     })}
-                  </ul>
-                </li>
-              ))
-            ) : (
-              <li role="presentation" className="px-3 py-6 text-center text-detail text-muted">
-                {searching
-                  ? `Looking inside conversations for “${clip(query, 40)}”…`
-                  : `Nothing matches “${clip(query, 40)}”.`}
-              </li>
-            )}
-          </ul>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="px-3 py-6 text-center text-detail text-muted">
+              {searching
+                ? `Looking inside conversations for “${clip(query, 40)}”…`
+                : `Nothing matches “${clip(query, 40)}”.`}
+            </p>
+          )}
           <p className="flex flex-wrap gap-x-4 gap-y-1 border-t border-line px-4 py-2 text-label text-muted">
             <span className="inline-flex items-center gap-1">
               <Kbd>↑</Kbd>
