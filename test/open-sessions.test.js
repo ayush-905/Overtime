@@ -359,6 +359,17 @@ test('each session says whether it needs you, what it and its tools use, and the
   );
 });
 
+test('a session whose turn ended long ago, and has left the office, is idle rather than needing you', async (t) => {
+  const was = LIVE[ID.older];
+  LIVE[ID.older] = { ...was, present: false };
+  t.after(() => {
+    LIVE[ID.older] = was;
+  });
+  const { monitor } = monitorOn(t, PROCS);
+  const s = await sample(monitor);
+  assert.equal(s.sessions.find((r) => r.id === ID.older).status, 'idle');
+});
+
 test('CPU is the share of one core over the time between two samples, and sampling waits between ticks', async (t) => {
   const procs = PROCS.map((p) => [...p]);
   const { monitor, calls, later } = monitorOn(t, procs);

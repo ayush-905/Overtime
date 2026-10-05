@@ -6,7 +6,8 @@
 import { afterAll, beforeAll, describe, expect, test, vi } from 'vitest';
 import fixture from './fixtures/limits.json';
 import { env } from './env';
-import { quotaItems, quotaFreshness, stuckState, stuckText, type LimitsInput } from './limits';
+import { limitInfo, quotaItems, quotaFreshness, stuckState, stuckText, type LimitsInput } from './limits';
+import { claudeWindow } from './usage';
 import { doingText, sinceFor, waitingNow, type LiveAgent } from './agents';
 
 const MIN = 60_000;
@@ -207,6 +208,30 @@ describe('plan windows', () => {
     }
     expect([...levels].sort()).toEqual(['crit', 'ok', 'quiet', 'warn']);
     expect([...flags].sort()).toEqual(['expired', 'idle', 'limited', 'stale']);
+  });
+});
+
+describe('a window and its chart', () => {
+  test("the chart under a window heads where the window's forecast says, from the estimate and from exact figures", () => {
+    const at: Record<string, number> = {};
+    for (const c of cases.filter((x) =>
+      ['the estimate, and what Codex recorded a day ago', 'exact, fresh'].includes(x.name),
+    )) {
+      vi.setSystemTime(c.at);
+      const now = Date.now();
+      const usage = {
+        fine: { from: now - 6 * HOUR, step: 5 * MIN, costs: Array(72).fill(0.4) },
+        hourly: { from: now - 8 * 24 * HOUR, step: HOUR, costs: Array(8 * 24).fill(2) },
+      };
+      const inp: LimitsInput = { ...c, now, limits: { ...c.limits, usage } as LimitsInput['limits'] };
+      const info = limitInfo(inp, 'session');
+      const drawn = claudeWindow(inp, 'session');
+      if (!info || !('outlook' in info) || !info.outlook || !drawn || !('chart' in drawn)) throw new Error(c.name);
+      expect(info.outlook.level).toBe('ok');
+      expect(drawn.chart.atReset).toBeCloseTo(info.outlook.projected, 9);
+      at[c.name] = Math.round(drawn.chart.atReset);
+    }
+    expect(Object.keys(at)).toHaveLength(2);
   });
 });
 
