@@ -3,7 +3,7 @@
 What changed in each release of Overtime. The newest is first, and each one has its download on
 [GitHub Releases](https://github.com/ayush-905/Overtime/releases).
 
-## Unreleased
+## 0.6.1 (5 October 2026)
 
 - **Signed updates.** Releases are signed with Overtime's own key, and the Mac app installs an update only
   when its signature checks out. A release from anyone else, even someone with access to the GitHub account,
