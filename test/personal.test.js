@@ -36,7 +36,7 @@ async function morning(t) {
     user(13 * MINUTE + 2 * 3_600_000, 'Third'),
     reply(14 * MINUTE + 2 * 3_600_000, 4),
   ];
-  await writeFile(path.join(claudeDir, 'project', `${id}.jsonl`), lines.map(JSON.stringify).join('\n') + '\n');
+  await writeFile(path.join(claudeDir, 'project', `${id}.jsonl`), `${lines.map(JSON.stringify).join('\n')}\n`);
   const idx = createUsageIndex({ claudeDir, codexDir: path.join(root, 'none') });
   await idx.scan();
   return { idx, start, now: noon.getTime() };

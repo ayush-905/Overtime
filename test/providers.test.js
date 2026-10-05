@@ -65,7 +65,9 @@ test('injected context is excluded from human prompts', () => {
 });
 test('new and legacy token records, delayed counts and duplicate prompts deduplicate', () => {
   const f = rec();
-  rows.forEach((x) => applyCodexRecord(f, x));
+  rows.forEach((x) => {
+    applyCodexRecord(f, x);
+  });
   assert.equal(f.events.length, 1);
   assert.equal(f.prompts.length, 1);
   assert.equal(f.events[0][2], 1100);
@@ -97,7 +99,9 @@ test('only successful patches count edits across all files', () => {
 test('forked transcript establishes inherited baseline without counting parent work', () => {
   const f = rec();
   applyCodexRecord(f, ev('session_meta', { id, forked_from_id: 'parent', timestamp: iso(10) }));
-  rows.slice(1, 7).forEach((x) => applyCodexRecord(f, x));
+  rows.slice(1, 7).forEach((x) => {
+    applyCodexRecord(f, x);
+  });
   applyCodexRecord(
     f,
     ev(
@@ -118,15 +122,15 @@ test('incremental indexing, provider isolation, session details and truncation',
   await mkdir(path.join(claudeDir, 'project'), { recursive: true });
   await mkdir(path.join(codexDir, '2020/01/01'), { recursive: true });
   const file = path.join(codexDir, '2020/01/01', `rollout-${id}.jsonl`);
-  await writeFile(file, rows.map(JSON.stringify).join('\n') + '\n');
+  await writeFile(file, `${rows.map(JSON.stringify).join('\n')}\n`);
   await writeFile(
     path.join(claudeDir, 'project', `${id}.jsonl`),
-    JSON.stringify({
+    `${JSON.stringify({
       type: 'assistant',
       timestamp: iso(2),
       cwd: '/test',
       message: { id: 'm', model: 'claude-sonnet-4-5', usage: { input_tokens: 100, output_tokens: 20 } },
-    }) + '\n',
+    })}\n`,
   );
   const idx = createUsageIndex({ claudeDir, codexDir });
   await idx.scan();
@@ -152,11 +156,11 @@ test('incremental indexing, provider isolation, session details and truncation',
   await appendFile(file, next.slice(0, 50));
   await idx.scan();
   assert.equal(idx.scope('codex').events().length, 1);
-  await appendFile(file, next.slice(50) + '\n');
+  await appendFile(file, `${next.slice(50)}\n`);
   await idx.scan();
   assert.equal(idx.scope('codex').events().length, 2);
   assert.deepEqual(estimateLimits(idx.scope('claude'), now + 20000), before);
-  await writeFile(file, rows.slice(0, 4).map(JSON.stringify).join('\n') + '\n');
+  await writeFile(file, `${rows.slice(0, 4).map(JSON.stringify).join('\n')}\n`);
   await idx.scan();
   assert.equal(idx.scope('codex').events().length, 0);
   assert.equal(idx.scope('codex').prompts().length, 1);
@@ -190,7 +194,7 @@ function mockRpc(account, error = false) {
       killed = true;
     };
     c.stdin = new Writable({
-      write(data, enc, cb) {
+      write(data, _enc, cb) {
         const m = JSON.parse(data);
         methods.push(m.method);
         queueMicrotask(() => {
@@ -201,7 +205,7 @@ function mockRpc(account, error = false) {
               : m.id === 1
                 ? { account }
                 : { rateLimits: { primary: { usedPercent: 20, windowDurationMins: 300, resetsAt: 2000000000 } } };
-          c.stdout.write(JSON.stringify(error ? { id: m.id, error: { code: 1 } } : { id: m.id, result }) + '\n');
+          c.stdout.write(`${JSON.stringify(error ? { id: m.id, error: { code: 1 } } : { id: m.id, result })}\n`);
         });
         cb();
       },
@@ -248,7 +252,9 @@ test('a patch mentioned in an exec test is not a file edit; denial prose is not 
 });
 test('lower legacy totals after a modern usage record do not inflate the next delta', () => {
   const f = rec();
-  rows.forEach((x) => applyCodexRecord(f, x));
+  rows.forEach((x) => {
+    applyCodexRecord(f, x);
+  });
   applyCodexRecord(
     f,
     ev(
@@ -282,13 +288,13 @@ test('unpriced models remain in token totals and combined active time merges ove
   await mkdir(codexDir);
   await writeFile(
     path.join(codexDir, `rollout-${id}.jsonl`),
-    rows
+    `${rows
       .map((x) => JSON.stringify(x.type === 'turn_context' ? ev('turn_context', { model: 'custom-model' }) : x))
-      .join('\n') + '\n',
+      .join('\n')}\n`,
   );
   await writeFile(
     path.join(claudeDir, 'project', `${id}.jsonl`),
-    [
+    `${[
       { type: 'user', timestamp: iso(1), message: { content: 'Build a thing' }, cwd: '/test' },
       {
         type: 'assistant',
@@ -297,7 +303,7 @@ test('unpriced models remain in token totals and combined active time merges ove
       },
     ]
       .map(JSON.stringify)
-      .join('\n') + '\n',
+      .join('\n')}\n`,
   );
   const idx = createUsageIndex({ claudeDir, codexDir });
   await idx.scan();
@@ -388,18 +394,18 @@ test('the usage index merges quota buckets across sessions', async (t) => {
   const line = (n, rate_limits) => JSON.stringify(ev('event_msg', { type: 'token_count', rate_limits }, n));
   await writeFile(
     path.join(codexDir, `rollout-${id}.jsonl`),
-    [
+    `${[
       JSON.stringify(ev('session_meta', { id, cwd: '/a' })),
       line(1, { limit_id: 'codex', primary: { used_percent: 40, window_minutes: 300, resets_at: 2000000000 } }),
-    ].join('\n') + '\n',
+    ].join('\n')}\n`,
   );
   await writeFile(
     path.join(codexDir, `rollout-${other}.jsonl`),
-    [
+    `${[
       JSON.stringify(ev('session_meta', { id: other, cwd: '/b' })),
       line(5, { limit_id: 'premium', primary: null, secondary: null }),
       line(6, { limit_id: 'review', primary: { used_percent: 5, window_minutes: 60, resets_at: 2000000000 } }),
-    ].join('\n') + '\n',
+    ].join('\n')}\n`,
   );
   const idx = createUsageIndex({ claudeDir: path.join(root, 'none'), codexDir });
   await idx.scan();
@@ -425,7 +431,7 @@ test('the session list splits each session by day, so any range adds up like Spe
     codexDir = path.join(root, 'codex');
   await mkdir(path.join(claudeDir, 'project'), { recursive: true });
   await mkdir(codexDir);
-  await writeFile(path.join(codexDir, `rollout-${id}.jsonl`), rows.map(JSON.stringify).join('\n') + '\n');
+  await writeFile(path.join(codexDir, `rollout-${id}.jsonl`), `${rows.map(JSON.stringify).join('\n')}\n`);
   // One Claude Code session that ran yesterday and again just after midnight.
   const midnight = new Date(now).setHours(0, 0, 0, 0);
   const at = (t) => new Date(t).toISOString();
@@ -439,7 +445,7 @@ test('the session list splits each session by day, so any range adds up like Spe
   ];
   await writeFile(
     path.join(claudeDir, 'project', `${id}.jsonl`),
-    [...turn(midnight - 12 * 3_600_000, 1), ...turn(midnight + 1000, 2)].map(JSON.stringify).join('\n') + '\n',
+    `${[...turn(midnight - 12 * 3_600_000, 1), ...turn(midnight + 1000, 2)].map(JSON.stringify).join('\n')}\n`,
   );
   const idx = createUsageIndex({ claudeDir, codexDir });
   await idx.scan();
@@ -487,7 +493,7 @@ test("waiting for you runs from the agent's last reply to your next message, lea
     user(80_000 + 2 * 3_600_000, 'Third'),
     reply(90_000 + 2 * 3_600_000, 3),
   ];
-  await writeFile(path.join(claudeDir, 'project', `${id}.jsonl`), lines.map(JSON.stringify).join('\n') + '\n');
+  await writeFile(path.join(claudeDir, 'project', `${id}.jsonl`), `${lines.map(JSON.stringify).join('\n')}\n`);
   const idx = createUsageIndex({ claudeDir, codexDir: path.join(root, 'none') });
   await idx.scan();
   const insights = computeInsights({ index: idx, agents: new Map(), now });
@@ -530,7 +536,7 @@ test('the weekly digest adds up the week from the session list, against the same
     codexDir = path.join(root, 'codex');
   await mkdir(path.join(claudeDir, 'project'), { recursive: true });
   await mkdir(codexDir);
-  await writeFile(path.join(codexDir, `rollout-${id}.jsonl`), rows.map(JSON.stringify).join('\n') + '\n');
+  await writeFile(path.join(codexDir, `rollout-${id}.jsonl`), `${rows.map(JSON.stringify).join('\n')}\n`);
   const idx = createUsageIndex({ claudeDir, codexDir });
   await idx.scan();
   const d = weeklyDigest(idx, new Map(), now + 20_000, 0);

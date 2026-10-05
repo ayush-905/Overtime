@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+// @ts-check
 // Overtime: follows local Claude Code, Codex and pi transcripts (read-only) and
 // streams live state to two pages in the browser: the dashboard at / and the
 // pixel office at /office/. The desktop app (desktop/) runs this same server.
@@ -37,6 +38,13 @@ import { resumeOptions, resumeInTerminal } from './lib/resume.js';
 import { writeCommand } from './lib/prompts.js';
 import { harness, isSessionId, nativeIdOf, openHarnesses } from './lib/harnesses/index.js';
 import { watchFolders } from './lib/folder-watch.js';
+import { createLiveFeed } from './lib/live-feed.js';
+import { serveFile } from './lib/static-files.js';
+
+// Set when the desktop app started this server in a utility process of its own (Electron adds it).
+const parentPort = /** @type {{ parentPort?: { postMessage(message: unknown): void } }} */ (
+  /** @type {unknown} */ (process)
+).parentPort;
 
 // PORT=0 takes any free port, as the desktop app does when 4777 is taken by something else.
 const PORT = /^\d{1,5}$/.test(process.env.PORT || '') ? Number(process.env.PORT) : 4777;
@@ -80,9 +88,13 @@ let prefs = cleanPrefs(await store.read('prefs.json', DEFAULT_PREFS));
 setWorkdayHour(prefs.workdayHour);
 usageIndex.setSearch(prefs.search);
 let history = await store.read('history.json', { version: 1, days: {} });
+/** @type {Record<string, import('./types/api.js').DailyTotal[]> | null} */
 let dailyFresh = null; // the last 30 days from the transcripts, per provider view
+/** @type {string[]} */
 let watching = [];
+/** @type {string[]} */
 let present = ['claude']; // the sources with a folder on this Mac, each a view of its own
+/** @type {import('./types/api.js').LimitsEstimate | null} */
 let limitsEstimate = null;
 let limitsComputedAt = 0;
 
@@ -94,6 +106,7 @@ function limits(now) {
   return limitsEstimate;
 }
 
+/** @type {import('./types/api.js').Analytics | null} */
 let insightsCache = null;
 let insightsComputedAt = 0;
 let insightsFrom = ''; // what the last pass was worked out from: the transcripts' version and the views
@@ -109,25 +122,31 @@ function insights(now) {
   const age = now - insightsComputedAt;
   if (age > 120_000 || (age > 30_000 && from !== insightsFrom)) {
     insightsFrom = from;
+    /** @type {Record<string, import('./types/api.js').DailyTotal[]>} */
     const daily = {};
-    insightsCache = Object.fromEntries(
-      ['all', ...present].map((source) => {
-        const index = usageIndex.scope(source);
-        const computed = computeInsights({ index, agents: watcher.agents, now });
-        // The days are served on their own (/api/history), not with every snapshot.
-        if (computed) {
-          daily[source] = computed.daily;
-          delete computed.daily;
-        }
-        return [
-          source,
-          {
-            insights: computed,
-            spend: spendSummary(index, now),
-            today: usageIndex.ready() ? activitySummary(index, watcher.agents, now) : null,
-          },
-        ];
-      }),
+    insightsCache = /** @type {import('./types/api.js').Analytics} */ (
+      Object.fromEntries(
+        ['all', ...present].map((source) => {
+          const index = usageIndex.scope(source);
+          const computed = computeInsights({ index, agents: watcher.agents, now });
+          // The days are served on their own (/api/history), not with every snapshot.
+          /** @type {import('./types/api.js').Insights | null} */
+          let sent = null;
+          if (computed) {
+            const { daily: days, ...rest } = computed;
+            daily[source] = days;
+            sent = rest;
+          }
+          return [
+            source,
+            {
+              insights: sent,
+              spend: spendSummary(index, now),
+              today: usageIndex.ready() ? activitySummary(index, watcher.agents, now) : null,
+            },
+          ];
+        }),
+      )
     );
     insightsComputedAt = now;
     if (daily.all) {
@@ -140,13 +159,19 @@ function insights(now) {
   return insightsCache;
 }
 
+/** @type {{ version: number, computedAt: number, sessions: import('./types/api.js').SessionListItem[] | null } | null} */
 let sessionsCache = null;
 
-/** The Sessions page's list: rebuilt when the transcripts change, and at most every 15 seconds. */
+/**
+ * The Sessions page's list: rebuilt when the transcripts change, at most every 15
+ * seconds, and as soon as the history has been read if it was asked for before.
+ */
+/** @returns {{ version: number, computedAt: number, sessions: import('./types/api.js').SessionListItem[] | null }} */
 function sessions(now) {
   const version = usageIndex.version();
   if (
     !sessionsCache ||
+    (!sessionsCache.sessions && usageIndex.ready()) ||
     (sessionsCache.version !== version && now - sessionsCache.computedAt > 15_000) ||
     now - sessionsCache.computedAt > 60_000
   ) {
@@ -173,15 +198,15 @@ function snapshot() {
   for (const a of watcher.agents.values()) {
     if (a.parentId) internCost.set(a.parentId, (internCost.get(a.parentId) || 0) + a.cost);
   }
+  /** @type {import('./types/api.js').Agent[]} */
   const list = [];
   for (const a of watcher.agents.values()) {
     const v = view(a, now);
     if (!v.present) continue;
-    v.internCost = internCost.get(a.id) || 0;
     // What picks it back up, from the start (the history has it a few seconds later).
     const h = harness(a.source);
-    v.resumeCommand = a.kind === 'main' && h.nativeId.test(v.nativeId || '') ? h.resume.command(v.nativeId) : null;
-    list.push(v);
+    const resumeCommand = a.kind === 'main' && h.nativeId.test(v.nativeId || '') ? h.resume.command(v.nativeId) : null;
+    list.push({ ...v, internCost: internCost.get(a.id) || 0, resumeCommand });
   }
   feed.trim();
   return {
@@ -200,122 +225,11 @@ function snapshot() {
 
 // ── HTTP ───────────────────────────────────────────────────────────────────
 
-// Each page is a folder under web/, and all use web/shared. Only plain file
-// names are served, so nothing outside those folders can be reached. The
-// dashboard (web/app, built from ui/) keeps its files in assets/, with the hash
-// of what's in them in their names, so they can be kept a year.
-const MOUNTS = [
-  ['/office/', 'office'],
-  ['/shared/', 'shared'],
-  ['/', 'app'],
-];
-const TYPES = {
-  '.html': 'text/html; charset=utf-8',
-  '.css': 'text/css; charset=utf-8',
-  '.js': 'text/javascript; charset=utf-8',
-  '.svg': 'image/svg+xml',
-  '.png': 'image/png',
-  '.woff2': 'font/woff2',
-  '.webp': 'image/webp',
-};
+// The pages following the live feed (/events), each sent only what changed (lib/live-feed.js).
+const live = createLiveFeed();
 
-function staticFile(pathname) {
-  const [prefix, dir] = MOUNTS.find(([p]) => pathname.startsWith(p)) || [];
-  if (!dir) return null;
-  let name = pathname.slice(prefix.length) || 'index.html';
-  // The compact view for a menu bar: the dashboard's page, in its mini layout.
-  if (dir === 'app' && /^mini\/?$/.test(name)) name = 'index.html';
-  const type = TYPES[path.extname(name)];
-  const plain = dir === 'app' ? /^(assets\/)?[\w-]+(\.[\w-]+)*$/ : /^[\w-]+(\.[\w-]+)*$/;
-  return plain.test(name) && type
-    ? [path.join(WEB_DIR, dir, name), type, dir === 'app' && name.startsWith('assets/')]
-    : null;
-}
 // Set once the server is listening, for the port it got.
 let ALLOWED_HOSTS = new Set();
-
-// ── Live updates: only what changed ─────────────────────────────────────────
-//
-// A page gets everything when it connects, then only the parts that changed
-// since the last update it had, as [path, value] pairs; web/shared/live.js puts
-// them back together. The analytics are split down to each card's data, so a
-// new reading of one doesn't resend the rest, and the agents and the feed go
-// item by item, so an agent that's idle isn't sent again because another one is
-// working, and the feed sends only what's new. Each page keeps its own record
-// of what it has, so one connecting later never misses a change.
-
-const clients = new Map(); // each open page → what it has: { parts: path → JSON, lists: name → { order, items: id → JSON } }
-const LISTS = ['agents', 'feed']; // sent item by item, by each item's id
-
-// Costs and ratios need no more than four decimals, which trims the analytics by a good share.
-const round = (key, v) => (typeof v === 'number' && !Number.isInteger(v) ? Math.round(v * 1e4) / 1e4 : v);
-const analyticsCache = new WeakMap(); // an analytics object → its parts, worked out once
-const snapCache = new WeakMap(); // a snapshot → its parts, worked out once for every page
-
-function analyticsParts(analytics) {
-  if (!analytics) return [[['analytics'], 'null']];
-  let parts = analyticsCache.get(analytics);
-  if (!parts) {
-    parts = [];
-    for (const [scope, view] of Object.entries(analytics)) {
-      for (const [section, value] of Object.entries(view || {})) {
-        if (section === 'insights' && value)
-          for (const [key, x] of Object.entries(value))
-            parts.push([['analytics', scope, 'insights', key], JSON.stringify(x, round) ?? 'null']);
-        else parts.push([['analytics', scope, section], JSON.stringify(value, round) ?? 'null']);
-      }
-    }
-    analyticsCache.set(analytics, parts);
-  }
-  return parts;
-}
-
-/** A snapshot as JSON pieces: [path, JSON] for each part, and each list as [name, ids, id → JSON]. */
-function snapshotParts(snap) {
-  let cached = snapCache.get(snap);
-  if (!cached) {
-    const parts = [];
-    const lists = [];
-    for (const [key, value] of Object.entries(snap)) {
-      if (key === 'now' || key === 'analytics') continue;
-      if (LISTS.includes(key) && Array.isArray(value))
-        lists.push([key, value.map((x) => x.id), new Map(value.map((x) => [x.id, JSON.stringify(x)]))]);
-      else parts.push([[key], JSON.stringify(value) ?? 'null']);
-    }
-    cached = { parts: [...parts, ...analyticsParts(snap.analytics)], lists };
-    snapCache.set(snap, cached);
-  }
-  return cached;
-}
-
-/** Send a page what changed since its last update. */
-function sendTo(res, snap) {
-  const has = clients.get(res);
-  if (!has) return;
-  const { parts, lists } = snapshotParts(snap);
-  const changes = [];
-  for (const [path, json] of parts) {
-    const key = path.join('.');
-    if (has.parts.get(key) === json) continue;
-    // This replaces whatever the page had at, under or above this path.
-    for (const k of has.parts.keys()) if (k.startsWith(`${key}.`) || key.startsWith(`${k}.`)) has.parts.delete(k);
-    has.parts.set(key, json);
-    changes.push(`[${JSON.stringify(path)},${json}]`);
-  }
-  const items = [];
-  for (const [name, ids, byId] of lists) {
-    const before = has.lists.get(name);
-    const order = JSON.stringify(ids);
-    const changed = [];
-    for (const [id, json] of byId) if (before?.items.get(id) !== json) changed.push(json);
-    if (before?.order === order && !changed.length) continue;
-    items.push(`[${JSON.stringify([name])},${before?.order === order ? 'null' : order},[${changed.join(',')}]]`);
-    has.lists.set(name, { order, items: byId });
-  }
-  res.write(
-    `data: {"now":${snap.now},"patch":1,"changes":[${changes.join(',')}]${items.length ? `,"items":[${items.join(',')}]` : ''}}\n\n`,
-  );
-}
 
 /** A page, with your saved settings put in before anything else runs. */
 const withSettings = (html) => html.toString().replace('<!-- settings -->', settingsScript(settings));
@@ -334,10 +248,281 @@ async function readJson(req, limit = 4096) {
   }
 }
 
+/** Answer with JSON, never kept, so the page reads it fresh each time. */
+function json(res, status, body) {
+  res.writeHead(status, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }).end(JSON.stringify(body));
+}
+
+/** The provider view a request asks for (&scope=claude|codex|pi), if it's on this Mac, else all of them. */
+const scopeOf = (url) => (present.includes(url.searchParams.get('scope')) ? url.searchParams.get('scope') : 'all');
+
+/**
+ * Every address besides the pages' files, and what answers it, given the
+ * request, the response and the parsed address ({ req, res, url }). A `read`
+ * changes nothing and answers whatever the method (the pages GET them). An
+ * `action` changes something, so only the Overtime page may trigger one: it
+ * answers only a POST with the X-Overtime header, which forces a CORS preflight
+ * that other websites can't pass. An address with both is read with a GET.
+ */
+const ROUTES = {
+  // The live feed: everything when a page connects, then only what changes.
+  '/events': {
+    read({ req, res }) {
+      res.writeHead(200, {
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache',
+        Connection: 'keep-alive',
+      });
+      openSessions.tick();
+      live.open(res);
+      live.send(res, snapshot());
+      req.on('close', () => live.close(res));
+    },
+  },
+  // Where the attention inbox opens a session (its Claude or Codex app link), without
+  // loading its history.
+  '/api/session-target': {
+    async read({ res, url }) {
+      const id = url.searchParams.get('id') || '';
+      const known = isSessionId(id) ? watcher.agents.get(id) || usageIndex.sessionRecord(id) : null;
+      const target = known
+        ? await resumeOptions({ source: known.source, nativeId: known.nativeId || nativeIdOf(id) })
+        : null;
+      json(res, target ? 200 : 404, target);
+    },
+  },
+  // One session in full, for the dashboard's session panel.
+  '/api/session': {
+    async read({ res, url }) {
+      const id = url.searchParams.get('id') || '';
+      const detail = isSessionId(id) ? sessionDetail(usageIndex, id) : null;
+      // Where it can be picked up again: Terminal, and the app it belongs to.
+      /** @type {import('./types/api.js').SessionResponse | null} */
+      const body = detail && {
+        ...detail,
+        resume: await resumeOptions({ source: detail.source, nativeId: detail.nativeId }),
+      };
+      json(res, body ? 200 : 404, body);
+    },
+  },
+  // One of your messages in a session and what it led to: ?id=<session>&t=<any moment in it>.
+  '/api/turn': {
+    read({ res, url }) {
+      const id = url.searchParams.get('id') || '';
+      // Without a time there's no turn to find (Number(null) would be the first).
+      const at = url.searchParams.get('t') ? Number(url.searchParams.get('t')) : NaN;
+      const body = isSessionId(id) && Number.isFinite(at) ? turnDetail(usageIndex, id, at) : null;
+      json(res, body ? 200 : 404, body);
+    },
+  },
+  // Every session of the last 30 days, for the Sessions page.
+  '/api/sessions': {
+    read({ res }) {
+      const { computedAt, sessions: list } = sessions(Date.now());
+      json(res, 200, { computedAt, sessions: list });
+    },
+  },
+  // A week in review: ?week=1 for last week (the default), 0 for this one so far.
+  '/api/digest': {
+    read({ res, url }) {
+      const weeksAgo = url.searchParams.get('week') === '0' ? 0 : 1;
+      const body = usageIndex.ready() ? weeklyDigest(usageIndex, watcher.agents, Date.now(), weeksAgo) : null;
+      json(res, body ? 200 : 503, body);
+    },
+  },
+  // Every day on record for one provider view, for the activity heatmap: the
+  // days kept in ~/.overtime, with the last 30 from the transcripts over them.
+  '/api/history': {
+    read({ res, url }) {
+      const scope = scopeOf(url);
+      if (!dailyFresh) insights(Date.now());
+      const body = dailyFresh ? { scope, days: historyDays(history, dailyFresh, scope) } : null;
+      json(res, body ? 200 : 503, body);
+    },
+  },
+  // Search inside the conversations of the last 30 days: ?q=words or "a phrase",
+  // &scope=claude|codex|pi. Off when you've turned search off.
+  '/api/search': {
+    read({ res, url }) {
+      const scope = scopeOf(url);
+      const q = (url.searchParams.get('q') || '').slice(0, 200);
+      const limit = Math.min(100, Math.max(1, Number(url.searchParams.get('limit')) || 40));
+      const stats = usageIndex.searchStats();
+      const found =
+        stats.on && usageIndex.ready()
+          ? usageIndex.search(q, { source: scope, limit })
+          : { terms: [], results: [], total: 0 };
+      json(res, 200, { q, scope, on: stats.on, ready: usageIndex.ready(), stats, ...found });
+    },
+  },
+  // Who's answering on this port: how the desktop app finds an Overtime that's already running.
+  '/api/hello': {
+    read({ res }) {
+      json(res, 200, { app: 'overtime', version: VERSION, desktop: !!parentPort });
+    },
+  },
+  '/api/settings': {
+    // Your saved settings, as the pages keep them.
+    read({ res }) {
+      json(res, 200, settings);
+    },
+    // A page's settings changed: { set: { name: text, or null to forget it } }, or
+    // { replace: { … } } to put back a saved copy. Saved in ~/.overtime/settings.json,
+    // so they outlast the browser's storage.
+    async action({ req, res }) {
+      const body = await readJson(req, 2_500_000);
+      const change = body?.replace ?? body?.set;
+      if (!change || typeof change !== 'object') {
+        res.writeHead(400).end('Send { set: { … } } or { replace: { … } } as JSON');
+        return;
+      }
+      const next = applySettings(body.replace ? {} : settings.values, change);
+      if (body.replace) next.changed = true;
+      if (next.tooBig) {
+        res.writeHead(413).end('Too many settings to save');
+        return;
+      }
+      if (next.changed || !settings.initialized) {
+        settings = { initialized: true, values: next.values };
+        store.write('settings.json', { version: 1, values: settings.values });
+      }
+      res.writeHead(204).end();
+    },
+  },
+  // Re-read the transcripts now. Local only: this never contacts Anthropic.
+  '/api/refresh': {
+    async action({ res }) {
+      await refreshLocal();
+      res.writeHead(204).end();
+    },
+  },
+  // Settings the server works with, like the hour your working day starts. Saved
+  // in ~/.overtime, and every open page gets them with the next snapshot.
+  '/api/prefs': {
+    async action({ req, res }) {
+      const body = await readJson(req);
+      if (!body) {
+        res.writeHead(400).end('Send the settings as JSON');
+        return;
+      }
+      const next = cleanPrefs(body, prefs);
+      if (next.workdayHour !== prefs.workdayHour) {
+        setWorkdayHour(next.workdayHour);
+        insightsComputedAt = 0;
+      }
+      // Search on again reads the transcripts once more, for their text, in the background.
+      if (next.search !== prefs.search) {
+        usageIndex.setSearch(next.search);
+        if (next.search) usageIndex.scan();
+      }
+      prefs = next;
+      store.write('prefs.json', prefs);
+      json(res, 200, prefs);
+    },
+  },
+  // Resume a session in a new Terminal window. Only its id comes from the page:
+  // the command and the folder are the session's own, from its transcript.
+  '/api/resume': {
+    async action({ res, url }) {
+      const id = url.searchParams.get('id') || '';
+      const d = isSessionId(id) ? sessionDetail(usageIndex, id) : null;
+      const known = watcher.agents.get(id);
+      const session = d
+        ? { source: d.source, nativeId: d.nativeId, cwd: d.cwd }
+        : known
+          ? { source: known.source, nativeId: known.nativeId || nativeIdOf(id), cwd: known.cwd }
+          : null;
+      try {
+        if (!session) throw new Error("Overtime doesn't know this session");
+        const result = await resumeInTerminal(session, store.dir);
+        res.writeHead(200, { 'Content-Type': 'application/json' }).end(JSON.stringify(result));
+      } catch (error) {
+        res
+          .writeHead(422, { 'Content-Type': 'application/json' })
+          .end(JSON.stringify({ ok: false, message: error.message }));
+      }
+    },
+  },
+  // Make a prompt you keep typing into a slash command: { target: 'claude' | 'codex' | 'pi',
+  // name, description, body }. A new file in ~/.claude/commands, ~/.codex/prompts or
+  // ~/.pi/agent/prompts, never over one that's there. The only place outside
+  // ~/.overtime it writes, and only when you press Create.
+  '/api/commands': {
+    async action({ req, res }) {
+      const body = await readJson(req, 40_000);
+      const result = body ? await writeCommand(body) : { ok: false, status: 400, message: 'Send the command as JSON' };
+      if (result.ok) insightsComputedAt = 0;
+      res
+        .writeHead(result.ok ? 201 : result.status, { 'Content-Type': 'application/json' })
+        .end(JSON.stringify(result));
+    },
+  },
+  // Reset everything: your settings and the server's back to how they started,
+  // and with { history: true } the days kept for the heatmap too. Can't be undone.
+  '/api/reset': {
+    async action({ req, res }) {
+      const body = (await readJson(req)) || {};
+      settings = { initialized: true, values: {} };
+      store.write('settings.json', { version: 1, values: {} });
+      const searchWasOff = !prefs.search;
+      prefs = { ...DEFAULT_PREFS };
+      setWorkdayHour(prefs.workdayHour);
+      usageIndex.setSearch(prefs.search);
+      if (searchWasOff) usageIndex.scan();
+      store.write('prefs.json', prefs);
+      if (body.history === true) {
+        history = { version: 1, days: {} };
+        store.write('history.json', history);
+      }
+      insightsComputedAt = 0;
+      res.writeHead(204).end();
+    },
+  },
+  // Exact numbers were switched off: drop the login from memory.
+  '/api/limits/forget': {
+    action({ res }) {
+      forgetLogin();
+      res.writeHead(204).end();
+    },
+  },
+  '/api/limits/codex': {
+    async action({ res, url }) {
+      const result = await exactCodexLimits({ force: url.searchParams.get('fresh') === '1' });
+      json(res, 200, result);
+    },
+  },
+  '/api/limits/exact': {
+    async action({ res, url }) {
+      // ?fresh=1 is the dashboard's Refresh button: ask Anthropic now and recompute
+      // the local estimate and insights too.
+      const force = url.searchParams.get('fresh') === '1';
+      if (force) await refreshLocal();
+      const result = await exactLimits({ force });
+      // Add what each window has cost so far, from the local usage index.
+      const withSpend = (w, length) =>
+        w?.resetsAt ? { ...w, spend: windowSpend(claudeIndex, w.resetsAt - length) } : w;
+      const body =
+        result.status === 'ok'
+          ? {
+              ...result,
+              session: withSpend(result.session, 5 * 3_600_000),
+              weekly: withSpend(result.weekly, 7 * 86_400_000),
+            }
+          : result;
+      json(res, 200, body);
+    },
+  },
+  '/office': {
+    read({ res, url }) {
+      res.writeHead(301, { Location: `/office/${url.search}` }).end();
+    },
+  },
+};
+
 // A request that fails is answered with an error, and the server goes on.
 const server = http.createServer((req, res) => {
   handle(req, res).catch((error) => {
-    report(`${req.method} ${req.url.split('?')[0]}`, error);
+    report(`${req.method} ${String(req.url).split('?')[0]}`, error);
     if (!res.headersSent)
       res
         .writeHead(500, { 'Content-Type': 'text/plain; charset=utf-8' })
@@ -359,289 +544,24 @@ async function handle(req, res) {
     res.writeHead(400).end('Bad request');
     return;
   }
-  if (url.pathname === '/events') {
-    res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', Connection: 'keep-alive' });
-    openSessions.tick();
-    clients.set(res, { parts: new Map(), lists: new Map() });
-    sendTo(res, snapshot());
-    req.on('close', () => clients.delete(res));
-    return;
-  }
-  // Where the attention inbox opens a session (its Claude or Codex app link), without
-  // loading its history. Read-only.
-  if (url.pathname === '/api/session-target') {
-    const id = url.searchParams.get('id') || '';
-    const known = isSessionId(id) ? watcher.agents.get(id) || usageIndex.sessionRecord(id) : null;
-    const target = known
-      ? await resumeOptions({ source: known.source, nativeId: known.nativeId || nativeIdOf(id) })
-      : null;
-    res
-      .writeHead(target ? 200 : 404, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' })
-      .end(JSON.stringify(target));
-    return;
-  }
-  // One session in full, for the dashboard's session panel. Read-only.
-  if (url.pathname === '/api/session') {
-    const id = url.searchParams.get('id') || '';
-    const detail = isSessionId(id) ? sessionDetail(usageIndex, id) : null;
-    // Where it can be picked up again: Terminal, and the app it belongs to.
-    if (detail) detail.resume = await resumeOptions({ source: detail.source, nativeId: detail.nativeId });
-    res
-      .writeHead(detail ? 200 : 404, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' })
-      .end(JSON.stringify(detail));
-    return;
-  }
-  // One of your messages in a session and what it led to: ?id=<session>&t=<any moment in it>.
-  if (url.pathname === '/api/turn') {
-    const id = url.searchParams.get('id') || '';
-    const at = Number(url.searchParams.get('t'));
-    const body = isSessionId(id) && Number.isFinite(at) ? turnDetail(usageIndex, id, at) : null;
-    res
-      .writeHead(body ? 200 : 404, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' })
-      .end(JSON.stringify(body));
-    return;
-  }
-  // Every session of the last 30 days, for the Sessions page. Read-only too.
-  if (url.pathname === '/api/sessions') {
-    const { computedAt, sessions: list } = sessions(Date.now());
-    res
-      .writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' })
-      .end(JSON.stringify({ computedAt, sessions: list }));
-    return;
-  }
-  // A week in review: ?week=1 for last week (the default), 0 for this one so far.
-  if (url.pathname === '/api/digest') {
-    const weeksAgo = url.searchParams.get('week') === '0' ? 0 : 1;
-    const body = usageIndex.ready() ? weeklyDigest(usageIndex, watcher.agents, Date.now(), weeksAgo) : null;
-    res
-      .writeHead(body ? 200 : 503, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' })
-      .end(JSON.stringify(body));
-    return;
-  }
-  // Every day on record for one provider view, for the activity heatmap: the
-  // days kept in ~/.overtime, with the last 30 from the transcripts over them.
-  if (url.pathname === '/api/history') {
-    const scope = present.includes(url.searchParams.get('scope')) ? url.searchParams.get('scope') : 'all';
-    if (!dailyFresh) insights(Date.now());
-    const body = dailyFresh ? { scope, days: historyDays(history, dailyFresh, scope) } : null;
-    res
-      .writeHead(body ? 200 : 503, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' })
-      .end(JSON.stringify(body));
-    return;
-  }
-  // Search inside the conversations of the last 30 days: ?q=words or "a phrase",
-  // &scope=claude|codex|pi. Read-only; off when you've turned search off.
-  if (url.pathname === '/api/search') {
-    const scope = present.includes(url.searchParams.get('scope')) ? url.searchParams.get('scope') : 'all';
-    const q = (url.searchParams.get('q') || '').slice(0, 200);
-    const limit = Math.min(100, Math.max(1, Number(url.searchParams.get('limit')) || 40));
-    const stats = usageIndex.searchStats();
-    const found =
-      stats.on && usageIndex.ready()
-        ? usageIndex.search(q, { source: scope, limit })
-        : { terms: [], results: [], total: 0 };
-    res
-      .writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' })
-      .end(JSON.stringify({ q, scope, on: stats.on, ready: usageIndex.ready(), stats, ...found }));
-    return;
-  }
-  // Who's answering on this port: how the desktop app finds an Overtime that's already running.
-  if (url.pathname === '/api/hello') {
-    res
-      .writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' })
-      .end(JSON.stringify({ app: 'overtime', version: VERSION, desktop: !!process.parentPort }));
-    return;
-  }
-  // Actions the page can take. Only this page may trigger them: a POST with a
-  // custom header forces a CORS preflight that other websites can't pass.
-  // Your saved settings, as the pages keep them. Read-only here; they change with a POST below.
-  if (url.pathname === '/api/settings' && req.method === 'GET') {
-    res
-      .writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' })
-      .end(JSON.stringify(settings));
-    return;
-  }
-  const ACTIONS = [
-    '/api/refresh',
-    '/api/limits/exact',
-    '/api/limits/forget',
-    '/api/limits/codex',
-    '/api/prefs',
-    '/api/settings',
-    '/api/resume',
-    '/api/reset',
-    '/api/commands',
-  ];
-  if (ACTIONS.includes(url.pathname) && (req.method !== 'POST' || req.headers['x-overtime'] !== '1')) {
-    res.writeHead(405).end('Use POST from the Overtime page');
-    return;
-  }
-  // Re-read the transcripts now. Local only: this never contacts Anthropic.
-  if (url.pathname === '/api/refresh') {
-    await refreshLocal();
-    res.writeHead(204).end();
-    return;
-  }
-  // Settings the server works with, like the hour your working day starts. Saved
-  // in ~/.overtime, and every open page gets them with the next snapshot.
-  if (url.pathname === '/api/prefs') {
-    const body = await readJson(req);
-    if (!body) {
-      res.writeHead(400).end('Send the settings as JSON');
-      return;
-    }
-    const next = cleanPrefs(body, prefs);
-    if (next.workdayHour !== prefs.workdayHour) {
-      setWorkdayHour(next.workdayHour);
-      insightsComputedAt = 0;
-    }
-    // Search on again reads the transcripts once more, for their text, in the background.
-    if (next.search !== prefs.search) {
-      usageIndex.setSearch(next.search);
-      if (next.search) usageIndex.scan();
-    }
-    prefs = next;
-    store.write('prefs.json', prefs);
-    res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }).end(JSON.stringify(prefs));
-    return;
-  }
-  // A page's settings changed: { set: { name: text, or null to forget it } }, or
-  // { replace: { … } } to put back a saved copy. Saved in ~/.overtime/settings.json,
-  // so they outlast the browser's storage.
-  if (url.pathname === '/api/settings') {
-    const body = await readJson(req, 2_500_000);
-    const change = body?.replace ?? body?.set;
-    if (!change || typeof change !== 'object') {
-      res.writeHead(400).end('Send { set: { … } } or { replace: { … } } as JSON');
-      return;
-    }
-    const next = applySettings(body.replace ? {} : settings.values, change);
-    if (body.replace) next.changed = true;
-    if (next.tooBig) {
-      res.writeHead(413).end('Too many settings to save');
-      return;
-    }
-    if (next.changed || !settings.initialized) {
-      settings = { initialized: true, values: next.values };
-      store.write('settings.json', { version: 1, values: settings.values });
-    }
-    res.writeHead(204).end();
-    return;
-  }
-  // Resume a session in a new Terminal window. Only its id comes from the page:
-  // the command and the folder are the session's own, from its transcript.
-  if (url.pathname === '/api/resume') {
-    const id = url.searchParams.get('id') || '';
-    const d = isSessionId(id) ? sessionDetail(usageIndex, id) : null;
-    const live = watcher.agents.get(id);
-    const session = d
-      ? { source: d.source, nativeId: d.nativeId, cwd: d.cwd }
-      : live
-        ? { source: live.source, nativeId: live.nativeId || nativeIdOf(id), cwd: live.cwd }
-        : null;
-    try {
-      if (!session) throw new Error("Overtime doesn't know this session");
-      const result = await resumeInTerminal(session, store.dir);
-      res.writeHead(200, { 'Content-Type': 'application/json' }).end(JSON.stringify(result));
-    } catch (error) {
-      res
-        .writeHead(422, { 'Content-Type': 'application/json' })
-        .end(JSON.stringify({ ok: false, message: error.message }));
-    }
-    return;
-  }
-  // Make a prompt you keep typing into a slash command: { target: 'claude' | 'codex' | 'pi',
-  // name, description, body }. A new file in ~/.claude/commands, ~/.codex/prompts or
-  // ~/.pi/agent/prompts, never over one that's there. The only place outside
-  // ~/.overtime it writes, and only when you press Create.
-  if (url.pathname === '/api/commands') {
-    const body = await readJson(req, 40_000);
-    const result = body ? await writeCommand(body) : { ok: false, status: 400, message: 'Send the command as JSON' };
-    if (result.ok) insightsComputedAt = 0;
-    res.writeHead(result.ok ? 201 : result.status, { 'Content-Type': 'application/json' }).end(JSON.stringify(result));
-    return;
-  }
-  // Reset everything: your settings and the server's back to how they started,
-  // and with { history: true } the days kept for the heatmap too. Can't be undone.
-  if (url.pathname === '/api/reset') {
-    const body = (await readJson(req)) || {};
-    settings = { initialized: true, values: {} };
-    store.write('settings.json', { version: 1, values: {} });
-    const searchWasOff = !prefs.search;
-    prefs = { ...DEFAULT_PREFS };
-    setWorkdayHour(prefs.workdayHour);
-    usageIndex.setSearch(prefs.search);
-    if (searchWasOff) usageIndex.scan();
-    store.write('prefs.json', prefs);
-    if (body.history === true) {
-      history = { version: 1, days: {} };
-      store.write('history.json', history);
-    }
-    insightsComputedAt = 0;
-    res.writeHead(204).end();
-    return;
-  }
-  // Exact numbers were switched off: drop the login from memory.
-  if (url.pathname === '/api/limits/forget') {
-    forgetLogin();
-    res.writeHead(204).end();
-    return;
-  }
-  if (url.pathname === '/api/limits/codex') {
-    const result = await exactCodexLimits({ force: url.searchParams.get('fresh') === '1' });
-    res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }).end(JSON.stringify(result));
-    return;
-  }
-  if (url.pathname === '/api/limits/exact') {
-    // ?fresh=1 is the dashboard's Refresh button: ask Anthropic now and recompute
-    // the local estimate and insights too.
-    const force = url.searchParams.get('fresh') === '1';
-    if (force) await refreshLocal();
-    const result = await exactLimits({ force });
-    // Add what each window has cost so far, from the local usage index.
-    const withSpend = (w, length) => (w?.resetsAt ? { ...w, spend: windowSpend(claudeIndex, w.resetsAt - length) } : w);
-    const body =
-      result.status === 'ok'
-        ? {
-            ...result,
-            session: withSpend(result.session, 5 * 3_600_000),
-            weekly: withSpend(result.weekly, 7 * 86_400_000),
-          }
-        : result;
-    res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }).end(JSON.stringify(body));
-    return;
-  }
-  if (url.pathname === '/office') {
-    res.writeHead(301, { Location: `/office/${url.search}` }).end();
-    return;
-  }
-  const entry = staticFile(url.pathname);
-  let body;
-  try {
-    body = entry && (await fsp.readFile(entry[0]));
-  } catch {}
-  if (!body) {
-    res.writeHead(404).end('Not found');
-    return;
-  }
-  res
-    .writeHead(200, {
-      'Content-Type': entry[1],
-      'Cache-Control': entry[2] ? 'public, max-age=31536000, immutable' : 'no-store',
-    })
-    .end(entry[0].endsWith('index.html') ? withSettings(body) : body);
+  const route = ROUTES[url.pathname];
+  // Anything else is one of the pages' files.
+  if (!route) return serveFile(res, WEB_DIR, url.pathname, withSettings);
+  if (route.action && req.method === 'POST' && req.headers['x-overtime'] === '1')
+    return route.action({ req, res, url });
+  if (route.read && (!route.action || req.method === 'GET')) return route.read({ req, res, url });
+  res.writeHead(405).end('Use POST from the Overtime page');
 }
 
 let lastSent = 0;
 setInterval(() => {
   // With no page open there's nobody to send to; a page gets everything when it connects.
-  if (!clients.size) return;
+  if (!live.size) return;
   const now = Date.now();
   if (!watcher.takeDirty() && now - lastSent < 2000) return;
   lastSent = now;
   try {
-    const snap = snapshot();
-    for (const res of clients.keys()) sendTo(res, snap);
+    live.sendAll(snapshot());
     openSessions.tick();
   } catch (error) {
     report('Making the live update', error);
@@ -707,9 +627,9 @@ for (const signal of ['SIGTERM', 'SIGINT']) {
 }
 
 // Started by the desktop app, the server tells it how it went; from a terminal, it says so.
-const tellApp = (message) => process.parentPort?.postMessage(message);
+const tellApp = (message) => parentPort?.postMessage(message);
 
-server.on('error', (error) => {
+server.on('error', (/** @type {NodeJS.ErrnoException} */ error) => {
   if (error.code === 'EADDRINUSE') {
     tellApp({ type: 'in-use', port: PORT });
     console.error(
@@ -723,7 +643,7 @@ server.on('error', (error) => {
 });
 
 server.listen(PORT, HOST, () => {
-  const port = server.address().port;
+  const { port } = /** @type {import('node:net').AddressInfo} */ (server.address());
   ALLOWED_HOSTS = new Set([`127.0.0.1:${port}`, `localhost:${port}`]);
   tellApp({ type: 'listening', port });
   console.log(`Overtime is open at http://localhost:${port} (the pixel office is at /office/)`);

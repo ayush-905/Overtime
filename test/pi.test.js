@@ -294,14 +294,14 @@ test('the index finds pi sessions, by project folder or all in one, and keeps th
   await mkdir(path.join(piDir, '--work-shop--'), { recursive: true });
   await writeFile(
     path.join(piDir, '--work-shop--', `2026-10-04T04-50-12-345Z_${id}.jsonl`),
-    session()
+    `${session()
       .map((e) => JSON.stringify(e))
-      .join('\n') + '\n',
+      .join('\n')}\n`,
   );
   const other = { ...header(), id: 'my-named-session' };
   await writeFile(
     path.join(piDir, '2026-10-04T05-00-00-000Z_my-named-session.jsonl'),
-    [other, user('hello', 1)].map((e) => JSON.stringify(e)).join('\n') + '\n',
+    `${[other, user('hello', 1)].map((e) => JSON.stringify(e)).join('\n')}\n`,
   );
   const idx = createUsageIndex({
     claudeDir: path.join(root, 'none'),

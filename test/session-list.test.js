@@ -33,7 +33,7 @@ test('a session that never got a reply is left out of the list, unless it is sti
     cwd,
   });
   const write = (id, lines) =>
-    writeFile(path.join(claudeDir, 'project', `${id}.jsonl`), lines.map(JSON.stringify).join('\n') + '\n');
+    writeFile(path.join(claudeDir, 'project', `${id}.jsonl`), `${lines.map(JSON.stringify).join('\n')}\n`);
   const ids = [
     'aaaaaaaa-0000-0000-0000-000000000001',
     'aaaaaaaa-0000-0000-0000-000000000002',

@@ -155,12 +155,12 @@ test('latest models flow through the usage index into session and spend costs', 
   const codexId = '87654321-4321-4321-4321-210987654321';
   await writeFile(
     path.join(claudeDir, 'project', `${claudeId}.jsonl`),
-    JSON.stringify({
+    `${JSON.stringify({
       type: 'assistant',
       timestamp,
       cwd: '/test',
       message: { id: 'm', model: 'claude-sonnet-5-5', usage: { input_tokens: 1000, output_tokens: 500 } },
-    }) + '\n',
+    })}\n`,
   );
   const records = [
     { type: 'session_meta', payload: { id: codexId, cwd: '/test', model_provider: 'openai' } },
@@ -172,7 +172,7 @@ test('latest models flow through the usage index into session and spend costs', 
   ];
   await writeFile(
     path.join(codexDir, `rollout-${codexId}.jsonl`),
-    records.map((r) => JSON.stringify({ ...r, timestamp })).join('\n') + '\n',
+    `${records.map((r) => JSON.stringify({ ...r, timestamp })).join('\n')}\n`,
   );
   const index = createUsageIndex({ claudeDir, codexDir });
   await index.scan();

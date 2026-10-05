@@ -145,14 +145,30 @@ test('a conversation written into its transcript again counts once, and each mes
       content: [{ type: 'tool_use', id: `t${n}`, name: 'Write', input: { file_path: '/x', content: 'a\nb\n' } }],
     },
   });
+  // Each write went through, which is when its lines count.
+  const written = (ms, n) => ({
+    type: 'user',
+    uuid: `r${n}`,
+    timestamp: at(ms),
+    cwd: '/work/shop',
+    message: { content: [{ type: 'tool_result', tool_use_id: `t${n}`, content: 'File created successfully at: /x' }] },
+  });
   const first = [
     you(0, 1, 'First task for the agent'),
     reply(60_000, 1, 1),
+    written(61_000, 1),
     you(HOUR, 2, 'Second task for the agent'),
     reply(HOUR + 60_000, 2, 2),
+    written(HOUR + 61_000, 2),
   ];
   // The app wrote the whole conversation in again, then it carried on.
-  const lines = [...first, ...first, you(2 * HOUR, 3, 'Third task for the agent'), reply(2 * HOUR + 60_000, 3, 3)];
+  const lines = [
+    ...first,
+    ...first,
+    you(2 * HOUR, 3, 'Third task for the agent'),
+    reply(2 * HOUR + 60_000, 3, 3),
+    written(2 * HOUR + 61_000, 3),
+  ];
   await writeFile(path.join(claudeDir, 'project', `${A}.jsonl`), `${lines.map((l) => JSON.stringify(l)).join('\n')}\n`);
   const idx = createUsageIndex({ claudeDir, codexDir: path.join(root, 'none') });
   await idx.scan();

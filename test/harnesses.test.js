@@ -29,6 +29,13 @@ test('every harness gives the core what it needs, and the dashboard lists the sa
     );
     if (h.commands)
       assert.ok(typeof h.commands.dir() === 'string' && h.commands.use('x').endsWith('x') && h.commands.noun, h.id);
+    if (h.resume.app) assert.equal(typeof h.resume.app, 'function', h.id);
+    if (h.skills) {
+      assert.equal(typeof h.skills.kind, 'function', h.id);
+      const where = { at: '', cwds: [], exists: () => false, folders: () => [] };
+      assert.ok(['personal', 'project', 'plugin', 'app', 'builtin'].includes(h.skills.kind('x', where).kind), h.id);
+      if (h.skills.alias) assert.ok(h.skills.alias('x') === null || typeof h.skills.alias('x') === 'string', h.id);
+    }
     const open = h.open({ dir: os.tmpdir(), piHome: os.tmpdir() });
     assert.ok(
       typeof open.transcripts === 'function' && typeof open.live === 'function' && typeof open.indexLine === 'function',
@@ -96,12 +103,12 @@ test('a new harness is one module: the index and the live view take it through t
   await mkdir(dir);
   await writeFile(
     path.join(dir, 'abc.jsonl'),
-    [
+    `${[
       { t: now - 5000, prompt: 'Sort the blocks' },
       { t: now - 2000, tokens: 1200, cost: 0.03 },
     ]
       .map(JSON.stringify)
-      .join('\n') + '\n',
+      .join('\n')}\n`,
   );
   const harnesses = [{ ...toy, ...toy.open({ dir }) }];
 

@@ -48,7 +48,7 @@ test("Claude Code's own title names a session, and one you gave it wins", async 
     message: { id: `a${s}`, model: 'claude-sonnet-4-5', usage: { input_tokens: 100, output_tokens: 20 } },
   });
   const write = (id, lines) =>
-    writeFile(path.join(claudeDir, 'project', `${id}.jsonl`), lines.map(JSON.stringify).join('\n') + '\n');
+    writeFile(path.join(claudeDir, 'project', `${id}.jsonl`), `${lines.map(JSON.stringify).join('\n')}\n`);
   await write('aaaaaaaa-0000-0000-0000-000000000001', [
     user(0, 'claude --resume 581ca1e1 "Continue"'),
     reply(5),
@@ -100,7 +100,7 @@ test("a Codex chat is named by Codex's name for it, the latest one", async (t) =
     ev('response_item', { type: 'message', role: 'user', content: [{ type: 'input_text', text: 'hi' }] }, 1),
     ev('event_msg', { type: 'token_count', info: { total_token_usage: usage, last_token_usage: usage } }, 2),
   ];
-  await writeFile(path.join(codexDir, `rollout-${id}.jsonl`), rows.map(JSON.stringify).join('\n') + '\n');
+  await writeFile(path.join(codexDir, `rollout-${id}.jsonl`), `${rows.map(JSON.stringify).join('\n')}\n`);
   const index = path.join(root, 'session_index.jsonl');
   await writeFile(
     index,

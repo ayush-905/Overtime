@@ -13,12 +13,12 @@ test('the server takes any free port with PORT=0, says who it is there, and only
   const sessionId = '12345678-1234-1234-1234-123456789012';
   await writeFile(
     path.join(dir, 'claude', 'project', `${sessionId}.jsonl`),
-    JSON.stringify({
+    `${JSON.stringify({
       type: 'user',
       timestamp: new Date().toISOString(),
       cwd: '/work/shop',
       message: { content: 'Private fixture prompt' },
-    }) + '\n',
+    })}\n`,
   );
   const { port } = await startServer(t, dir, 0);
   assert.ok(port > 0 && port !== 4777);
@@ -66,7 +66,7 @@ test("the server keeps going after a request it can't read and a transcript line
   ];
   await writeFile(
     path.join(dir, 'claude', 'project', '12345678-1234-1234-1234-123456789012.jsonl'),
-    lines.map((x) => JSON.stringify(x)).join('\n') + '\n',
+    `${lines.map((x) => JSON.stringify(x)).join('\n')}\n`,
   );
   const { port, code, out } = await startServer(t, dir, 0);
   assert.ok(port, `it started: ${code} ${out}`);

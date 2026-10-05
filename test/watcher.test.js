@@ -14,7 +14,7 @@ async function claudeFolder(t, lines) {
   t.after(() => rm(dir, { recursive: true, force: true }));
   await mkdir(path.join(dir, 'shop'));
   const file = path.join(dir, 'shop', `${SESSION}.jsonl`);
-  await writeFile(file, lines.map((x) => (typeof x === 'string' ? x : JSON.stringify(x))).join('\n') + '\n');
+  await writeFile(file, `${lines.map((x) => (typeof x === 'string' ? x : JSON.stringify(x))).join('\n')}\n`);
   return { dir, file };
 }
 
@@ -88,9 +88,9 @@ test('a transcript that gets shorter is read again from the start, not on top of
   assert.equal(watcher.agents.get(SESSION).turns, 50);
   await writeFile(
     file,
-    turns(3, { from: 100 })
+    `${turns(3, { from: 100 })
       .map((x) => JSON.stringify(x))
-      .join('\n') + '\n',
+      .join('\n')}\n`,
   );
   await watcher.tick();
   const a = watcher.agents.get(SESSION);
