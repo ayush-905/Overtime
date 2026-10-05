@@ -5,23 +5,49 @@
 // again if it stops. If the one it was using stops, the app takes over on the
 // same port, and open pages reconnect by themselves. Only if something else
 // holds the port does it pick a free one, and then the windows load from there.
+// If its own keeps stopping (a sixth time in a minute), or can't be started
+// in its place, the app gives up and says so; `restart()` tries again.
 
-import { utilityProcess } from 'electron';
-import { hello } from './hello.js';
+import { hello as overtimeOn } from './hello.js';
+import { retryLimit } from './retry-limit.js';
 
 const WATCH_MS = 5000;
+const RESTART_MS = 1000;
 
 /**
- * `entry` is server.js; `env` what it runs with. `onPort(port)` hears when the
- * port changes after the start, so the windows can load from the new one.
+ * `entry` is server.js; `env` what it runs with; `utilityProcess` is Electron's,
+ * passed in so the tests can stand in for it (and for `hello`, and the timings).
+ * `onPort(port)` hears when the port changes after the start, so the windows can
+ * load from the new one. `onState(state)` hears how it's going: 'running' (its
+ * own server, or the one it shares: see `mode`), 'restarting' (its own stopped,
+ * or the one it shared did, and it's starting one), or 'stopped' (it gave up).
  */
-export function createServerHost({ entry, port: preferred, env, log = () => {}, onPort = () => {} }) {
+export function createServerHost({
+  entry,
+  port: preferred,
+  env,
+  utilityProcess,
+  log = () => {},
+  onPort = () => {},
+  onState = () => {},
+  hello = overtimeOn,
+  watchMs = WATCH_MS,
+  restartMs = RESTART_MS,
+}) {
   let child = null; // the server the app started, if it did
   let port = null;
   let mode = null; // 'own' or 'shared'
+  let state = 'starting';
   let stopping = false;
   let watch = null;
-  let restarts = [];
+  let again = null;
+  const restarts = retryLimit({ times: 5, withinMs: 60_000 });
+
+  function setState(next) {
+    if (next === state) return;
+    state = next;
+    onState(state);
+  }
 
   /** Start server.js on a port: { ok, port, proc }, { inUse }, or { error }. */
   function fork(p) {
@@ -46,7 +72,7 @@ export function createServerHost({ entry, port: preferred, env, log = () => {}, 
       });
       proc.on('exit', (code) => {
         settle({ error: `it stopped (code ${code})` });
-        if (proc === child) stopped(code);
+        if (proc === child) stopped(`code ${code}`);
       });
     });
   }
@@ -57,6 +83,7 @@ export function createServerHost({ entry, port: preferred, env, log = () => {}, 
     mode = 'own';
     setPort(result.port);
     log(`started the server on port ${port}`);
+    setState('running');
   }
 
   function share(p) {
@@ -64,6 +91,7 @@ export function createServerHost({ entry, port: preferred, env, log = () => {}, 
     mode = 'shared';
     setPort(p);
     log(`using the Overtime already running on port ${p}`);
+    setState('running');
     // If it stops, take over.
     let misses = 0;
     stopWatching();
@@ -75,8 +103,9 @@ export function createServerHost({ entry, port: preferred, env, log = () => {}, 
       if (++misses < 2) return;
       stopWatching();
       log('the server this app was using stopped; starting its own');
-      await startOn(p).catch((error) => log(error.message));
-    }, WATCH_MS);
+      setState('restarting');
+      startAgain();
+    }, watchMs);
   }
 
   function stopWatching() {
@@ -102,19 +131,28 @@ export function createServerHost({ entry, port: preferred, env, log = () => {}, 
     own(result);
   }
 
-  /** Ours stopped without being asked to: start it again, on the same port so pages reconnect. */
-  function stopped(code) {
+  /** On the same port, so pages reconnect; one that doesn't start counts as stopping again. */
+  function startAgain() {
+    if (stopping) return;
+    startOn(port ?? preferred).catch((error) => {
+      log(error.message);
+      stopped("it didn't start");
+    });
+  }
+
+  /** Ours stopped without being asked to: start it again in a moment, unless it keeps stopping. */
+  function stopped(why) {
     child = null;
     if (stopping) return;
-    const now = Date.now();
-    restarts = restarts.filter((t) => now - t < 60_000);
-    if (restarts.length >= 5) {
-      log(`the server keeps stopping (code ${code}); not starting it again`);
+    if (!restarts.take()) {
+      log(`the server keeps stopping (${why}); not starting it again`);
+      setState('stopped');
       return;
     }
-    restarts.push(now);
-    log(`the server stopped (code ${code}); starting it again`);
-    setTimeout(() => startOn(port).catch((error) => log(error.message)), 1000);
+    log(`the server stopped (${why}); starting it again`);
+    setState('restarting');
+    clearTimeout(again);
+    again = setTimeout(startAgain, restartMs);
   }
 
   return {
@@ -123,9 +161,18 @@ export function createServerHost({ entry, port: preferred, env, log = () => {}, 
       else await startOn(preferred);
       return port;
     },
+    /** After it gave up: start it again, asked to, with a fresh count of restarts. */
+    restart() {
+      if (stopping || state !== 'stopped') return;
+      restarts.reset();
+      log('starting the server again, as asked');
+      setState('restarting');
+      startAgain();
+    },
     stop() {
       stopping = true;
       stopWatching();
+      clearTimeout(again);
       child?.kill();
     },
     get port() {
@@ -133,6 +180,9 @@ export function createServerHost({ entry, port: preferred, env, log = () => {}, 
     },
     get mode() {
       return mode;
+    },
+    get state() {
+      return state;
     },
   };
 }

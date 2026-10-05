@@ -6,6 +6,8 @@
 // any section there too, in the phone layout; a right click has the menu. The
 // app runs the same server as `npm start` (see server-host.js). Closing the window keeps the app in the menu
 // bar, and the dashboard stays loaded behind it so its alerts still arrive.
+// A page that stops loads again (page-keeper.js); if one keeps stopping, or the
+// server does, the menu bar says so and offers to try again.
 // Quit from the menu bar's menu or with ⌘Q. New versions come from GitHub
 // Releases and install themselves (see updater.js).
 //
@@ -26,12 +28,14 @@ import {
   screen,
   session,
   shell,
+  utilityProcess,
 } from 'electron';
 import { createWriteStream, mkdirSync, renameSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { loginPath } from './shell-path.js';
 import { createServerHost } from './server-host.js';
+import { keepPage } from './page-keeper.js';
 import { MENU_BAR, readPrefs, savePrefs } from './prefs.js';
 import { createUpdater } from './updater.js';
 
@@ -50,7 +54,11 @@ const HOME = { main: (p) => p === UI, office: (p) => p.startsWith('/office'), po
 const POPOVER_RESET_MS = 2 * 60_000; // closed this long, it opens on the summary again
 const EXTERNAL = /^(https?|mailto|claude|codex|vscode|cursor):/i;
 
-if (process.env.OVERTIME_USER_DATA) app.setPath('userData', process.env.OVERTIME_USER_DATA);
+if (process.env.OVERTIME_USER_DATA) {
+  app.setPath('userData', process.env.OVERTIME_USER_DATA);
+  // Its log too, so a trial copy's doesn't take the place of the real app's.
+  app.setAppLogsPath(path.join(process.env.OVERTIME_USER_DATA, 'logs'));
+}
 app.setName('Overtime');
 
 let logFile = null;
@@ -73,6 +81,10 @@ let popoverBlurredAt = 0;
 let popoverReset = null;
 let glance = null; // what the compact view last said: plan windows, today's cost, agents
 let prefs = readPrefs();
+let serverState = 'starting'; // what the server host last said: running, restarting or stopped
+let serverDown = false; // it gave up, and the server isn't back yet
+const pages = {}; // what keeps each window's page going, by window: main, popover, office (see page-keeper.js)
+const notices = new Set(); // notifications on screen, kept so their clicks still arrive
 
 const ours = (url) => {
   try {
@@ -125,6 +137,17 @@ function guard(win, kind) {
   });
 }
 
+/** If the window's page stops, it loads again (see page-keeper.js); `name` says which in the log. */
+function keep(win, kind, name, home) {
+  pages[kind] = keepPage(win.webContents, {
+    name,
+    home: () => `${base}${home}`,
+    log,
+    quitting: () => quitting,
+    onChange: (down) => pageChanged(kind, down),
+  });
+}
+
 // ── Windows ────────────────────────────────────────────────────────────────
 
 /** Saved bounds, if their title bar is still on a screen. */
@@ -164,6 +187,7 @@ function createMain({ show = true } = {}) {
     webPreferences: webPreferences('main'),
   });
   guard(mainWin, 'main');
+  keep(mainWin, 'main', 'main window', UI);
   keepBounds(mainWin, 'bounds');
   mainWin.loadURL(`${base}${UI}`);
   if (show) mainWin.once('ready-to-show', () => showMain());
@@ -190,6 +214,8 @@ function createMain({ show = true } = {}) {
 async function showMain(hash = '') {
   if (!base) return;
   if (!mainWin) createMain({ show: false });
+  // It stopped, again and again: opening it is a good moment to try once more.
+  if (pages.main?.down) pages.main.revive();
   if (app.dock && !app.dock.isVisible()) await app.dock.show();
   const wc = mainWin.webContents;
   if (hash && hash !== '#') {
@@ -217,14 +243,17 @@ function showOffice() {
       webPreferences: webPreferences('office'),
     });
     guard(officeWin, 'office');
+    keep(officeWin, 'office', 'office window', '/office/');
     keepBounds(officeWin, 'officeBounds');
     officeWin.loadURL(`${base}/office/`);
     officeWin.once('ready-to-show', () => officeWin?.show());
     officeWin.on('closed', () => {
       officeWin = null;
+      pages.office = null;
       leaveDockIfClosed();
     });
   } else {
+    if (pages.office?.down) pages.office.revive();
     officeWin.show();
   }
   officeWin.focus();
@@ -263,6 +292,7 @@ function createPopover() {
   });
   popover.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true, skipTransformProcessType: true });
   guard(popover, 'popover');
+  keep(popover, 'popover', 'popover', `${UI}#overview`);
   popover.loadURL(`${base}${UI}#overview`);
   popover.on('blur', () => {
     if (popover.webContents.isDevToolsOpened() || !popover.isVisible()) return;
@@ -329,6 +359,7 @@ function togglePopover() {
   }
   // This same click took the focus away and closed it a moment ago: it stays closed.
   if (Date.now() - popoverBlurredAt < 300) return;
+  if (pages.popover?.down) pages.popover.revive();
   placePopover();
   popoverShownAt = Date.now();
   // Shown first, on this desktop, then given the keyboard: shown and focused in one
@@ -348,8 +379,41 @@ function trayImage(needs) {
   return trayImages[name];
 }
 
+/**
+ * What has stopped, if anything, each with a line to say so and what the menu
+ * offers for it: for the tooltip and the top of the menu.
+ */
+function troubles() {
+  const list = [];
+  if (serverDown)
+    list.push(
+      serverState === 'stopped'
+        ? {
+            say: "Overtime's server stopped",
+            fixes: [
+              { label: 'Start the Server Again', click: restartServer },
+              { label: 'Show the Log', click: showLog },
+            ],
+          }
+        : { say: "Starting Overtime's server again…", fixes: [{ label: 'Show the Log', click: showLog }] },
+    );
+  if (pages.main?.down)
+    list.push({
+      say: 'Alerts are paused: the dashboard stopped',
+      fixes: [{ label: 'Reload the Dashboard', click: () => pages.main?.revive() }],
+    });
+  if (pages.popover?.down)
+    list.push({
+      say: 'The menu bar stopped updating',
+      fixes: [{ label: 'Reload the Mini View', click: () => pages.popover?.revive() }],
+    });
+  return list;
+}
+
 /** The compact view's summary, a line each: for the tooltip and the menu. */
 function summary() {
+  // With the server or the popover stopped, there's nothing current to say.
+  if (serverDown || pages.popover?.down) return [];
   if (!glance) return [base ? 'Waiting for the first numbers' : 'Starting'];
   const agents = glance.needs
     ? `${glance.needs} ${glance.needs === 1 ? 'agent needs' : 'agents need'} you`
@@ -362,30 +426,40 @@ function summary() {
 function paintTray() {
   if (!tray) return;
   const shows = prefs.menuBarShows;
+  // With the server stopped, the icon and a word for it, and none of the figures: they'd
+  // only grow stale. They're kept, though, as the page sends them only when they change.
+  const g = serverDown ? null : glance;
   // Every limit is one picture, in place of the icon; the others are text beside the icon.
-  const picture = shows === 'limits' ? limitsPicture() : null;
-  const closest = glance?.left == null ? '' : glance.limited ? 'Limit' : `${glance.left}%`;
-  const title = picture ? '' : { limits: closest, closest, cost: glance?.cost || '', icon: '' }[shows] || '';
-  tray.setImage(picture || trayImage(!!glance?.needs));
+  const picture = shows === 'limits' && g ? limitsPicture() : null;
+  const closest = g?.left == null ? '' : g.limited ? 'Limit' : `${g.left}%`;
+  const word = serverState === 'stopped' ? 'Stopped' : 'Starting…';
+  const title = serverDown
+    ? word
+    : picture
+      ? ''
+      : { limits: closest, closest, cost: g?.cost || '', icon: '' }[shows] || '';
+  tray.setImage(picture || trayImage(!!g?.needs));
   tray.setTitle(title, { fontType: 'monospacedDigit' });
-  tray.setToolTip(['Overtime', ...summary()].join('\n'));
-  app.dock?.setBadge(glance?.needs ? String(glance.needs) : '');
+  tray.setToolTip(['Overtime', ...troubles().map((t) => t.say), ...summary()].join('\n'));
+  app.dock?.setBadge(g?.needs ? String(g.needs) : '');
   log(
-    `menu bar: ${picture ? `every limit (${picture.getSize().width}×${picture.getSize().height}pt)` : `"${title}"`}${glance?.needs ? ` with a dot (${glance.needs} need you)` : ''}`,
+    `menu bar: ${picture ? `every limit (${picture.getSize().width}×${picture.getSize().height}pt)` : `"${title}"`}${g?.needs ? ` with a dot (${g.needs} need you)` : ''}`,
   );
 }
 
 function trayMenu() {
   const shows = { limits: 'Every Plan Limit', closest: 'Closest Limit Only', cost: 'Cost Today', icon: 'Icon Only' };
   const login = app.getLoginItemSettings();
+  const lines = summary();
   return Menu.buildFromTemplate([
-    ...summary().map((label) => ({ label, enabled: false })),
-    { type: 'separator' },
+    ...troubles().flatMap(({ say, fixes }) => [{ label: say, enabled: false }, ...fixes, { type: 'separator' }]),
+    ...lines.map((label) => ({ label, enabled: false })),
+    ...(lines.length ? [{ type: 'separator' }] : []),
     { label: 'Open Overtime', click: () => showMain() },
     { label: 'Open the Pixel Office', click: showOffice },
     {
       label: 'Open in Browser',
-      enabled: !!host?.port,
+      enabled: !!host?.port && !serverDown,
       click: () => shell.openExternal(`http://localhost:${host.port}/`),
     },
     { type: 'separator' },
@@ -554,9 +628,7 @@ function appMenu() {
     { role: 'windowMenu' },
     {
       role: 'help',
-      submenu: [
-        { label: 'Show the Log', click: () => shell.showItemInFolder(path.join(app.getPath('logs'), 'overtime.log')) },
-      ],
+      submenu: [{ label: 'Show the Log', click: showLog }],
     },
   ]);
 }
@@ -620,16 +692,65 @@ async function checkForUpdates() {
 let lastUpdateState = 'idle';
 /** Each step redraws the menus; a version ready to install says so once. */
 function updateChanged(s) {
-  if (s.state !== lastUpdateState && s.state === 'ready' && Notification.isSupported()) {
-    const n = new Notification({
-      title: `Overtime ${s.version} is ready`,
-      body: 'It installs when you quit. Click to restart and update now.',
-    });
-    n.on('click', restartToUpdate);
-    n.show();
-  }
+  if (s.state !== lastUpdateState && s.state === 'ready')
+    notify(
+      `Overtime ${s.version} is ready`,
+      'It installs when you quit. Click to restart and update now.',
+      restartToUpdate,
+    );
   lastUpdateState = s.state;
   Menu.setApplicationMenu(appMenu());
+}
+
+// ── When something stops ───────────────────────────────────────────────────
+
+/** A notification that does `click` when clicked. */
+function notify(title, body, click) {
+  if (!Notification.isSupported()) return;
+  const n = new Notification({ title, body });
+  notices.add(n);
+  n.on('click', () => {
+    notices.delete(n);
+    click();
+  });
+  n.on('close', () => notices.delete(n));
+  n.show();
+}
+
+function showLog() {
+  shell.showItemInFolder(path.join(app.getPath('logs'), 'overtime.log'));
+}
+
+/** A window's page stopped again and again (it's down), or came back. */
+function pageChanged(kind, down) {
+  // Nothing sends the menu bar's figures now; loaded again, the page sends them afresh.
+  if (kind === 'popover' && down) glance = null;
+  if (kind === 'main' && down)
+    notify('Alerts are paused', "Overtime's dashboard stopped. Click to reload it.", () => pages.main?.revive());
+  paintTray();
+}
+
+/**
+ * News from the server host (see server-host.js). A quick restart shows nothing;
+ * giving up shows in the menu bar until the server's back, and the pages
+ * reconnect by themselves then.
+ */
+function serverChanged(state) {
+  serverState = state;
+  if (state === 'stopped') {
+    serverDown = true;
+    notify("Overtime's server stopped", 'Figures and alerts are paused. Click to start it again.', restartServer);
+  } else if (state === 'running') {
+    serverDown = false;
+    // A page that tried to load while it was away loads now.
+    for (const page of Object.values(pages)) page?.retry();
+  }
+  log(`the server is ${state}`);
+  paintTray();
+}
+
+function restartServer() {
+  host?.restart();
 }
 
 // ── Start and quit ─────────────────────────────────────────────────────────
@@ -681,8 +802,10 @@ async function start() {
     entry: path.join(ROOT, 'server.js'),
     port: PORT,
     env: { ...process.env, PATH },
+    utilityProcess,
     log,
     onPort: movePort,
+    onState: serverChanged,
   });
   try {
     await host.start();
