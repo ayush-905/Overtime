@@ -26,7 +26,8 @@ import { useChanged } from '@/data/hooks';
 import { offerUndo } from '@/app/toasts';
 import { Dialog } from './Dialog';
 import { Button, IconButton } from './Button';
-import { readOrder, saveOrder, useArrange } from './PageGrid';
+import { readOrder, saveOrder } from './PageGrid';
+import { useArrange } from '@/app/dialogs';
 import { cx } from './cx';
 
 function Row({

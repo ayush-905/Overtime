@@ -128,7 +128,7 @@ export const esc = (s) =>
 
 export function clip(text, max) {
   const s = String(text ?? '');
-  return s.length > max ? s.slice(0, max - 1) + '…' : s;
+  return s.length > max ? `${s.slice(0, max - 1)}…` : s;
 }
 
 export function ago(ms) {

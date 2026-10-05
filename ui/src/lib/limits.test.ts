@@ -330,7 +330,7 @@ describe('live agents', () => {
       status: 'working',
       tool: { name: 'Bash', category: 'bash', verb: 'Running', detail: 'the tests', startedAt: t - 20_000 },
     }),
-    agent({ status: 'working', tool: { name: 'jira', category: 'other', startedAt: t - 20_000 } }),
+    agent({ status: 'working', tool: { name: 'search issues', category: 'other', startedAt: t - 20_000 } }),
     agent({ status: 'thinking', turnStartedAt: t - 40_000 }),
     agent({ status: 'replying', turnStartedAt: t - 40_000 }),
     agent({ status: 'done', endedAt: t - 10 * MIN }),

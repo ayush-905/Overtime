@@ -4,8 +4,10 @@
 
 import { changed } from './bus';
 import { DAY, money } from './format';
+import { onOtherTab, readJson, writeJson } from './storage';
+import type { SpendSummary } from '@/data/types';
 
-const KEY = 'overtime-plans';
+const KEY = 'plans';
 
 /** Monthly prices in US dollars, as listed when this was written; any amount works. */
 export const PLAN_PRESETS: Record<'claude' | 'codex', [string, string, number][]> = {
@@ -24,29 +26,24 @@ export type Plan = { usd: number; plan: string };
 export const plans: Record<'claude' | 'codex', Plan | null> = { claude: null, codex: null };
 
 function load() {
-  try {
-    const saved = JSON.parse(localStorage.getItem(KEY) || '{}') || {};
-    for (const p of ['claude', 'codex'] as const)
-      plans[p] = saved[p]?.usd > 0 ? { usd: Number(saved[p].usd), plan: String(saved[p].plan || 'custom') } : null;
-  } catch {}
+  const saved = readJson<Partial<Record<'claude' | 'codex', { usd?: number; plan?: string } | null>>>(KEY, {});
+  for (const p of ['claude', 'codex'] as const) {
+    const s = saved[p];
+    plans[p] = s?.usd && s.usd > 0 ? { usd: Number(s.usd), plan: String(s.plan || 'custom') } : null;
+  }
 }
 load();
 
-if (typeof window !== 'undefined') {
-  window.addEventListener('storage', (e) => {
-    if (e.key !== KEY) return;
-    load();
-    changed('prefs');
-  });
-}
+onOtherTab((key) => {
+  if (key !== KEY) return;
+  load();
+  changed('prefs');
+});
 
 /** Set what you pay for a provider each month, in US dollars; null for no plan. */
 export function setPlan(provider: 'claude' | 'codex', usd: number | null, plan = 'custom') {
   plans[provider] = usd && usd > 0 ? { usd, plan } : null;
-  try {
-    localStorage.setItem(KEY, JSON.stringify(plans));
-  } catch {}
-  changed('prefs');
+  writeJson(KEY, plans, 'prefs');
 }
 
 export const planName = (provider: 'claude' | 'codex') => {
@@ -56,8 +53,8 @@ export const planName = (provider: 'claude' | 'codex') => {
 
 export const times = (x: number) => (x >= 10 ? `${Math.round(x)}×` : `${x.toFixed(1).replace(/\.0$/, '')}×`);
 
-type Spend = { cost: number; partial?: boolean };
-type ProviderSpend = { month?: Spend & { from: number }; last7?: Spend; last30?: Spend } | null | undefined;
+/** A provider's spend (analytics[view].spend). */
+type ProviderSpend = Pick<SpendSummary, 'month' | 'last7' | 'last30'> | null | undefined;
 
 /** The month so far, and where it lands at the pace of the last 7 days. */
 export function monthOf(spend: ProviderSpend, now: number) {

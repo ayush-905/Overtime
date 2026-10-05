@@ -477,6 +477,7 @@ export function Palette() {
                       const i = n++;
                       const on = i === at;
                       return (
+                        // biome-ignore lint/a11y/useKeyWithClickEvents: the search box takes the keys and points at this option (aria-activedescendant), as a combobox does
                         <li
                           key={`${it.kind}:${it.id}`}
                           id={`pal-${i}`}

@@ -3,8 +3,12 @@
 // closer look at the one you pick: its days, models, providers and biggest
 // sessions, with its name and colour to change. The project and range live in
 // the address (#projects?p=shop&range=7); the range and sort are remembered.
+// Its store (useProjectsView) holds the range, the sort, the project you picked
+// and your search; like the Sessions page's, it writes the address as they
+// change, and follows the address when a link opens the page.
 
-import { memo, useEffect, useMemo, useState } from 'react';
+import { memo, useEffect, useMemo } from 'react';
+import { create } from 'zustand';
 import { Pencil, Search } from 'lucide-react';
 import { useChanged, useMedia, useMinute } from '@/data/hooks';
 import { useSessions } from '@/data/queries';
@@ -45,7 +49,45 @@ import { useProjectDialog } from '@/app/dialogs';
 import { useCompact } from '@/app/layout';
 import { SOURCE, SOURCES } from '@/lib/sources';
 
-const saved = readProjectsView();
+// ── The view ─────────────────────────────────────────────────────────────────
+
+type View = { range: Range; sort: ProjectSort; selected: string; query: string };
+type ViewState = View & { set: (patch: Partial<View>) => void };
+
+const isRange = (r: unknown): r is Range => RANGE_OPTIONS.some(([x]) => x === r);
+
+/** Remember the range and sort, and write the project, range and search into the address. */
+function persist(v: View) {
+  writeProjectsView({ range: v.range, sort: v.sort });
+  replaceParams('projects', { p: v.selected, range: v.range === '30' ? null : v.range, q: v.query.trim() });
+}
+
+/** The range and sort (remembered), the project you picked and your search (only for now, in the address). */
+const useProjectsView = create<ViewState>((set, get) => ({
+  ...readProjectsView(),
+  selected: '',
+  query: '',
+  set: (patch) => {
+    set(patch);
+    persist(get());
+  },
+}));
+
+/** Open the page on what the address asks for: #projects?p=shop&range=7. */
+function useFollowAddress() {
+  const params = useRoute((s) => s.params);
+  const page = useRoute((s) => s.page);
+  useEffect(() => {
+    if (page !== 'projects') return;
+    const saved = readProjectsView();
+    useProjectsView.getState().set({
+      range: isRange(params.range) ? params.range : saved.range,
+      sort: saved.sort,
+      selected: params.p || '',
+      query: params.q || '',
+    });
+  }, [params, page]);
+}
 
 /** When a project was last active: "active 3m ago" within the hour (counting), else its day. */
 function LastActive({ t }: { t: number }) {
@@ -387,26 +429,12 @@ export function Projects() {
   useChanged();
   // By the minute: when it was updated, and the range's first day at midnight.
   useMinute();
-  const params = useRoute((s) => s.params);
-  const page = useRoute((s) => s.page);
-  const [range, setRange] = useState<Range>(saved.range);
-  const [sort, setSortState] = useState<ProjectSort>(saved.sort);
-  const [selected, setSelected] = useState('');
-  const [query, setQuery] = useState('');
+  useFollowAddress();
+  const { range, sort, selected, query, set } = useProjectsView();
+  const setRange = (r: Range) => set({ range: r });
+  const setQuery = (q: string) => set({ query: q });
   const wide = useMedia('(min-width: 1280px)');
   const small = useCompact();
-  // Open on what the address asks for: #projects?p=shop&range=7.
-  useEffect(() => {
-    if (page !== 'projects') return;
-    const now = readProjectsView();
-    setRange((['today', '7', '30'] as string[]).includes(params.range) ? (params.range as Range) : now.range);
-    setSelected(params.p || '');
-    setQuery(params.q || '');
-  }, [params, page]);
-  useEffect(() => {
-    writeProjectsView({ range, sort });
-    replaceParams('projects', { p: selected, range: range === '30' ? null : range, q: query.trim() });
-  }, [range, sort, selected, query]);
 
   const { data, isError, refetch, dataUpdatedAt } = useSessions();
   const provider = useLive((s) => s.provider);
@@ -424,7 +452,7 @@ export function Projects() {
   const age = Date.now() - dataUpdatedAt;
   const sub = `Active ${when}${data && age > 45_000 ? ` · updated ${ago(age)} ago` : ''}`;
   const pick = (name: string) => {
-    setSelected(name);
+    set({ selected: name });
     // On a narrow screen the project opens below the list.
     if (!wide)
       requestAnimationFrame(() =>
@@ -516,7 +544,7 @@ export function Projects() {
             shown={shown}
             selected={current}
             sort={sort}
-            setSort={setSortState}
+            setSort={(s) => set({ sort: s })}
             pick={pick}
             sub={sub}
             query={query}

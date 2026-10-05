@@ -13,6 +13,7 @@ import { useLive } from '@/data/live';
 import { useSessions } from '@/data/queries';
 import {
   calendarDay,
+  changeText,
   clip,
   compact,
   costText,
@@ -42,20 +43,20 @@ import { ArrangeButton, PageGrid, type GridCard } from '@/components/PageGrid';
 import { SessionRow } from '@/components/SessionRow';
 import { cx } from '@/components/cx';
 import { PageHeader } from '@/app/PageHeader';
-import { SOURCE, plansIn, sourceInfo, type Source } from '@/lib/sources';
+import { SOURCE, plansIn, sourceInfo } from '@/lib/sources';
+import { readSetting, writeSetting } from '@/lib/storage';
+import type { Agent, ContextHealth, CostItem, SpendTotals, TokenTypeCost, TrendDay } from '@/data/types';
 
-type Day = { start: number; cost: number; tokens: number };
-type Period = { cost: number; tokens: number; unpricedTokens?: number };
-
-const unpriced = (p?: Period | null) => !!p && (p.unpricedTokens || 0) > p.tokens * 0.01;
+const unpriced = (p?: SpendTotals | null) => !!p && (p.unpricedTokens || 0) > p.tokens * 0.01;
 
 // ── The band: the tiles ──────────────────────────────────────────────────────
 
 function delta(current: number, previous: number | undefined, label: string) {
   if (!(previous! > 0.5)) return null;
-  const pct = Math.round(((current - previous!) / previous!) * 100);
-  if (Math.abs(pct) < 1) return { text: `Same as ${label}`, tip: '' };
-  return { text: `${pct > 0 ? '↑' : '↓'} ${Math.abs(pct)}% vs ${label}`, tip: `${money(previous)} ${label}` };
+  const text = changeText(current, previous!, 1);
+  return text
+    ? { text: `${text} vs ${label}`, tip: `${money(previous)} ${label}` }
+    : { text: `Same as ${label}`, tip: '' };
 }
 
 function Tile({
@@ -66,7 +67,7 @@ function Tile({
   children,
 }: {
   label: string;
-  period: Period | null | undefined;
+  period: SpendTotals | null | undefined;
   extra?: { text: string; tip: string } | null;
   href?: string;
   children?: ReactNode;
@@ -111,7 +112,7 @@ function Tile({
   );
 }
 
-function Spark({ days }: { days: Day[] }) {
+function Spark({ days }: { days: TrendDay[] }) {
   const max = Math.max(...days.map((d) => d.cost), 0.01);
   return (
     <div className="mt-1 flex h-7 items-end gap-[2px]" aria-hidden>
@@ -131,9 +132,15 @@ function Tiles() {
   // Yesterday's link moves on at midnight.
   useMinute();
   const spend = useSpend();
-  const days = (useInsight<{ days: Day[] }>('trend')?.days || []) as Day[];
-  const sum = (from: number, to: number) => days.slice(from, to).reduce((n, d) => n + d.cost, 0);
+  const days = useInsight('trend')?.days || [];
   const now = serverNow();
+  const day = (ago: number) => calendarDay(now, -ago);
+  // The days are read by their dates, not their places in the list, so a list that hasn't caught up with midnight still lines up.
+  const between = (from: number, to: number) => days.filter((d) => d.start >= from && d.start < to);
+  const costOf = (list: TrendDay[]) => list.reduce((n, d) => n + d.cost, 0);
+  const [yesterday] = between(day(1), day(0));
+  const [dayBefore] = between(day(2), day(1));
+  const twoWeeks = days.some((d) => d.start <= day(13));
   const active = days.filter((x) => x.cost > 0.005).length;
   return (
     <Card
@@ -151,19 +158,23 @@ function Tiles() {
       <Tile
         label="Yesterday"
         period={spend?.yesterday}
-        extra={days.length === 30 ? delta(days[28].cost, days[27].cost, weekday(days[27].start)) : null}
-        href={pageLink('sessions', { day: dayParam(calendarDay(now, -1)) })}
+        extra={yesterday && dayBefore ? delta(yesterday.cost, dayBefore.cost, weekday(dayBefore.start)) : null}
+        href={pageLink('sessions', { day: dayParam(day(1)) })}
       />
       <Tile
         label="Last 7 days"
         period={spend?.last7}
-        extra={days.length === 30 ? delta(sum(23, 30), sum(16, 23), 'the 7 days before') : null}
+        extra={
+          twoWeeks
+            ? delta(costOf(between(day(6), Infinity)), costOf(between(day(13), day(6))), 'the 7 days before')
+            : null
+        }
         href={pageLink('sessions', { range: '7' })}
       />
       <Tile
         label="Last 30 days"
         period={spend?.last30}
-        extra={days.length ? { text: `≈ ${money(active ? sum(0, 30) / active : 0)} per active day`, tip: '' } : null}
+        extra={days.length ? { text: `≈ ${money(active ? costOf(days) / active : 0)} per active day`, tip: '' } : null}
         href={pageLink('sessions', { range: '30' })}
       >
         {days.length > 0 && <Spark days={days} />}
@@ -212,7 +223,7 @@ export function PlansCard() {
       </Card>
     );
   }
-  const blocks = set.map((p, i) => planBlock(p, spends[i] as never, now));
+  const blocks = set.map((p, i) => planBlock(p, spends[i], now));
   const { together, tip } = planInsight(blocks, providerName);
   return (
     <Card className="flex flex-col gap-4">
@@ -288,8 +299,8 @@ export function TrendCard() {
   const provider = useProvider();
   const sources = useSources();
   const kind = useChartKind('trend');
-  const split = useInsightOf<{ days: Day[] }>(sources, 'trend');
-  const trend = useInsight<{ days: Day[] }>('trend');
+  const split = useInsightOf(sources, 'trend');
+  const trend = useInsight('trend');
   if (!trend) {
     return (
       <Card>
@@ -338,14 +349,16 @@ export function TrendCard() {
             : null
         }
         tip={(v) => {
-          const d = v.d as Day;
+          const d = v.d as TrendDay;
           const i = v.i as number;
           const spent = both ? series.filter((x) => (x.days[i]?.cost || 0) > 0.005) : [];
           const parts =
             spent.length > 1 ? ` (${spent.map((x) => `${SOURCE[x.s].name} ${money(x.days[i].cost)}`).join(', ')})` : '';
           return `${dayLabel(d.start)} · ≈ ${money(d.cost)}${parts} · ${compact(d.tokens)} tokens${d.cost > 0.005 ? '\nClick for that day’s sessions' : ''}`;
         }}
-        link={(v) => ((v.d as Day).cost > 0.005 ? pageLink('sessions', { day: dayParam((v.d as Day).start) }) : null)}
+        link={(v) =>
+          (v.d as TrendDay).cost > 0.005 ? pageLink('sessions', { day: dayParam((v.d as TrendDay).start) }) : null
+        }
         labels={
           n > 8
             ? [
@@ -363,9 +376,9 @@ export function TrendCard() {
         table={{
           head: ['Day', 'Cost', 'Tokens'],
           row: (v) => [
-            longDate((v.d as Day).start),
-            (v.d as Day).cost > 0.005 ? money((v.d as Day).cost) : '',
-            (v.d as Day).tokens ? compact((v.d as Day).tokens) : '',
+            longDate((v.d as TrendDay).start),
+            (v.d as TrendDay).cost > 0.005 ? money((v.d as TrendDay).cost) : '',
+            (v.d as TrendDay).tokens ? compact((v.d as TrendDay).tokens) : '',
           ],
           newestFirst: true,
         }}
@@ -386,33 +399,25 @@ export function TrendCard() {
 
 // ── Where the money goes ─────────────────────────────────────────────────────
 
-type Item = { name: string; key?: string; cost: number; tokens: number; other?: boolean };
-type Breakdown = { cost: number; tokens: number; models: Item[]; agents: Item[]; types?: Item[]; projects?: Item[] };
+/** A row of the breakdown: a model, project or kind of agent, or a kind of token (with its key). */
+type Item = CostItem & { key?: TokenTypeCost['key'] };
 
-const MONEY_RANGE = 'overtime-breakdown';
-const MONEY_VIEW = 'overtime-breakdown-view';
-const readKey = (k: string) => {
-  try {
-    return localStorage.getItem(k);
-  } catch {
-    return null;
-  }
-};
-const writeKey = (k: string, v: string) => {
-  try {
-    localStorage.setItem(k, v);
-  } catch {}
-};
+const MONEY_RANGE = 'breakdown';
+const MONEY_VIEW = 'breakdown-view';
 
 export function MoneyCard() {
   useChanged();
   const kind = useChartKind('money', SHARE_KINDS);
-  const [range, setRange] = useState<'7' | '30'>(() => (readKey(MONEY_RANGE) === '30' ? '30' : '7'));
-  const [view, setView] = useState<'models' | 'projects' | 'agents' | 'types'>(() => {
-    const v = readKey(MONEY_VIEW);
-    return v === 'agents' || v === 'types' || v === 'projects' ? v : 'models';
-  });
-  const breakdown = useInsight<{ d7: Breakdown; d30: Breakdown }>('breakdown');
+  const [range, setRange] = useState(() => readSetting<'7' | '30'>(MONEY_RANGE, '7', ['7', '30']));
+  const [view, setView] = useState(() =>
+    readSetting<'models' | 'projects' | 'agents' | 'types'>(MONEY_VIEW, 'models', [
+      'models',
+      'projects',
+      'agents',
+      'types',
+    ]),
+  );
+  const breakdown = useInsight('breakdown');
   const head = (sub?: string) => (
     <CardHead
       title="Where the money goes"
@@ -426,7 +431,7 @@ export function MoneyCard() {
             value={range}
             onChange={(r) => {
               setRange(r);
-              writeKey(MONEY_RANGE, r);
+              writeSetting(MONEY_RANGE, r);
             }}
             options={[
               ['7', '7 days'],
@@ -446,8 +451,8 @@ export function MoneyCard() {
     );
   }
   const b = range === '30' ? breakdown.d30 : breakdown.d7;
-  const items =
-    view === 'agents' ? b.agents : view === 'types' ? b.types || [] : view === 'projects' ? b.projects || [] : b.models;
+  const items: Item[] =
+    view === 'agents' ? b.agents : view === 'types' ? b.types : view === 'projects' ? b.projects : b.models;
   const linkFor = (it: Item) =>
     it.other
       ? null
@@ -483,9 +488,10 @@ export function MoneyCard() {
   const subs = b.agents.find((a) => a.name === 'Subagents');
   const opus5 = b.models.find((m) => m.name === 'Opus 5');
   const opus55 = b.models.find((m) => m.name === 'Opus 5.5');
-  const share = (key: string) => (b.cost > 0 ? ((b.types || []).find((x) => x.key === key)?.cost || 0) / b.cost : 0);
+  const share = (key: TokenTypeCost['key']) =>
+    b.cost > 0 ? (b.types.find((x) => x.key === key)?.cost || 0) / b.cost : 0;
   let tip = '';
-  const topProject = (b.projects || [])[0];
+  const topProject = b.projects[0];
   if (view === 'projects') {
     if (topProject && !topProject.other && b.cost > 0 && topProject.cost / b.cost >= 0.5)
       tip = `${projectName(topProject.name)} took ${Math.round((topProject.cost / b.cost) * 100)}% of the cost. Its page shows which sessions and models drove it.`;
@@ -510,7 +516,7 @@ export function MoneyCard() {
         value={view}
         onChange={(v) => {
           setView(v);
-          writeKey(MONEY_VIEW, v);
+          writeSetting(MONEY_VIEW, v);
         }}
         options={[
           { value: 'models', label: 'Models' },
@@ -589,22 +595,9 @@ export function PriciestCard() {
 
 // ── Cache, context and long conversations ────────────────────────────────────
 
-type Cache = {
-  d7: {
-    cost: number;
-    saved: number;
-    hitRate: number | null;
-    rebuilds: number;
-    rebuildCost: number;
-    afterPause: number;
-    afterPauseCost: number;
-  };
-  today: { saved: number };
-};
-
 export function CacheCard() {
   const provider = useProvider();
-  const cache = useInsight<Cache>('cache');
+  const cache = useInsight('cache');
   const note =
     'What the same tokens would cost at the normal input price, minus what reading and writing the cache cost. At API list prices, last 7 days.';
   const head = <CardHead title="Cache savings" sub="Last 7 days" tools={<InfoTip note={note} />} />;
@@ -656,16 +649,8 @@ export function CacheCard() {
   );
 }
 
-type Context = {
-  messages: number;
-  cost: number;
-  avgContext: number;
-  buckets: { label: string; max: number | null; messages: number; cost: number }[];
-  compactions: { count: number; auto: number; avgBefore: number | null };
-};
-
 export function ContextCard() {
-  const ctx = useInsight<Context>('context');
+  const ctx = useInsight('context');
   const agents = useAllAgents();
   const note =
     'Every message re-sends the whole conversation, so the bigger it gets, the more each message costs, even when it comes from the cache. Main agents and subagents, last 7 days.';
@@ -688,7 +673,7 @@ export function ContextCard() {
       </Card>
     );
   }
-  const group = (test: (b: Context['buckets'][number]) => boolean) =>
+  const group = (test: (b: ContextHealth['buckets'][number]) => boolean) =>
     ctx.buckets
       .filter(test)
       .reduce((g, b) => ({ messages: g.messages + b.messages, cost: g.cost + b.cost }), { messages: 0, cost: 0 });
@@ -698,15 +683,11 @@ export function ContextCard() {
     small.messages >= 20 && big.messages >= 20 ? big.cost / big.messages / (small.cost / small.messages) : null;
   const k = ctx.compactions;
   const full = agents
-    .filter((a) => a.kind === 'main' && ((a as { context?: { pct?: number } }).context?.pct || 0) >= 70)
-    .sort((a, b) => (b as { context: { pct: number } }).context.pct - (a as { context: { pct: number } }).context.pct)
-    .slice(0, 4) as unknown as {
-    id: string;
-    source: Source;
-    title: string;
-    project: string;
-    context: { used: number; window: number; pct: number };
-  }[];
+    .filter(
+      (a): a is Agent & { context: NonNullable<Agent['context']> } => a.kind === 'main' && (a.context?.pct || 0) >= 70,
+    )
+    .sort((a, b) => b.context.pct - a.context.pct)
+    .slice(0, 4);
   let tip = '';
   if (ratio && ratio >= 1.5 && big.cost / ctx.cost >= 0.3)
     tip = `Messages with over 200K tokens of context cost ${ratio.toFixed(1)}× as much as those under 100K, and were ${Math.round((big.cost / ctx.cost) * 100)}% of the cost. A fresh session or /clear between tasks keeps messages small.`;
@@ -766,30 +747,11 @@ export function ContextCard() {
   );
 }
 
-type LongContext = {
-  from: number;
-  cost: number;
-  spend: number;
-  count: number;
-  sessions: {
-    id: string;
-    source: Source;
-    title: string;
-    project: string;
-    peak: number;
-    messages: number;
-    cost: number;
-    surcharge: number;
-  }[];
-  size: { cost: number; messages: number };
-  surcharge: { cost: number; requests: number };
-};
-
 const LONG_NOTE =
   "Two ways a long conversation costs more, over the last 7 days. The surcharge is exact: OpenAI's models charge 2× for input and 1.5× for output once a request passes 272K tokens. The rest is an estimate: every message re-reads the whole conversation from the cache, so the part of those reads beyond 200K tokens is roughly what compacting (or a fresh session) at 200K would have saved.";
 
 export function LongContextCard() {
-  const lc = useInsight<LongContext>('longContext');
+  const lc = useInsight('longContext');
   if (!lc) {
     return (
       <Card>
@@ -894,7 +856,7 @@ export function Cost() {
   // Only whether to say some usage has no known price, so the page's cards aren't drawn again with each change to the spend.
   const partly = useLive((s) => {
     const spend = s.snap?.analytics?.[s.provider]?.spend;
-    return [spend?.today, spend?.last7, spend?.last30].some((p) => unpriced(p as Period));
+    return [spend?.today, spend?.last7, spend?.last30].some((p) => unpriced(p));
   });
   const cards = COST_CARDS();
   const rate =

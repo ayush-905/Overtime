@@ -160,12 +160,12 @@ export function sendGlance() {
   const l = useLimits.getState();
   const inp: LimitsInput = {
     now: Date.now() - env.timeOffset,
-    limits: (snap.limits || null) as LimitsInput['limits'],
+    limits: snap.limits || null,
     exactOn: l.exactOn,
-    exact: l.exact as LimitsInput['exact'],
-    codexRecorded: (snap.codexLimits || null) as LimitsInput['codexRecorded'],
+    exact: l.exact,
+    codexRecorded: snap.codexLimits || null,
     codexExactOn: l.codexExactOn,
-    codexExact: l.codexExact as LimitsInput['codexExact'],
+    codexExact: l.codexExact,
   };
   const items = quotaItems(inp, 'all');
   const windows = items

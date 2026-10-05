@@ -68,9 +68,23 @@ import { cx } from '@/components/cx';
 import { PageHeader } from '@/app/PageHeader';
 import { offerUndo } from '@/app/toasts';
 import { useUi } from '@/app/ui';
-import { useCommand } from '@/app/dialogs';
+import { MADE_KEY, useCommand, type MadeCommands } from '@/app/dialogs';
 import { ExpandButton, ExpandDialog } from '@/cards/Expand';
 import { commandUse, type Source } from '@/lib/sources';
+import { readJson, readSetting, writeJson, writeSetting } from '@/lib/storage';
+import { streaks } from '@/lib/streak';
+import type {
+  AgentHours,
+  HistoryDay,
+  Insights,
+  MessageSummary,
+  SpendTotals,
+  WaitDay,
+  WorkingHours,
+  YouDate,
+  YouDayOff,
+  YouWorkDay,
+} from '@/data/types';
 
 function Loading({ title }: { title: string }) {
   return (
@@ -94,17 +108,12 @@ const Small = ({ children }: { children: ReactNode }) => (
 
 // ── The activity heatmap ─────────────────────────────────────────────────────
 
-type HistDay = {
-  day: number;
-  cost: number;
-  tokens: number;
-  activeMs: number;
-  agentMs: number;
-  messages: number;
-  sessions: number;
-};
+/** A day of the heatmap: one on record (/api/history), or today from the live figures. */
+type HistDay = Omit<HistoryDay, 'partial' | 'kept'>;
+/** What a day's square can be shaded by. */
+type Metric = 'cost' | 'tokens' | 'activeMs' | 'agentMs' | 'messages';
 const METRICS: Record<
-  string,
+  Metric,
   { label: string; text: (v: number) => string; short: (v: number) => string; none: string }
 > = {
   cost: { label: 'Cost', text: (v) => `≈ ${money(v)}`, short: (v) => money(v), none: 'no cost' },
@@ -118,7 +127,7 @@ const METRICS: Record<
     none: 'no messages',
   },
 };
-const HM_KEY = 'overtime-heatmap';
+const HM_KEY = 'heatmap';
 const HM_NOTE =
   'Each square is a day, Monday at the top, and darker means more of what you picked. The last 30 days come from your transcripts; Overtime keeps a summary of every day in ~/.overtime, so the graph keeps growing after Claude Code clears transcripts older than a month. A day from the last 30 opens its sessions.';
 const HM_COLOR: Record<string, string> = {
@@ -139,6 +148,19 @@ function monday(t: number) {
 
 const SHADES = Object.entries(METRICS).map(([k, m]) => [k, m.label] as [string, string]);
 const SHADE_OPTIONS = Object.entries(METRICS).map(([value, m]) => ({ value, label: m.label }));
+
+/** Your streak and your longest (lib/streak.ts), from every day on record and today's live figures: the heatmap and Your working hours both show it. Null until the days arrive. */
+function useStreak() {
+  const provider = useProvider();
+  const h = useHistory(provider);
+  const cost = useSpend()?.today?.cost;
+  const messages = useInsight('messages')?.today;
+  const today = calendarDay(serverNow());
+  return useMemo(
+    () => (h.data ? streaks(h.data.days, today, { cost, messages }) : null),
+    [h.data, today, cost, messages],
+  );
+}
 
 /** What the squares are shaded by. On its own, so it isn't drawn again as today's figures move. */
 const ShadeBy = memo(function ShadeBy({ metric, pick }: { metric: string; pick: (m: string) => void }) {
@@ -165,24 +187,18 @@ export function HeatmapCard() {
   useMinute();
   const provider = useProvider();
   const spendToday = useSpend()?.today;
-  const messages = useInsight<{ today?: number }>('messages');
-  const hours = useInsight<Parameters<typeof activeBetween>[0]>('hours');
-  const agentHours = useInsight<{ dates?: { wallMs: number }[] }>('agentHours');
+  const messages = useInsight('messages');
+  const hours = useInsight('hours');
+  const agentHours = useInsight('agentHours');
   const h = useHistory(provider);
-  const [picked, setPicked] = useState<string | null>(() => {
-    try {
-      const v = localStorage.getItem(HM_KEY);
-      return v && v in METRICS ? v : null;
-    } catch {
-      return null;
-    }
-  });
-  const metric = picked || (env.measure === 'tokens' ? 'tokens' : 'cost');
+  const run = useStreak();
+  const [picked, setPicked] = useState(() =>
+    readSetting<Metric | null>(HM_KEY, null, Object.keys(METRICS) as Metric[]),
+  );
+  const metric: Metric = picked || (env.measure === 'tokens' ? 'tokens' : 'cost');
   const pick = useCallback((m: string) => {
-    setPicked(m);
-    try {
-      localStorage.setItem(HM_KEY, m);
-    } catch {}
+    setPicked(m as Metric);
+    writeSetting(HM_KEY, m);
   }, []);
   const head = (sub: string) => (
     <CardHead
@@ -199,8 +215,7 @@ export function HeatmapCard() {
   const today = calendarDay(serverNow());
   // The squares and the figures under them, worked out again only when the days, today's figures or the shading change.
   const map = useMemo(
-    () =>
-      h.data ? heatmap(h.data.days as HistDay[], metric, today, { spendToday, messages, hours, agentHours }) : null,
+    () => (h.data ? heatmap(h.data.days, metric, today, { spendToday, messages, hours, agentHours }) : null),
     [h.data, metric, today, spendToday, messages, hours, agentHours, v],
   ); // eslint-disable-line react-hooks/exhaustive-deps
   if (h.isPending) return <Loading title="Activity" />;
@@ -212,7 +227,8 @@ export function HeatmapCard() {
       </Card>
     );
   }
-  const { days, firstDay, cells, total, perDay, activeDays, streak, longest, best, m, color, value, tip } = map;
+  const { days, firstDay, cells, total, perDay, activeDays, best, m, color, value, tip } = map;
+  const { streak, longest } = run || { streak: 0, longest: 0 };
   return (
     <Card className="flex flex-col gap-4">
       {head(`${plural(days, 'day')} on record · since ${longDate(firstDay)}`)}
@@ -288,14 +304,14 @@ export function HeatmapCard() {
 }
 
 type TodayLive = {
-  spendToday?: { cost: number; tokens: number };
-  messages?: { today?: number };
-  hours?: Parameters<typeof activeBetween>[0];
-  agentHours?: { dates?: { wallMs: number }[] };
+  spendToday?: SpendTotals;
+  messages?: Insights['messages'];
+  hours?: WorkingHours;
+  agentHours?: AgentHours;
 };
 
-/** The heatmap's squares for a year of days, and its figures: totals, streaks, the best day. */
-function heatmap(history: HistDay[], metric: string, today: number, ins: TodayLive) {
+/** The heatmap's squares for a year of days, and its figures: totals and the best day. */
+function heatmap(history: HistDay[], metric: Metric, today: number, ins: TodayLive) {
   const now = serverNow();
   const byDay = new Map(history.map((d) => [calendarDay(d.day), { ...d }]));
   // Today from the live numbers, which move faster than the history does.
@@ -313,7 +329,7 @@ function heatmap(history: HistDay[], metric: string, today: number, ins: TodayLi
   const weeks = 53;
   const start = calendarDay(monday(now), -(weeks - 1) * 7);
   const m = METRICS[metric];
-  const value = (d: HistDay | undefined) => (d ? (d as unknown as Record<string, number>)[metric] || 0 : 0);
+  const value = (d: HistDay | undefined) => (d ? d[metric] || 0 : 0);
   // Four shades, split where the days with any activity fall.
   const values = [...byDay.values()]
     .map(value)
@@ -353,9 +369,10 @@ function heatmap(history: HistDay[], metric: string, today: number, ins: TodayLi
             />
           );
         const v = value(d);
-        const tip = `${longDate(t)} · ${v > 0 ? m.text(v) : m.none}${d && d.sessions ? ` · ${plural(d.sessions, 'session')}` : ''}${d && metric !== 'cost' && d.cost > 0.005 ? ` · ≈ ${money(d.cost)}` : ''}${t >= linkFrom && d?.sessions ? '\nClick for that day’s sessions' : ''}`;
+        const tip = `${longDate(t)} · ${v > 0 ? m.text(v) : m.none}${d?.sessions ? ` · ${plural(d.sessions, 'session')}` : ''}${d && metric !== 'cost' && d.cost > 0.005 ? ` · ≈ ${money(d.cost)}` : ''}${t >= linkFrom && d?.sessions ? '\nClick for that day’s sessions' : ''}`;
         const cls = cx('block aspect-square rounded-[2px]', t === today && 'ring-1 ring-ink/50', hide);
         return t >= linkFrom && d?.sessions ? (
+          // biome-ignore lint/a11y/useAnchorContent: a square of the heatmap, named by its aria-label
           <a
             key={key}
             href={pageLink('sessions', { day: dayParam(t) })}
@@ -375,17 +392,6 @@ function heatmap(history: HistDay[], metric: string, today: number, ins: TodayLi
   const sum = recorded.reduce((n, d) => n + value(d), 0);
   const activeDays = recorded.filter((d) => value(d) > 0).length;
   const best = recorded.reduce((b, d) => (value(d) > value(b) ? d : b), recorded[0]);
-  const worked = (t: number) => {
-    const d = byDay.get(t);
-    return !!d && (d.messages > 0 || d.cost > 0.01);
-  };
-  let streak = 0;
-  for (let t = worked(today) ? today : calendarDay(today, -1); worked(t); t = calendarDay(t, -1)) streak++;
-  let longest = 0;
-  for (let t = firstDay, run = 0; t <= today; t = calendarDay(t, 1)) {
-    run = worked(t) ? run + 1 : 0;
-    longest = Math.max(longest, run);
-  }
   const total = `${metric === 'cost' ? '≈ ' : ''}${m.short(sum)}`;
   const perDay = activeDays ? `${metric === 'cost' ? '≈ ' : ''}${m.short(sum / activeDays)}` : '—';
   const byWeekday = Array.from({ length: 7 }, () => ({ sum: 0, n: 0 }));
@@ -403,36 +409,15 @@ function heatmap(history: HistDay[], metric: string, today: number, ins: TodayLi
       : busiest[1] > 0
         ? `${names[busiest[0]]} is your busiest day of the week for ${m.label.toLowerCase()}.`
         : '';
-  return { days, firstDay, cells, total, perDay, activeDays, streak, longest, best, m, color, value, tip };
+  return { days, firstDay, cells, total, perDay, activeDays, best, m, color, value, tip };
 }
 
 // ── Your hours ───────────────────────────────────────────────────────────────
 
-type HourDay = {
-  start: number;
-  messages: number;
-  first: number;
-  last: number;
-  stretches: [number, number][];
-  late?: boolean;
-  activeMs: number;
-};
-type Hours = {
-  days: HourDay[];
-  dates: HourDay[];
-  typicalStart: number | null;
-  typicalStop: number | null;
-  typicalLength: number | null;
-  lateNights: number;
-  lastLate: number | null;
-  streak: number;
-  longestStreak: number;
-  daysOff: number;
-  week: number;
-  prevWeek: number;
-};
+const useHours = () => useInsight('hours');
 
-const useHours = () => useInsight<Hours>('hours');
+/** Whether you sent anything on a working day, so it has its first and last message and stretches. */
+const sentOn = (d: YouWorkDay | YouDayOff): d is YouWorkDay => d.messages > 0;
 
 export function ActiveHoursCard({ expanded = false }: { expanded?: boolean }) {
   const w = useHours();
@@ -466,11 +451,13 @@ export function ActiveHoursCard({ expanded = false }: { expanded?: boolean }) {
   const today = days[days.length - 1];
   const perDay = worked.reduce((n, d) => n + d.activeMs, 0) / worked.length;
   const longest = worked.reduce((best, d) => (d.activeMs > best.activeMs ? d : best), worked[0]);
-  const tip = (d: HourDay) => {
+  const tip = (d: YouDate) => {
     if (!d.activeMs) return `${longDate(d.start)} · ${d === today ? 'no messages yet' : 'day off'}`;
-    const span = d.messages
-      ? ` · ${clock(d.first)} to ${d === today ? 'now' : clock(d.last)} · ${plural(d.messages, 'message')}`
-      : ' · carried on from a message the day before';
+    // A day with messages has its first and last.
+    const span =
+      d.messages && d.first != null && d.last != null
+        ? ` · ${clock(d.first)} to ${d === today ? 'now' : clock(d.last)} · ${plural(d.messages, 'message')}`
+        : ' · carried on from a message the day before';
     return `${longDate(d.start)} · ${duration(d.activeMs)} active${span}`;
   };
   const c = change(w.week, w.prevWeek);
@@ -485,13 +472,13 @@ export function ActiveHoursCard({ expanded = false }: { expanded?: boolean }) {
         kind={kind}
         values={days.map((d) => ({ value: d.activeMs, current: d === today, d }))}
         color="var(--you)"
-        tip={(v) => tip(v.d as HourDay)}
+        tip={(v) => tip(v.d as YouDate)}
         link={(v) =>
-          (v.d as HourDay).activeMs ? pageLink('sessions', { day: dayParam((v.d as HourDay).start) }) : null
+          (v.d as YouDate).activeMs ? pageLink('sessions', { day: dayParam((v.d as YouDate).start) }) : null
         }
         labels={dayTicks(days.map((d) => d.start))}
         valueText={
-          days.length <= 14 ? (v) => ((v.d as HourDay).activeMs ? hoursShort((v.d as HourDay).activeMs) : '–') : null
+          days.length <= 14 ? (v) => ((v.d as YouDate).activeMs ? hoursShort((v.d as YouDate).activeMs) : '–') : null
         }
         gridLabel={hoursText}
         height={expanded ? 240 : 140}
@@ -500,7 +487,7 @@ export function ActiveHoursCard({ expanded = false }: { expanded?: boolean }) {
         table={{
           head: ['Day', 'Active', 'First message', 'Last message', 'Messages'],
           row: (v) => {
-            const d = v.d as HourDay;
+            const d = v.d as YouDate;
             return [
               longDate(d.start),
               d.activeMs ? duration(d.activeMs) : '',
@@ -547,6 +534,8 @@ export function WorkHoursCard() {
   // Its "now" line moves by the minute.
   useMinute();
   const w = useHours();
+  // The heatmap's streak, so the two cards agree.
+  const run = useStreak();
   if (!w) return <Loading title="Your working hours" />;
   const note = `Your own time, from the messages you typed. A day runs ${dayRuns()}${workdayHour() ? ', so working past midnight counts toward the day you started' : ''} (you can change when it starts in Settings). Start and stop are your first and last messages. The solid bars are active time: from each message until the agent's reply to it ends, with breaks under 30 minutes bridged. Past midnight is shown in amber.`;
   const head = <CardHead title="Your working hours" sub="Last 14 days" tools={<InfoTip note={note} />} />;
@@ -562,7 +551,7 @@ export function WorkHoursCard() {
   const today = w.days[w.days.length - 1];
   const columns: CalendarColumn[] = w.days.map((d) => {
     const blocks: CalendarColumn['blocks'] = [];
-    if (d.messages) {
+    if (sentOn(d)) {
       const midnight = new Date(d.start).setHours(24, 0, 0, 0);
       blocks.push({
         from: d.first,
@@ -575,7 +564,7 @@ export function WorkHoursCard() {
         if (b > midnight) blocks.push({ from: Math.max(a, midnight), to: b, color: 'var(--warn-fill)' });
       }
     }
-    const tip = d.messages
+    const tip = sentOn(d)
       ? `${longDate(d.start)} · ${clock(d.first)} to ${clock(d.last)}${d.late ? ', past midnight' : ''} · ${hoursText(d.activeMs)} active · ${plural(d.messages, 'message')}`
       : `${longDate(d.start)} · ${d === today ? 'no messages yet' : 'day off'}`;
     return {
@@ -595,12 +584,13 @@ export function WorkHoursCard() {
         : w.lastLate === workDay(now, -1)
           ? 'most recently last night'
           : `most recently on ${WEEKDAY_NAMES[new Date(w.lastLate).getDay()]}`;
+  const streak = run?.streak ?? 0;
   let tip = '';
   let icon = Moon;
-  if (w.lateNights >= 3 && w.streak >= 10)
-    tip = `You worked past midnight on ${w.lateNights} of the last 14 days, and you've worked ${w.streak} days in a row.`;
+  if (w.lateNights >= 3 && streak >= 10)
+    tip = `You worked past midnight on ${w.lateNights} of the last 14 days, and you've worked ${streak} days in a row.`;
   else if (w.lateNights >= 3) tip = `You worked past midnight on ${w.lateNights} of the last 14 days, ${lastLate}.`;
-  else if (w.streak >= 10) [tip, icon] = [`You've worked ${w.streak} days in a row without a day off.`, CalendarDays];
+  else if (streak >= 10) [tip, icon] = [`You've worked ${streak} days in a row without a day off.`, CalendarDays];
   else if ((w.typicalLength || 0) >= 12 * HOUR)
     [tip, icon] = [`Your typical day runs ${hoursText(w.typicalLength!)} from your first message to your last.`, Clock];
   return (
@@ -608,7 +598,7 @@ export function WorkHoursCard() {
       {head}
       <Hero
         value={typical ? `${atOffset(w.typicalStart!)} – ${atOffset(w.typicalStop!)}` : '—'}
-        sub={`${typical ? `a typical day, first to last message${w.typicalLength ? ` (${hoursText(w.typicalLength)})` : ''}` : 'Not enough days yet for a typical day'}${today.messages ? ` · today since ${clock(today.first)}` : ''}`}
+        sub={`${typical ? `a typical day, first to last message${w.typicalLength ? ` (${hoursText(w.typicalLength)})` : ''}` : 'Not enough days yet for a typical day'}${sentOn(today) ? ` · today since ${clock(today.first)}` : ''}`}
       />
       <Calendar columns={columns} height={170} now={now} />
       <p className="flex flex-wrap gap-x-4 gap-y-1 text-label text-muted" aria-hidden>
@@ -644,12 +634,16 @@ export function WorkHoursCard() {
         <Stat
           label="Streak"
           value={
-            <>
-              {w.streak}
-              <Small>{w.streak === 1 ? 'day' : 'days'}</Small>
-            </>
+            run ? (
+              <>
+                {run.streak}
+                <Small>{run.streak === 1 ? 'day' : 'days'}</Small>
+              </>
+            ) : (
+              '—'
+            )
           }
-          tip={`Days in a row with at least one message${w.longestStreak > w.streak ? `. Your longest in the last 30 days was ${w.longestStreak}` : ''}.`}
+          tip={`Days in a row with a message or some cost, up to today${run && run.longest > run.streak ? `. Your longest on record is ${run.longest}` : ''}.`}
         />
         <Stat
           label="Days off"
@@ -669,32 +663,8 @@ export function WorkHoursCard() {
 
 // ── Your messages ────────────────────────────────────────────────────────────
 
-type Msg = {
-  text: string;
-  project: string;
-  session: string;
-  t: number;
-  cost: number;
-  partial?: boolean;
-  ms: number;
-  inOffice?: boolean;
-};
-type Messages = {
-  count: number;
-  cost: number;
-  partial?: boolean;
-  buckets: { label: string; count: number }[];
-  top?: Msg[];
-  priciest?: Msg;
-  longest?: Msg;
-  today: number;
-  activeDays: number;
-  interrupts: number;
-  medianMs: number | null;
-};
-
 export function MessagesCard() {
-  const m = useInsight<Messages>('messages');
+  const m = useInsight('messages');
   const openSession = useUi((s) => s.openSession);
   if (!m) return <Loading title="Your messages" />;
   const note =
@@ -709,12 +679,15 @@ export function MessagesCard() {
     );
   }
   const per = m.cost / m.count;
-  const top = m.top?.length ? m.top : ([m.priciest].filter(Boolean) as Msg[]);
-  const isLongest = (x: Msg) => !!m.longest && x.t === m.longest.t && x.session === m.longest.session;
-  const standouts: [string, Msg][] = [
+  const top = m.top?.length ? m.top : ([m.priciest].filter(Boolean) as MessageSummary[]);
+  const isLongest = (x: MessageSummary) => !!m.longest && x.t === m.longest.t && x.session === m.longest.session;
+  const standouts: [string, MessageSummary][] = [
     ...top.map(
       (x, i) =>
-        [`${['Priciest', '2nd priciest', '3rd priciest'][i]}${isLongest(x) ? ', longest' : ''}`, x] as [string, Msg],
+        [`${['Priciest', '2nd priciest', '3rd priciest'][i]}${isLongest(x) ? ', longest' : ''}`, x] as [
+          string,
+          MessageSummary,
+        ],
     ),
   ];
   if (!top.some(isLongest) && m.longest) standouts.push(['Longest', m.longest]);
@@ -785,47 +758,15 @@ export function MessagesCard() {
 
 // ── Prompts you repeat ───────────────────────────────────────────────────────
 
-export type Repeat = {
-  key: string;
-  count: number;
-  sessions: number;
-  lastAt: number;
-  projects?: string[];
-  exact: boolean;
-  examples: string[];
-  source: Source;
-  sources?: Record<string, number>;
-  name: string;
-  description: string;
-  body: string;
-  words: number;
-  exists?: Record<string, boolean>;
-};
-type Repeats = { groups: Repeat[]; prompts: number };
-
-const HIDDEN_KEY = 'overtime-repeats-hidden';
-export const MADE_KEY = 'overtime-commands-made';
+const HIDDEN_KEY = 'repeats-hidden';
 const SHOWN = 5;
-const readJson = <T,>(key: string, fallback: T): T => {
-  try {
-    return JSON.parse(localStorage.getItem(key) || 'null') ?? fallback;
-  } catch {
-    return fallback;
-  }
-};
-const writeJson = (key: string, value: unknown, empty = false) => {
-  try {
-    if (empty) localStorage.removeItem(key);
-    else localStorage.setItem(key, JSON.stringify(value));
-  } catch {}
-};
 
 export function RepeatsCard() {
   useChanged();
-  const r = useInsight<Repeats>('repeats');
-  const [hidden, setHidden] = useState<Set<string>>(() => new Set(readJson<string[]>(HIDDEN_KEY, [])));
+  const r = useInsight('repeats');
+  const [hidden, setHidden] = useState<Set<string>>(() => new Set(readJson<string[]>(HIDDEN_KEY, [], Array.isArray)));
   const [expanded, setExpanded] = useState(false);
-  const made = readJson<Record<string, { name: string; target: string }>>(MADE_KEY, {});
+  const made = readJson<MadeCommands>(MADE_KEY, {});
   const make = useCommand((s) => s.open);
   if (!r) return <Loading title="Prompts you repeat" />;
   const note =
@@ -840,7 +781,7 @@ export function RepeatsCard() {
   );
   const put = (next: Set<string>) => {
     setHidden(next);
-    writeJson(HIDDEN_KEY, [...next], !next.size);
+    writeJson(HIDDEN_KEY, next.size ? [...next] : null);
   };
   if (!groups.length) {
     return (
@@ -965,20 +906,11 @@ export function RepeatsCard() {
 
 // ── Waiting ──────────────────────────────────────────────────────────────────
 
-type Waiting = {
-  replies: number;
-  ms: number;
-  medianMs: number;
-  today: { ms: number };
-  days: { start: number; ms: number; replies: number }[];
-  projects?: { name: string; ms: number; replies: number }[];
-  longest?: { session: string; source: Source; title: string; project: string; t: number; ms: number }[];
-};
 const WAIT_NOTE =
   "From an agent's last reply to your next message in that session: time it sat done and waiting. A wait over 30 minutes counts as you stepping away, not the agent waiting, so it's left out. A message you sent while the agent was still busy kept nobody waiting.";
 
 export function WaitingCard() {
-  const w = useInsight<Waiting>('waiting');
+  const w = useInsight('waiting');
   const kind = useChartKind('waiting');
   const prefs = useAlertPrefs();
   if (!w) return <Loading title="Waiting for you" />;
@@ -1020,13 +952,11 @@ export function WaitingCard() {
         values={w.days.map((d, i) => ({ value: d.ms, current: i === w.days.length - 1, d }))}
         color="var(--warn-fill)"
         tip={(v) => {
-          const d = v.d as Waiting['days'][number];
+          const d = v.d as WaitDay;
           return `${dayLabel(d.start)} · ${d.replies ? `${duration(d.ms)} waiting over ${plural(d.replies, 'reply', 'replies')}` : 'no waits'}${d.replies ? '\nClick for that day’s sessions' : ''}`;
         }}
         link={(v) =>
-          (v.d as Waiting['days'][number]).replies
-            ? pageLink('sessions', { day: dayParam((v.d as Waiting['days'][number]).start) })
-            : null
+          (v.d as WaitDay).replies ? pageLink('sessions', { day: dayParam((v.d as WaitDay).start) }) : null
         }
         labels={w.days.map((d) => new Date(d.start).toLocaleDateString([], { weekday: 'narrow' }))}
         height={110}
@@ -1036,7 +966,7 @@ export function WaitingCard() {
         table={{
           head: ['Day', 'Waiting', 'Replies'],
           row: (v) => {
-            const d = v.d as Waiting['days'][number];
+            const d = v.d as WaitDay;
             return [longDate(d.start), d.replies ? duration(d.ms) : '', d.replies || ''];
           },
           newestFirst: true,
@@ -1060,7 +990,7 @@ export function WaitingWhereCard() {
   // How long each has waited, by the minute.
   useMinute();
   const all = useAllAgents();
-  const w = useInsight<Waiting>('waiting');
+  const w = useInsight('waiting');
   if (!w) return <Loading title="Who waited" />;
   const now = serverNow();
   const waiting = waitingNow(all, now);
@@ -1130,18 +1060,8 @@ export function WaitingWhereCard() {
 
 // ── Which hours and days ─────────────────────────────────────────────────────
 
-type Trend = {
-  hours: { cost: number; tokens?: number }[];
-  grid?: number[][];
-  weekdays?: {
-    since: number;
-    today?: { cost: number };
-    days: { cost: number; total: number; activeDays: number; count: number }[];
-  };
-};
-
 export function HoursCard() {
-  const trend = useInsight<Trend>('trend');
+  const trend = useInsight('trend');
   const kind = useChartKind('hours');
   if (!trend) return <Loading title="When you work" />;
   const total = trend.hours.reduce((n, h) => n + h.cost, 0);
@@ -1200,7 +1120,7 @@ const WEEKDAY_KINDS: ChartKind[] = ['bars', 'line', 'heat', 'table']; // seven a
 export function WeekdaysCard() {
   // Today's weekday is marked.
   useMinute();
-  const w = useInsight<Trend>('trend')?.weekdays;
+  const w = useInsight('trend')?.weekdays;
   const kind = useChartKind('weekdays', WEEKDAY_KINDS);
   if (!w) return <Loading title="Which days you work" />;
   const days = w.days;

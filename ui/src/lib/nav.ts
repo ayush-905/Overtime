@@ -5,7 +5,6 @@
 // still work. Settings stays at the foot.
 
 import { readNav, saveNav } from './prefs';
-import { changed } from './bus';
 
 export const PAGES = ['overview', 'sessions', 'projects', 'usage', 'cost', 'agents', 'you', 'settings'] as const;
 export type Page = (typeof PAGES)[number];
@@ -57,8 +56,8 @@ const usual = (order: string[]) => order.every((id, i) => id === ORDERABLE[i]);
 
 export function writeNavState({ order, hidden }: NavState) {
   const clean = grouped(order) as Page[];
+  // Saving it says so on the bus ('nav'), and the sidebar redraws.
   saveNav(usual(clean) && !hidden.size ? null : { order: clean, hidden: [...hidden] });
-  changed('nav');
 }
 
 /** Move a section one place up (-1) or down (1) among the shown ones of its group. False if it can't go. */

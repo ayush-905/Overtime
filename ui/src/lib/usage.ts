@@ -33,6 +33,7 @@ import {
   type LimitsInput,
 } from './limits';
 import type { CalendarBlock, CalendarColumn } from '@/components/Chart';
+import type { SessionPlan, WorkingHours } from '@/data/types';
 
 type Info = Extract<LimitInfo, { active: true }>;
 export const isActive = (i: LimitInfo | null): i is Info => !!i && 'active' in i;
@@ -102,15 +103,8 @@ export function shareText(d: Share, info: Info) {
 
 // ── The 5-hour windows ───────────────────────────────────────────────────────
 
-export type WindowPlan = {
-  since: number;
-  windows: { start: number; end: number; cost: number; hitAt: number | null }[];
-  perDay: number | null;
-  today: number;
-  hits: number;
-  lockedMs: number;
-  plan: { start: number; stop: number; by: number; useful: number; lead: number; resets: number[] } | null;
-};
+/** Claude Code's 5-hour windows of the last week and the plan for them (insights.windows). */
+export type WindowPlan = SessionPlan;
 
 /**
  * What a full 5-hour window costs at API prices: from the exact % when it's on
@@ -166,7 +160,7 @@ type Win = {
 /** The last 7 days' windows as calendar columns, with the fullest, the cap, and the planner's advice. */
 export function windowsModel(
   p: WindowPlan,
-  hours: { typicalStop?: number | null } | null | undefined,
+  hours: Pick<WorkingHours, 'typicalStop'> | null | undefined,
   inp: LimitsInput,
 ) {
   const now = inp.now;
@@ -175,7 +169,8 @@ export function windowsModel(
   const windows: Win[] = p.windows.map((w) => ({ ...w }));
   // The window running now: the exact reset time wins over the rebuilt one.
   let current = windows.find((w) => w.start <= now && w.end > now);
-  if (exact && exact.resetsAt > now && exact.pct > 0) {
+  // Anthropic leaves the reset out now and then.
+  if (exact && exact.resetsAt != null && exact.resetsAt > now && exact.pct > 0) {
     if (!current) windows.push((current = { cost: exact.spend?.cost || 0, hitAt: null, start: 0, end: 0 }));
     current.end = exact.resetsAt;
     current.start = exact.resetsAt - 5 * HOUR;
@@ -432,7 +427,7 @@ export function claudeWindow(inp: LimitsInput, kind: 'session' | 'weekly'): Char
   const valueAt = (cum: number) => (pctMode ? (total > 0 ? (cum / total) * pctNow! : 0) : cum);
   const nowValue = pctMode ? pctNow! : total;
   // Where it's heading: your pace over the last 30 minutes (session) or 7 days (weekly).
-  const rates = inp.limits?.rates || {};
+  const rates: Partial<NonNullable<LimitsInput['limits']>['rates']> = inp.limits?.rates || {};
   const costRate = session ? (rates.cost30m || 0) / (30 * MINUTE) : (rates.cost7d || 0) / (7 * DAY);
   // The limit's size in dollars, worked out the same way as the limit card's forecast, so they agree.
   const spent = info.spent ?? total;

@@ -391,6 +391,7 @@ function Heat<V extends Point>({
             v.current && 'ring-1 ring-ink/40',
           );
           const body =
+            // biome-ignore lint/correctness/useJsxKeyInIterable: the cell's content, not an item of the list (the cell around it has the key)
             valueText && v.value > 0 ? <b className="mix-blend-difference text-white">{valueText(v, i)}</b> : null;
           return href ? (
             <a

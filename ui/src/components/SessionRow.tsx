@@ -9,7 +9,7 @@ import { Pin, StickyNote } from 'lucide-react';
 import { useLive } from '@/data/live';
 import { useChanged } from '@/data/hooks';
 import { isPinned, noteFor, tagsFor, titleFor } from '@/lib/labels';
-import { liveStateOf, type LiveAgent } from '@/lib/agents';
+import { liveStateOf } from '@/lib/agents';
 import { compact, projectName } from '@/lib/format';
 import { useUi } from '@/app/ui';
 import { Avatar, ProjectDot, TagCount } from './Bits';
@@ -83,9 +83,7 @@ export function SessionRow({
   className,
 }: SessionRowProps) {
   useChanged();
-  const live = useLive((s) =>
-    id ? (s.snap?.agents.find((a) => a.id === id) as unknown as LiveAgent | undefined) : undefined,
-  );
+  const live = useLive((s) => (id ? s.snap?.agents.find((a) => a.id === id) : undefined));
   const openSession = useUi((s) => s.openSession);
   const status = live ? liveStateOf(live) : null;
   const tags = tagsFor(id);

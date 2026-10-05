@@ -5,16 +5,13 @@
 // (app/later.tsx), since most visits never expand a card.
 
 import { useEffect, type ReactNode } from 'react';
-import { create } from 'zustand';
 import { Maximize2 } from 'lucide-react';
 import { IconButton } from '@/components/Button';
 import { useUi } from '@/app/ui';
+import { useExpand } from '@/app/dialogs';
 import { later } from '@/app/later';
 
 const Dialog = later(() => import('@/components/Dialog').then((m) => m.Dialog));
-
-type ExpandState = { card: string | null; set: (card: string | null) => void };
-export const useExpand = create<ExpandState>((set) => ({ card: null, set: (card) => set({ card }) }));
 
 export function ExpandButton({ card }: { card: string }) {
   const set = useExpand((s) => s.set);

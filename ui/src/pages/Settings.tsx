@@ -11,6 +11,7 @@ import { useChanged, MOD } from '@/data/hooks';
 import { useLive, setServerPrefs } from '@/data/live';
 import { useLimits, setExact, setCodexExact } from '@/data/limits';
 import { demo, getJson } from '@/data/api';
+import type { SearchResponse } from '@/data/types';
 import {
   THEMES,
   SWATCHES,
@@ -709,7 +710,7 @@ function Data() {
   const file = useRef<HTMLInputElement>(null);
   const stats = useQuery({
     queryKey: ['search-stats', searchOn],
-    queryFn: () => getJson<{ stats: { on: boolean; messages: number; chars: number } }>('/api/search?q='),
+    queryFn: () => getJson<SearchResponse>('/api/search?q='),
     enabled: !demo,
     staleTime: 5000,
   });

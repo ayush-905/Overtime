@@ -5,31 +5,21 @@
 
 import { env } from './env';
 import { compact, costCol, costText, money } from './format';
-import { changed } from './bus';
+import { readSetting, writeSetting } from './storage';
 
-export const MEASURE_KEY = 'overtime-measure';
+export const MEASURE_KEY = 'measure';
 export const MEASURES: [string, string][] = [
   ['cost', 'Cost'],
   ['tokens', 'Tokens'],
 ];
 
-export function readMeasure(): 'cost' | 'tokens' {
-  try {
-    return localStorage.getItem(MEASURE_KEY) === 'tokens' ? 'tokens' : 'cost';
-  } catch {
-    return 'cost';
-  }
-}
+export const readMeasure = () => readSetting<'cost' | 'tokens'>(MEASURE_KEY, 'cost', ['cost', 'tokens']);
 
 export function setMeasure(next: string) {
   const m = next === 'tokens' ? 'tokens' : 'cost';
   if (m === env.measure) return;
   env.measure = m;
-  try {
-    if (m === 'cost') localStorage.removeItem(MEASURE_KEY);
-    else localStorage.setItem(MEASURE_KEY, m);
-  } catch {}
-  changed('prefs');
+  writeSetting(MEASURE_KEY, m === 'cost' ? null : m, 'prefs');
 }
 
 type Measured = { cost?: number | null; tokens?: number | null; partial?: boolean };

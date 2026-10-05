@@ -6,11 +6,11 @@
 
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { ArrowLeftRight, ExternalLink, Pencil, Search } from 'lucide-react';
-import { useQueries } from '@tanstack/react-query';
 import { useChanged } from '@/data/hooks';
-import { useSessions } from '@/data/queries';
+import { useSessionDetail, useSessions } from '@/data/queries';
 import { useAllAgents } from '@/data/scope';
-import { demo, getJson } from '@/data/api';
+import { demo } from '@/data/api';
+import type { SessionDetail } from '@/data/types';
 import { clip, compact, dayLabel, duration, money, plural, projectName, whenText } from '@/lib/format';
 import { titleFor } from '@/lib/labels';
 import { byTokens } from '@/lib/measure';
@@ -22,26 +22,6 @@ import { Avatar, Empty, Insight, ProjectDot, Skeleton } from '@/components/Bits'
 import { useUi } from './ui';
 import { useCompare } from './dialogs';
 import type { Source } from '@/lib/sources';
-
-type Detail = {
-  source?: Source;
-  title?: string;
-  project?: string;
-  firstAt?: number;
-  lastAt?: number;
-  models?: { name: string }[];
-  cost?: number;
-  partial?: boolean;
-  subCost?: number;
-  agentMs?: number;
-  waitMs?: number;
-  compactions?: number;
-  messages?: { count: number; interrupts?: number };
-  lines?: { added: number; removed: number };
-  tools?: { calls: number; failed: number };
-  tokens?: { total: number; cacheRead: number };
-  subagents?: { count: number };
-};
 
 type Figures = {
   id: string;
@@ -75,7 +55,7 @@ function figures(
   id: string,
   s: Session | null,
   live: LiveAgent | undefined,
-  d: Detail | null | undefined,
+  d: SessionDetail | null | undefined,
   loading: boolean,
 ): Figures {
   const t = s ? totalsFrom(s, 0) : null;
@@ -436,14 +416,7 @@ export function CompareDialog() {
   const { data: list } = useSessions({ enabled: open });
   const all = useAllAgents();
   const live = useMemo(() => new Map(all.filter((a) => a.kind === 'main').map((a) => [a.id, a])), [all]);
-  const details = useQueries({
-    queries: picks.map((id) => ({
-      queryKey: ['session', id],
-      queryFn: () => getJson<Detail>(`/api/session?id=${encodeURIComponent(id!)}`),
-      enabled: open && !!id && !demo,
-      staleTime: 10_000,
-    })),
-  });
+  const details = [useSessionDetail(picks[0], { enabled: open }), useSessionDetail(picks[1], { enabled: open })];
   const fig = (i: 0 | 1) => {
     const id = picks[i];
     if (!id) return null;

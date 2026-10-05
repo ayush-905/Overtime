@@ -13,7 +13,7 @@ import { clip, clock, duration, hourLabel, money, plural, projectName } from '@/
 import { serverNow } from '@/lib/env';
 import { titleFor } from '@/lib/labels';
 import { byTokens, measureOf, otherText, something, valueShort } from '@/lib/measure';
-import { timelineModel, total, type TimelineData } from '@/lib/timeline';
+import { timelineModel, total } from '@/lib/timeline';
 import { liveStateOf } from '@/lib/agents';
 import { Card, CardHead } from '@/components/Card';
 import { Avatar, Empty, Insight, Skeleton } from '@/components/Bits';
@@ -58,7 +58,7 @@ export function TimelineCard({ expanded = false }: { expanded?: boolean }) {
   const [showAll, setShowAll] = useState(false);
   // Narrow (a phone, the popover), each session's name sits over its bar.
   const stacked = useCompact();
-  const tl = useInsight<TimelineData>('timeline');
+  const tl = useInsight('timeline');
   // Worked out again each minute, and when the day or the agents change.
   const [m, now] = useMemo(() => {
     const at = serverNow();

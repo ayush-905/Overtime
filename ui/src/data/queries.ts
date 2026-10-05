@@ -5,8 +5,19 @@
 
 import { QueryClient, useQuery } from '@tanstack/react-query';
 import { getJson, demo } from './api';
-import type { Session } from '@/lib/sessions';
-import type { Source } from '@/lib/sources';
+import type {
+  HistoryDay,
+  HistoryResponse,
+  ResumeOptions,
+  SearchResponse,
+  SessionListItem,
+  SessionResponse,
+  SessionsResponse,
+  TurnDetail,
+  WeeklyDigest,
+} from './types';
+
+export type { SearchResult } from './types';
 
 export const queryClient = new QueryClient({
   defaultOptions: {
@@ -29,9 +40,9 @@ export function useSessions({ enabled = true }: { enabled?: boolean } = {}) {
   return useQuery({
     enabled,
     queryKey: ['sessions'],
-    queryFn: async (): Promise<Session[]> => {
-      if (demo) return (await demoData()).demoSessions(Date.now()) as Session[];
-      const body = await getJson<{ sessions?: Session[] }>('/api/sessions');
+    queryFn: async (): Promise<SessionListItem[]> => {
+      if (demo) return (await demoData()).demoSessions(Date.now()) as SessionListItem[];
+      const body = await getJson<SessionsResponse>('/api/sessions');
       // Before its first scan the server has nothing yet; ask again shortly.
       if (!body.sessions) throw new Error('Not ready yet');
       return body.sessions;
@@ -48,22 +59,20 @@ export function useHistory(scope: string, enabled = true) {
   return useQuery({
     enabled,
     queryKey: ['history', scope],
-    queryFn: async () =>
+    queryFn: async (): Promise<{ days: HistoryDay[] }> =>
       demo
-        ? { days: (await demoData()).demoHistory(Date.now()) }
-        : getJson<{ days: unknown[] }>(`/api/history?scope=${scope}`),
+        ? { days: (await demoData()).demoHistory(Date.now()) as HistoryDay[] }
+        : getJson<HistoryResponse>(`/api/history?scope=${scope}`),
     staleTime: 5 * 60_000,
     refetchInterval: 5 * 60_000,
   });
 }
 
-export type SessionTarget = { app?: { name: string; url: string } | null };
-
 /** Where an inbox row opens its session: its Claude or Codex app link, if it has one. */
 export function useSessionTarget(id: string) {
   return useQuery({
     queryKey: ['session-target', id],
-    queryFn: () => getJson<SessionTarget>(`/api/session-target?id=${encodeURIComponent(id)}`),
+    queryFn: () => getJson<ResumeOptions>(`/api/session-target?id=${encodeURIComponent(id)}`),
     enabled: !demo,
     staleTime: 30_000,
     refetchInterval: 30_000,
@@ -71,12 +80,12 @@ export function useSessionTarget(id: string) {
   });
 }
 
-/** One session's history, for its panel. */
-export function useSessionDetail(id: string | null) {
+/** One session in full, for its panel and for Compare. Only fetched while something shows it (`enabled`). */
+export function useSessionDetail(id: string | null, { enabled = true }: { enabled?: boolean } = {}) {
   return useQuery({
     queryKey: ['session', id],
-    queryFn: () => getJson<Record<string, unknown>>(`/api/session?id=${encodeURIComponent(id!)}`),
-    enabled: !!id && !demo,
+    queryFn: () => getJson<SessionResponse>(`/api/session?id=${encodeURIComponent(id!)}`),
+    enabled: enabled && !!id && !demo,
     staleTime: 10_000,
   });
 }
@@ -85,21 +94,11 @@ export function useSessionDetail(id: string | null) {
 export function useTurn(id: string | null, at: number | null) {
   return useQuery({
     queryKey: ['turn', id, at],
-    queryFn: () => getJson<Record<string, unknown>>(`/api/turn?id=${encodeURIComponent(id!)}&t=${at}`),
+    queryFn: () => getJson<TurnDetail>(`/api/turn?id=${encodeURIComponent(id!)}&t=${at}`),
     enabled: !!id && at != null && !demo,
     staleTime: 60_000,
   });
 }
-
-export type SearchResult = {
-  session: string;
-  source: Source;
-  title: string | null;
-  project: string | null;
-  count: number;
-  lastAt: number;
-  hits: { t: number; who: 'you' | 'agent'; text: string }[];
-};
 
 /** Sessions whose conversations have every word of `q`. Off (null) while search is off, or for fewer than two letters. */
 export function useSearch(
@@ -110,9 +109,7 @@ export function useSearch(
   return useQuery({
     queryKey: ['search', scope, limit, query.toLowerCase()],
     queryFn: () =>
-      getJson<{ terms: string[]; results: SearchResult[]; total: number }>(
-        `/api/search?${new URLSearchParams({ q: query, scope, limit: String(limit) })}`,
-      ),
+      getJson<SearchResponse>(`/api/search?${new URLSearchParams({ q: query, scope, limit: String(limit) })}`),
     enabled: on && !demo && query.length >= 2,
     staleTime: 10_000,
   });
@@ -122,10 +119,10 @@ export function useSearch(
 export function useDigest(weeksAgo: number, enabled = true) {
   return useQuery({
     queryKey: ['digest', weeksAgo],
-    queryFn: async () =>
+    queryFn: async (): Promise<WeeklyDigest> =>
       demo
-        ? (await demoData()).demoDigest(Date.now(), weeksAgo)
-        : getJson<Record<string, unknown>>(`/api/digest?week=${weeksAgo ? 1 : 0}`),
+        ? ((await demoData()).demoDigest(Date.now(), weeksAgo) as WeeklyDigest)
+        : getJson<WeeklyDigest>(`/api/digest?week=${weeksAgo ? 1 : 0}`),
     enabled,
     staleTime: 60_000,
   });

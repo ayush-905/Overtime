@@ -7,7 +7,17 @@
 import { useAlertPrefs, useInsight, useInsightOf, useProvider, useSources, useSpend, useToday } from '@/data/scope';
 import { useChanged, useMinute } from '@/data/hooks';
 import { useLive } from '@/data/live';
-import { activeBetween, calendarDay, compact, costText, dayLabel, duration, longDate, money } from '@/lib/format';
+import {
+  activeBetween,
+  calendarDay,
+  changeText,
+  compact,
+  costText,
+  dayLabel,
+  duration,
+  longDate,
+  money,
+} from '@/lib/format';
 import { serverNow } from '@/lib/env';
 import { byTokens, measureOf, valueShort } from '@/lib/measure';
 import { dayParam, pageLink } from '@/lib/route';
@@ -17,29 +27,26 @@ import { Skeleton } from '@/components/Bits';
 import { cx } from '@/components/cx';
 import { ExpandButton } from './Expand';
 import { SOURCE, andList, type Source } from '@/lib/sources';
-
-type Day = { start: number; cost: number; tokens: number };
-type Spend = { cost: number; tokens: number; unpricedTokens?: number };
+import type { SpendTotals, TrendDay } from '@/data/types';
 
 /** Some usage had no known price, enough to matter (over 1% of its tokens). */
-const unpriced = (p?: Spend | null) => !!p && (p.unpricedTokens || 0) > p.tokens * 0.01;
+const unpriced = (p?: SpendTotals | null) => !!p && (p.unpricedTokens || 0) > p.tokens * 0.01;
 
 /** How today compares with yesterday by now: "↓ 56% on yesterday by now". */
 function delta(current: number, previous: number | undefined, tokens: boolean) {
   if (!(previous! > (tokens ? 1000 : 0.5))) return null;
-  const pct = Math.round(((current - previous!) / previous!) * 100);
-  const text =
-    Math.abs(pct) < 1 ? 'the same as yesterday by now' : `${pct > 0 ? '↑' : '↓'} ${Math.abs(pct)}% on yesterday by now`;
+  const change = changeText(current, previous!, 1);
+  const text = change ? `${change} on yesterday by now` : 'the same as yesterday by now';
   return { text, tip: `${tokens ? `${compact(previous!)} tokens` : money(previous!)} yesterday by this time` };
 }
 
-type Series = { source: Source; days: Day[] };
+type Series = { source: Source; days: TrendDay[] };
 
 /** The last 30 days, a bar each, split by provider: Claude Code at the foot, then Codex, then Pi. */
 function Spark({ series, both, tall = 52 }: { series: Series[]; both: boolean; tall?: number }) {
   const tokens = byTokens();
   const days = series.find((s) => s.days.length)?.days || [];
-  const at = (list: Day[], i: number) => (list[i] ? measureOf(list[i]) : 0);
+  const at = (list: TrendDay[], i: number) => (list[i] ? measureOf(list[i]) : 0);
   const max = Math.max(0.01, ...days.map((_, i) => series.reduce((n, s) => n + at(s.days, i), 0)));
   return (
     <div
@@ -110,9 +117,9 @@ export function TodayCard({ expanded = false, glance = false }: { expanded?: boo
   const prefs = useAlertPrefs();
   const spend = useSpend();
   const t = useToday();
-  const messages = useInsight<{ today?: number }>('messages');
-  const hours = useInsight<Parameters<typeof activeBetween>[0]>('hours');
-  const trends = useInsightOf<{ days: Day[] }>(sources, 'trend');
+  const messages = useInsight('messages');
+  const hours = useInsight('hours');
+  const trends = useInsightOf(sources, 'trend');
   const spentToday = useLive((s) => s.snap?.analytics?.all?.spend?.today?.cost);
   const today = spend?.today;
   if (!spend || !today) {
@@ -125,7 +132,7 @@ export function TodayCard({ expanded = false, glance = false }: { expanded?: boo
   const tokens = byTokens();
   const now = serverNow();
   const active = activeBetween(hours, calendarDay(now), now);
-  const trend = (p: Source) => (trends[sources.indexOf(p)]?.days || []) as Day[];
+  const trend = (p: Source) => trends[sources.indexOf(p)]?.days || [];
   const series = (provider === 'all' ? sources : [provider]).map((source) => ({ source, days: trend(source) }));
   const both = provider === 'all' && sources.length > 1;
   const first = series.find((s) => s.days[0])?.days[0];

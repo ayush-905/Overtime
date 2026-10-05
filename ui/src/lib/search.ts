@@ -43,7 +43,7 @@ export function score(text: string | null | undefined, q: string) {
   if (t.startsWith(q)) return 4;
   if (t.includes(` ${q}`) || t.includes(`-${q}`)) return 3;
   if (t.includes(q)) return 2;
-  // Letters in order, like "psv" for "pulse survey", only once there are enough of them to mean something.
+  // Letters in order, like "rsh" for "recipe search", only once there are enough of them to mean something.
   if (q.length < 3) return 0;
   let i = 0;
   for (const ch of t) if (ch === q[i]) i++;

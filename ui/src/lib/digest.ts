@@ -2,36 +2,17 @@
 // the few things worth knowing, and the whole digest as text to paste into a
 // note. Last week's is "ready" early in the week, until you've opened it.
 
-import { duration, money, plural, projectName } from './format';
+import { changeText, duration, money, plural, projectName } from './format';
 import { titleFor } from './labels';
-import { SOURCE, SOURCES, andList, type Source } from '@/lib/sources';
+import { SOURCE, SOURCES, andList } from '@/lib/sources';
+import { readSetting, writeSetting } from './storage';
+import type { WeeklyDigest } from '@/data/types';
 
-const SEEN_KEY = 'overtime-digest-seen';
+const SEEN_KEY = 'digest-seen';
 const DAY = 86_400_000;
 
-export type Digest = {
-  from: number;
-  to: number;
-  cost: number;
-  partial?: boolean;
-  sessions: number;
-  messages: number;
-  activeMs: number;
-  agentMs: number;
-  waitMs: number;
-  waits: number;
-  added: number;
-  removed: number;
-  tools: number;
-  failed: number;
-  days: number;
-  busiest: [number, number] | null;
-  hits: { claude: number; codex: number };
-  bySource: Partial<Record<Source, number>>;
-  projects: { name: string; cost: number; sessions: number }[];
-  topSessions: { id: string; source: Source; title: string; project: string; cost: number; messages: number }[];
-  before: { cost: number; activeMs: number; agentMs: number; waitMs: number };
-};
+/** A week in review (/api/digest). */
+export type Digest = WeeklyDigest;
 
 /** Midnight on the Monday of the week `t` falls in. */
 export function weekStartOf(t: number) {
@@ -46,18 +27,11 @@ export function digestReady(now = Date.now()) {
   const weekday = new Date(now).getDay();
   if (weekday < 1 || weekday > 3) return null;
   const week = weekStartOf(now);
-  let seen = 0;
-  try {
-    seen = Number(localStorage.getItem(SEEN_KEY)) || 0;
-  } catch {}
+  const seen = Number(readSetting(SEEN_KEY)) || 0;
   return seen >= week ? null : { from: weekStartOf(week - DAY), to: week };
 }
 
-export function markDigestSeen() {
-  try {
-    localStorage.setItem(SEEN_KEY, String(weekStartOf(Date.now())));
-  } catch {}
-}
+export const markDigestSeen = () => writeSetting(SEEN_KEY, String(weekStartOf(Date.now())));
 
 /** The days a digest covers: "22 – 28 Sept", or one day. */
 export const span = (d: { from: number; to: number }) => {
@@ -79,9 +53,8 @@ export function change(now: number, before: number) {
   if (!before) return now ? 'none the week before' : '';
   const ratio = now / before;
   if (ratio >= 1.9) return `${ratio.toFixed(1)}× the week before`;
-  const diff = Math.round((ratio - 1) * 100);
-  if (Math.abs(diff) < 5) return 'about the same as the week before';
-  return `${diff > 0 ? '↑' : '↓'} ${Math.abs(diff)}% on the week before`;
+  const text = changeText(now, before);
+  return text ? `${text} on the week before` : 'about the same as the week before';
 }
 
 /** The few things worth knowing about the week. */

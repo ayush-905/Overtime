@@ -15,7 +15,7 @@ import { ProviderMark } from '@/components/Bits';
 import { cx } from '@/components/cx';
 
 const leftOf = (w: QuotaItem) => (w.limited ? 0 : w.usedPercent == null ? null : Math.max(0, 100 - w.usedPercent));
-const valueOf = (w: QuotaItem) =>
+const shownValue = (w: QuotaItem) =>
   w.limited ? 'Limit' : w.usedPercent == null ? '—' : `${Math.round(100 - w.usedPercent)}%`;
 const toneText = { ok: 'text-ink', warn: 'text-warn', bad: 'text-bad' };
 
@@ -73,7 +73,7 @@ export function SideUsage({ folded }: { folded: boolean }) {
             <span key={provider} className="flex flex-col items-center gap-1" data-tip={windows.map(tipOf).join('\n')}>
               <ProviderMark source={provider} size={16} />
               <b className={cx('text-label tnum', left == null ? 'text-muted' : toneText[toneFor(left)])}>
-                {low ? valueOf(low) : '—'}
+                {low ? shownValue(low) : '—'}
               </b>
             </span>
           );
@@ -104,7 +104,7 @@ export function SideUsage({ folded }: { folded: boolean }) {
                 <span className="truncate text-muted">{w.label}</span>
                 <Meter left={left} size="sm" label={`${providerName(w.provider)} ${w.label.toLowerCase()} left`} />
                 <b className={cx('min-w-[3ch] text-right tnum', left == null ? 'text-muted' : toneText[toneFor(left)])}>
-                  {valueOf(w)}
+                  {shownValue(w)}
                 </b>
               </span>
             );

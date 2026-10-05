@@ -8,35 +8,15 @@
 import { clock, duration, HOUR, plural, workdayHour, clip } from './format';
 import { titleFor } from './labels';
 import { WORKING, sinceFor, type LiveAgent } from './agents';
-import type { Source } from '@/lib/sources';
+import type { Span, TimelineLane, TodayTimeline } from '@/data/types';
 
 const SLOT_MS = 15 * 60_000;
 
-type Span = [number, number];
+/** A session's lane: the server's (insights.timeline), or one for a live agent it hasn't drawn yet, with no project, busy time or end of its own. */
+export type Lane = Omit<TimelineLane, 'project' | 'busyMs' | 'last'> & { project: string | null; busyMs?: number };
 
-export type Lane = {
-  id: string;
-  source: Source;
-  title: string;
-  project: string | null;
-  work: Span[];
-  sub: Span[];
-  waits: Span[];
-  messages: number[];
-  cost: number;
-  tokens: number;
-  partial: boolean;
-  first: number;
-  busyMs?: number;
-};
-
-export type TimelineData = {
-  from: number;
-  you?: Span[];
-  usual?: { days: number; slots: number[] } | null;
-  lanes: Lane[];
-  others?: { sessions: number; busyMs: number; cost: number; tokens?: number };
-};
+/** Today as the server lays it out (insights.timeline). */
+export type TimelineData = TodayTimeline;
 
 /** Merge [from, to] stretches that touch or overlap (within a minute). */
 export function merge(list: Span[]): Span[] {

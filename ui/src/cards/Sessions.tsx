@@ -20,27 +20,14 @@ import { Ago } from '@/components/Clock';
 import { cx } from '@/components/cx';
 import { ExpandButton } from './Expand';
 import { SOURCE, SOURCES, bySourceOf, type Source } from '@/lib/sources';
-
-type Top = {
-  id: string;
-  source: Source;
-  title: string;
-  project: string | null;
-  cost: number;
-  partial: boolean;
-  subCost: number;
-  tokens: number;
-  added: number;
-  removed: number;
-  context?: { used: number; window: number; pct: number } | null;
-};
+import type { OpenStatus } from '@/data/types';
 
 const linesText = (s: { added: number; removed: number }) =>
   s.added + s.removed ? `+${compact(s.added)} −${compact(s.removed)} lines` : 'no edits';
 
 export function TopSessionsCard({ expanded = false }: { expanded?: boolean }) {
   useChanged();
-  const list = useInsight<Top[]>('topSessions');
+  const list = useInsight('topSessions');
   const tokens = byTokens();
   const head = (
     <CardHead
@@ -104,12 +91,10 @@ export function TopSessionsCard({ expanded = false }: { expanded?: boolean }) {
   );
 }
 
-type Today = { id: string; source: Source; project: string | null; cost: number; tokens?: number; partial?: boolean };
-
 export function WhereTodayCard() {
   useChanged();
   const provider = useProvider();
-  const list = (useToday()?.sessionList || null) as Today[] | null;
+  const list = useToday()?.sessionList || null;
   const tokens = byTokens();
   const head = (
     <CardHead title="Where today went" sub={`By project${provider === 'all' ? ', split by provider' : ''}`} />
@@ -125,7 +110,7 @@ export function WhereTodayCard() {
   const byProject = new Map<string, Record<Source, number>>();
   const bySource = bySourceOf(() => 0);
   for (const s of list) {
-    const v = measureOf({ cost: s.cost, tokens: s.tokens ?? 0 });
+    const v = measureOf({ cost: s.cost, tokens: s.tokens });
     const p = s.project || 'Unknown';
     const row = byProject.get(p) || bySourceOf(() => 0);
     row[s.source] += v;
@@ -211,23 +196,8 @@ export function WhereTodayCard() {
   );
 }
 
-type Open = {
-  id?: string;
-  source: Source;
-  title?: string;
-  status: 'needs' | 'working' | 'idle' | 'new';
-  project?: string;
-  lastActive?: number;
-  openedAt: number;
-  memBytes: number;
-  toolsMemBytes: number;
-  tools: number;
-  cpuPct?: number | null;
-  runtimeShared?: boolean;
-};
-
 const IDLE_LONG_MS = 60 * 60_000; // an open session with nothing for this long counts as idle
-const STATUS: Record<Open['status'], string> = {
+const STATUS: Record<OpenStatus, string> = {
   needs: 'Needs you',
   working: 'Working',
   idle: 'Idle',
@@ -237,7 +207,7 @@ const STATUS: Record<Open['status'], string> = {
 export function OpenSessionsCard({ expanded = false }: { expanded?: boolean }) {
   // "Open for", and which have been idle an hour, by the minute; "active 5s ago" counts on its own.
   useMinute();
-  const o = useOpenSessions() as { everyMs?: number; sessions: Open[]; sharedRuntimes?: Open[] } | null;
+  const o = useOpenSessions();
   const now = serverNow();
   const note = `Claude Code, Codex and Pi sessions running on this Mac right now, each with the MCP servers and tools it started. Memory includes those; CPU is the share of one core. Updated every ${Math.round((o?.everyMs || 10_000) / 1000)} seconds while this page is open.`;
   const list = o?.sessions || [];
@@ -262,8 +232,9 @@ export function OpenSessionsCard({ expanded = false }: { expanded?: boolean }) {
       </Card>
     );
   }
-  const idle = list.filter((x) => x.status === 'idle' && now - (x.lastActive || x.openedAt) >= IDLE_LONG_MS);
-  const idleBytes = idle.reduce((n, x) => n + x.memBytes + x.toolsMemBytes, 0);
+  const idle = list.filter((x) => x.status === 'idle' && now - (x.lastActive || x.openedAt || 0) >= IDLE_LONG_MS);
+  // A chat in the Codex app has no memory of its own (null).
+  const idleBytes = idle.reduce((n, x) => n + (x.memBytes || 0) + (x.toolsMemBytes || 0), 0);
   const cpu = [...list, ...runtimes].reduce((n, x) => n + (x.cpuPct || 0), 0);
   const runtimeNote = runtimes.length
     ? `The Codex app uses ${bytesText(runtimes.reduce((n, x) => n + x.memBytes + x.toolsMemBytes, 0))} for all its chats together, so they have no memory or CPU of their own here.`
@@ -274,7 +245,7 @@ export function OpenSessionsCard({ expanded = false }: { expanded?: boolean }) {
         className="mb-0"
         title="Open agent sessions"
         sub={`${list.length} open · ${bytesText(total)} of memory`}
-        tools={<>{!expanded && <ExpandButton card="open-sessions" />}</>}
+        tools={!expanded && <ExpandButton card="open-sessions" />}
       />
       <StatRow columns={3}>
         <Stat label="Open" value={list.length} />

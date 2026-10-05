@@ -2,27 +2,25 @@
 // it's working, needs you or is idle, and which agents are waiting for you.
 // Golden tests (limits.test.ts) hold the words.
 
-import type { Source } from '@/lib/sources';
+import type { Agent, AgentStatus, AgentTool } from '@/data/types';
 
-export const WORKING = ['thinking', 'working', 'replying'];
+export const WORKING: AgentStatus[] = ['thinking', 'working', 'replying'];
 
-export type LiveAgent = {
-  id: string;
-  kind: 'main' | 'sub';
-  parentId?: string | null;
-  source: Source;
-  title: string;
-  project: string | null;
-  status: string;
-  needsYou: string | null;
-  endReason?: string | null;
-  tool: { name: string; category?: string; verb?: string; detail?: string; startedAt?: number } | null;
-  turnStartedAt: number | null;
-  endedAt: number | null;
-  lastActivity: number;
-  results?: [number, number, string][];
-  context?: { used: number; window: number; pct: number } | null;
-};
+/**
+ * What this logic reads of a live agent: the server's Agent (data/types.ts),
+ * every one of which is a LiveAgent, though tests build only these parts.
+ */
+export type LiveAgent = Pick<
+  Agent,
+  'id' | 'kind' | 'source' | 'title' | 'project' | 'status' | 'needsYou' | 'turnStartedAt' | 'lastActivity'
+> &
+  Partial<Pick<Agent, 'parentId' | 'endReason' | 'context'>> & {
+    /** 0 or null before its first turn ended. */
+    endedAt: number | null;
+    tool: (Pick<AgentTool, 'name'> & Partial<AgentTool>) | null;
+    /** The last few tool calls that finished: [when, 1 if it worked else 0, tool]. */
+    results?: [number, number, string][];
+  };
 
 /** When what an agent is doing now started, for its "how long" counter. */
 export function sinceFor(a: LiveAgent) {

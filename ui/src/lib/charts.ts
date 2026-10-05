@@ -4,9 +4,10 @@
 // them in Settings. Both are saved with your settings.
 
 import { changed } from './bus';
+import { onOtherTab, readJson, readSetting, writeJson, writeSetting } from './storage';
 
-export const CHART_KEY = 'overtime-charts';
-export const CHART_DEFAULT_KEY = 'overtime-chart-default';
+const CHART_KEY = 'charts';
+const CHART_DEFAULT_KEY = 'chart-default';
 
 export type ChartKind = 'bars' | 'line' | 'area' | 'heat' | 'list' | 'donut' | 'table';
 
@@ -30,26 +31,14 @@ let choices: Record<string, ChartKind> = {};
 let fallback: ChartKind = 'bars';
 
 function load() {
-  try {
-    choices = JSON.parse(localStorage.getItem(CHART_KEY) || '{}') || {};
-  } catch {
-    choices = {};
-  }
-  try {
-    const d = localStorage.getItem(CHART_DEFAULT_KEY) as ChartKind | null;
-    fallback = d && DEFAULT_KINDS.includes(d) ? d : 'bars';
-  } catch {}
+  choices = readJson(CHART_KEY, {});
+  fallback = readSetting<ChartKind>(CHART_DEFAULT_KEY, 'bars', DEFAULT_KINDS);
 }
 load();
 
 function store() {
-  try {
-    if (Object.keys(choices).length) localStorage.setItem(CHART_KEY, JSON.stringify(choices));
-    else localStorage.removeItem(CHART_KEY);
-    if (fallback === 'bars') localStorage.removeItem(CHART_DEFAULT_KEY);
-    else localStorage.setItem(CHART_DEFAULT_KEY, fallback);
-  } catch {}
-  changed('charts');
+  writeJson(CHART_KEY, Object.keys(choices).length ? choices : null);
+  writeSetting(CHART_DEFAULT_KEY, fallback === 'bars' ? null : fallback, 'charts');
 }
 
 /** The style a chart is drawn in: the one picked for it, else the default, if it suits the card. */
@@ -75,13 +64,11 @@ export function setChartDefault(kind: ChartKind, { all = false } = {}) {
 export const chartDefault = () => fallback;
 export const chartsCustomized = () => Object.keys(choices).length;
 
-if (typeof window !== 'undefined') {
-  window.addEventListener('storage', (e) => {
-    if (e.key !== CHART_KEY && e.key !== CHART_DEFAULT_KEY) return;
-    load();
-    changed('charts');
-  });
-}
+onOtherTab((key) => {
+  if (key !== CHART_KEY && key !== CHART_DEFAULT_KEY) return;
+  load();
+  changed('charts');
+});
 
 /** A value's level on a heat scale of 0–4, on a square root so one big day doesn't wash out the rest. */
 export const heatLevel = (value: number, max: number) =>

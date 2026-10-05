@@ -23,6 +23,7 @@ import {
 import {
   ArrowLeftRight,
   Check,
+  CircleDashed,
   Copy,
   ExternalLink,
   Folder,
@@ -74,7 +75,7 @@ import {
   titleFor,
   togglePin,
 } from '@/lib/labels';
-import { doingText, liveStateOf, sinceFor, type LiveAgent } from '@/lib/agents';
+import { doingText, liveStateOf, sinceFor } from '@/lib/agents';
 import { queryTerms } from '@/lib/search';
 import { pageLink } from '@/lib/route';
 import { Empty, Marked, ProjectDot, Skeleton } from '@/components/Bits';
@@ -84,7 +85,8 @@ import { cx } from '@/components/cx';
 import { note, offerUndo } from './toasts';
 import { DRAWER, useUi, usePanelDocked } from './ui';
 import { useCompare } from './dialogs';
-import { sourceInfo, type Source } from '@/lib/sources';
+import { sourceInfo } from '@/lib/sources';
+import type { Agent, OpenSession, SessionDetail, SessionResponse, TurnDetail } from '@/data/types';
 
 const ENTRY: Record<string, string> = {
   'claude-desktop': 'Desktop app',
@@ -93,99 +95,11 @@ const ENTRY: Record<string, string> = {
   codex: 'Codex',
 };
 
-// ── What the server sends ─────────────────────────────────────────────────────
-
-type Detail = {
-  id: string;
-  nativeId: string;
-  source: Source;
-  title: string | null;
-  project: string | null;
-  cwd: string | null;
-  firstAt: number | null;
-  lastAt: number | null;
-  cost: number;
-  partial: boolean;
-  subCost: number;
-  saved: number;
-  tokens: { fresh: number; output: number; cacheRead: number; cacheWrite: number; total: number };
-  models: { name: string; cost: number; tokens: number; other?: boolean }[];
-  lines: { added: number; removed: number };
-  tools: { calls: number; failed: number; denied: number; top: [string, number][] };
-  compactions: number;
-  context: { used: number; window: number; pct: number; at: number } | null;
-  agentMs: number;
-  waitMs: number;
-  messages: {
-    count: number;
-    interrupts: number;
-    list: { t: number; text: string; cost: number; partial: boolean; ms: number }[];
-  };
-  subagents: {
-    count: number;
-    list: { title: string; firstAt: number | null; calls: number; cost: number; partial: boolean }[];
-  };
-  timeline: { from: number; step: number; costs: number[] } | null;
-  // What picks it back up, as its harness says: the command for Terminal, and its app's link.
-  // `appMissing`: the app that would open it, and why it can't.
-  resume?: {
-    terminal?: boolean;
-    command?: string;
-    app?: { name: string; url: string } | null;
-    appMissing?: { name: string; why: string } | null;
-  };
-};
-
-type Turn = {
-  t: number;
-  text: string;
-  whole: boolean;
-  replies: { t: number; text: string }[];
-  moreReplies: number;
-  searchOn: boolean;
-  files: { path: string; edits: number; added: number; removed: number; reads: number }[];
-  moreFiles: number;
-  commands: { text: string; status: 'ok' | 'error' | 'denied'; reason?: string; sub?: boolean }[];
-  moreCommands: number;
-  tools: [string, number][];
-  cost: number;
-  partial: boolean;
-  ms: number;
-  tokens: number;
-  subagents: number;
-  failed: number;
-  denied: number;
-  cwd: string | null;
-};
-
-type Live = LiveAgent & {
-  cwd?: string;
-  nativeId?: string;
-  branch?: string | null;
-  model?: string | null;
-  modelName?: string | null;
-  resumeCommand?: string | null;
-  entrypoint?: string | null;
-  startedAt?: number;
-  cost?: number;
-  tokens?: { total: number };
-  lines?: { added: number; removed: number };
-  turns?: number;
-  files?: { path: string; name: string; added: number; removed: number }[];
-};
-type Proc = {
-  id?: string;
-  source: Source;
-  title?: string;
-  project?: string;
-  lastActive?: number;
-  openedAt: number;
-  memBytes: number;
-  toolsMemBytes: number;
-  tools: number;
-  cpuPct?: number | null;
-  runtimeShared?: boolean;
-};
+// What the server sends: the live agent (Agent), how it runs on this Mac
+// (OpenSession), the session in full (SessionResponse, from /api/session) and one
+// message (TurnDetail, from /api/turn), all in data/types.ts.
+type Live = Agent;
+type Proc = OpenSession;
 
 // ── Small pieces ─────────────────────────────────────────────────────────────
 
@@ -243,7 +157,7 @@ const shellQuote = (s: string) => `'${String(s).replace(/'/g, `'\\''`)}'`;
 // ── Its sections ─────────────────────────────────────────────────────────────
 
 /** What it's doing now, and since when: only the "for 3m" counts each second. */
-function Status({ live, d, proc }: { live: Live | null; d: Detail | null; proc: Proc | null }) {
+function Status({ live, d, proc }: { live: Live | null; d: SessionDetail | null; proc: Proc | null }) {
   if (live) {
     const state = liveStateOf(live);
     const since = sinceFor(live);
@@ -273,15 +187,16 @@ function Status({ live, d, proc }: { live: Live | null; d: Detail | null; proc: 
     );
   }
   if (proc) {
+    // A chat in the Codex app may not say when it was opened.
     const last = proc.lastActive ? (
       <>
         last active <Ago t={proc.lastActive} /> ago
       </>
-    ) : (
+    ) : proc.openedAt ? (
       <>
         opened <Ago t={proc.openedAt} /> ago
       </>
-    );
+    ) : null;
     return (
       <div className="mx-5 mt-1 flex items-center gap-2.5 rounded-row bg-sunken px-3 py-2.5">
         <span className="size-2 shrink-0 rounded-full bg-faint" aria-hidden />
@@ -319,7 +234,7 @@ const TurnView = memo(function TurnView({
   useChanged();
   const q = useTurn(id, Math.round(at));
   const box = useRef<HTMLDivElement>(null);
-  const t = q.data as Turn | undefined;
+  const t: TurnDetail | undefined = q.data;
   // A search's match, once it's there, is brought into view.
   useEffect(() => {
     const hit = box.current?.querySelector('[data-hit]');
@@ -433,11 +348,19 @@ const TurnView = memo(function TurnView({
             {t.commands.length > 0 && (
               <ul className="flex flex-col gap-1">
                 {t.commands.map((c, i) => (
-                  <li key={i} data-tip={c.reason} className="flex items-start gap-2 text-[12px]">
+                  <li
+                    key={i}
+                    data-tip={
+                      c.reason || (c.status === 'pending' ? 'Still running, or it never reported back' : undefined)
+                    }
+                    className="flex items-start gap-2 text-[12px]"
+                  >
                     {c.status === 'error' ? (
                       <TriangleAlert size={13} className="mt-0.5 shrink-0 text-bad" aria-label="Failed" />
                     ) : c.status === 'denied' ? (
                       <Ban size={13} className="mt-0.5 shrink-0 text-muted" aria-label="Denied" />
+                    ) : c.status === 'pending' ? (
+                      <CircleDashed size={13} className="mt-0.5 shrink-0 text-muted" aria-label="No result yet" />
                     ) : (
                       <Check size={13} className="mt-0.5 shrink-0 text-ok" aria-hidden />
                     )}
@@ -607,7 +530,7 @@ const Notes = memo(function Notes({ id }: { id: string }) {
   );
 });
 
-function Stats({ live, d, proc }: { live: Live | null; d: Detail | null; proc: Proc | null }) {
+function Stats({ live, d, proc }: { live: Live | null; d: SessionDetail | null; proc: Proc | null }) {
   const cost = d ? d.cost : live?.cost;
   const tokens = d ? d.tokens.total : live?.tokens?.total;
   const lines = d ? d.lines : live?.lines;
@@ -699,7 +622,7 @@ function Stats({ live, d, proc }: { live: Live | null; d: Detail | null; proc: P
   );
 }
 
-const CostOverTime = memo(function CostOverTime({ d }: { d: Detail }) {
+const CostOverTime = memo(function CostOverTime({ d }: { d: SessionDetail }) {
   useChanged();
   const tl = d.timeline;
   if (!tl || tl.costs.length < 2 || !tl.costs.some((c) => c > 0)) return null;
@@ -737,7 +660,7 @@ const Messages = memo(function Messages({
   current,
   onOpen,
 }: {
-  d: Detail;
+  d: SessionDetail;
   current: number | null;
   onOpen: (t: number) => void;
   today: number;
@@ -800,7 +723,7 @@ function Files({ live }: { live: Live | null }) {
   );
 }
 
-function Subagents({ d, liveSubs }: { d: Detail | null; liveSubs: Live[] }) {
+function Subagents({ d, liveSubs }: { d: SessionDetail | null; liveSubs: Live[] }) {
   const list = d?.subagents?.list || [];
   if (!list.length && !liveSubs.length) return null;
   const count = d?.subagents?.count || liveSubs.length;
@@ -836,7 +759,7 @@ function Subagents({ d, liveSubs }: { d: Detail | null; liveSubs: Live[] }) {
   );
 }
 
-const ModelsAndTools = memo(function ModelsAndTools({ d }: { d: Detail }) {
+const ModelsAndTools = memo(function ModelsAndTools({ d }: { d: SessionDetail }) {
   useChanged();
   const models = d.models.filter((m) => m.cost > 0.005);
   const toolLine = `${plural(d.tools.calls, 'tool call')}${d.tools.failed ? ` · ${d.tools.failed} failed` : ''}${d.tools.denied ? ` · ${d.tools.denied} denied by you` : ''}${d.compactions ? ` · compacted ${d.compactions === 1 ? 'once' : `${d.compactions} times`}` : ''}`;
@@ -882,7 +805,7 @@ const ModelsAndTools = memo(function ModelsAndTools({ d }: { d: Detail }) {
   );
 });
 
-function Actions({ id, live, d }: { id: string; live: Live | null; d: Detail | null }) {
+function Actions({ id, live, d }: { id: string; live: Live | null; d: SessionResponse | null }) {
   // The folder it was started in, where Claude Code can find it to resume (the history knows it best).
   const cwd = d?.cwd || live?.cwd || null;
   const r = d?.resume;
@@ -1124,15 +1047,10 @@ export function SessionPanel() {
   useMinute();
   const today = calendarDay(serverNow());
   // Only this session from the live feed: it, its subagents, and how it's running on this Mac.
-  const live =
-    (useLive((s) => (id ? s.snap?.agents.find((a) => a.id === id) : undefined)) as unknown as Live | undefined) || null;
-  const liveSubs = useLive(
-    useShallow((s) => (id ? s.snap?.agents.filter((a) => a.parentId === id) || [] : [])),
-  ) as unknown as Live[];
+  const live = useLive((s) => (id ? s.snap?.agents.find((a) => a.id === id) : undefined)) || null;
+  const liveSubs = useLive(useShallow((s) => (id ? s.snap?.agents.filter((a) => a.parentId === id) || [] : [])));
   const proc =
-    (useLive(
-      useShallow((s) => (id ? s.snap?.openSessions?.sessions.find((x) => x.id === id) : undefined)),
-    ) as unknown as Proc | undefined) || null;
+    useLive(useShallow((s) => (id ? s.snap?.openSessions?.sessions.find((x) => x.id === id) : undefined))) || null;
   const detail = useSessionDetail(id);
   const body = useRef<HTMLDivElement>(null);
   const panel = useRef<HTMLElement>(null);
@@ -1150,6 +1068,8 @@ export function SessionPanel() {
   );
 
   // A new session starts at its top, at the message it was opened at, if any.
+  // Only then: docking or undocking it later mustn't move the focus.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: runs for a newly opened session only, reading how it's shown at that moment
   useEffect(() => {
     setFocusAt(session?.at ?? null);
     body.current?.scrollTo(0, 0);
@@ -1195,7 +1115,7 @@ export function SessionPanel() {
   };
 
   if (!id) return null;
-  const d = (detail.data as Detail | undefined) || null;
+  const d = detail.data || null;
   const own = live?.title || d?.title || proc?.title || 'Untitled session';
   const project = live?.project || d?.project || proc?.project;
   const started = d?.firstAt
@@ -1251,6 +1171,9 @@ export function SessionPanel() {
           role="separator"
           aria-orientation="vertical"
           aria-label="Panel width"
+          aria-valuenow={width}
+          aria-valuemin={DRAWER.min}
+          aria-valuemax={DRAWER.max}
           tabIndex={0}
           onPointerDown={down}
           onPointerMove={move}

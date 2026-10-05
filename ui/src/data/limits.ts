@@ -2,21 +2,25 @@
 // exact check is on unless you turned it off: the server asks Anthropic with your
 // Claude Code login, at most every 10 minutes (and when you press Refresh).
 // Codex's live check is off unless you turn it on; otherwise its windows are what
-// Codex recorded in its transcripts.
+// Codex recorded in its transcripts. The store holds whether each check is on,
+// its last answer, and whether a refresh is on its way.
 
 import { create } from 'zustand';
 import { post, demo } from './api';
-import { EXACT_KEY, CODEX_EXACT_KEY, readExactOn, readCodexExactOn } from '@/lib/prefs';
+import { EXACT_KEY, CODEX_EXACT_KEY, readExactOn, readCodexExactOn, saveExactOn, saveCodexExactOn } from '@/lib/prefs';
+import { onOtherTab } from '@/lib/storage';
+import type { ExactCodexLimits, ExactLimitsResponse } from './types';
 
 const EVERY_MS = 10 * 60 * 1000;
 
-type ExactResult = { status: string; message?: string; [key: string]: unknown };
+/** What the page says itself when it couldn't reach the server. */
+type Unreachable = { status: 'error'; message: string };
 
 type LimitsState = {
   exactOn: boolean;
-  exact: ExactResult | null;
+  exact: ExactLimitsResponse | Unreachable | null;
   codexExactOn: boolean;
-  codexExact: ExactResult | null;
+  codexExact: ExactCodexLimits | Unreachable | null;
   refreshing: boolean;
   codexRefreshing: boolean;
 };
@@ -37,9 +41,9 @@ let exactFetchedAt = 0;
 async function fetchExact(force = false) {
   if (!useLimits.getState().exactOn || demo) return;
   exactFetchedAt = Date.now();
-  let result: ExactResult;
+  let result: ExactLimitsResponse | Unreachable;
   try {
-    result = await post<ExactResult>(`/api/limits/exact${force ? '?fresh=1' : ''}`);
+    result = await post<ExactLimitsResponse>(`/api/limits/exact${force ? '?fresh=1' : ''}`);
   } catch {
     result = { status: 'error', message: "Couldn't reach Overtime's server." };
   }
@@ -55,9 +59,9 @@ async function fetchCodex(force = false) {
   if (!s.codexExactOn) {
     await post('/api/refresh').catch(() => {});
   } else {
-    let result: ExactResult;
+    let result: ExactCodexLimits | Unreachable;
     try {
-      result = await post<ExactResult>(`/api/limits/codex${force ? '?fresh=1' : ''}`);
+      result = await post<ExactCodexLimits>(`/api/limits/codex${force ? '?fresh=1' : ''}`);
     } catch {
       result = { status: 'error', message: "Couldn't reach Overtime's server for Codex's limits." };
     }
@@ -68,10 +72,7 @@ async function fetchCodex(force = false) {
 
 export function setExact(on: boolean, { save = true } = {}) {
   useLimits.setState({ exactOn: on });
-  if (save)
-    try {
-      localStorage.setItem(EXACT_KEY, on ? '1' : '0');
-    } catch {}
+  if (save) saveExactOn(on);
   clearInterval(exactTimer);
   exactTimer = undefined;
   if (on && !demo) {
@@ -85,10 +86,7 @@ export function setExact(on: boolean, { save = true } = {}) {
 
 export function setCodexExact(on: boolean, { save = true } = {}) {
   useLimits.setState({ codexExactOn: on });
-  if (save)
-    try {
-      localStorage.setItem(CODEX_EXACT_KEY, on ? '1' : '0');
-    } catch {}
+  if (save) saveCodexExactOn(on);
   clearInterval(codexTimer);
   codexTimer = undefined;
   if (on && !demo) {
@@ -132,8 +130,8 @@ export function startLimits() {
     if (useLimits.getState().exactOn && Date.now() - exactFetchedAt > EVERY_MS) fetchExact();
   });
   // Another tab flipped a switch.
-  window.addEventListener('storage', (e) => {
-    if (e.key === EXACT_KEY) setExact(e.newValue !== '0', { save: false });
-    if (e.key === CODEX_EXACT_KEY) setCodexExact(e.newValue === '1', { save: false });
+  onOtherTab((key, value) => {
+    if (key === EXACT_KEY) setExact(value !== '0', { save: false });
+    if (key === CODEX_EXACT_KEY) setCodexExact(value === '1', { save: false });
   });
 }

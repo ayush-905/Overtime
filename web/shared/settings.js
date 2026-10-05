@@ -2,7 +2,9 @@
 // clearing the browser and follow you to any browser on this Mac. The server
 // puts them into the page before anything reads them (see settingsScript), and
 // every module keeps reading and writing them in the browser's storage as it
-// always has; this sends what changed back to the server a moment later.
+// always has; this sends what changed back to the server. The dashboard says
+// when it changed one (settingsChanged), so that goes at once; anything else,
+// like what the office saves, goes with the next check, every 1.5 seconds.
 
 const PREFIX = 'overtime-';
 // Where you were last is up to each browser, and so is whether it has synced yet.
@@ -12,6 +14,10 @@ const EVERY_MS = 1500;
 
 let sent = new Map(); // what the server has, as far as this page knows
 let sending = false;
+let running = false;
+let stopped = false;
+let soon = null; // a send asked for by settingsChanged, a moment from now
+let again = false; // one asked for while another was on its way
 
 const synced = (key) => key?.startsWith(PREFIX) && !LOCAL_ONLY.has(key);
 
@@ -35,7 +41,7 @@ function markSynced() {
 
 /** Send whatever changed since the last time. Unsent changes are tried again next time. */
 async function flush({ leaving = false } = {}) {
-  if (sending && !leaving) return;
+  if (stopped || (sending && !leaving)) return;
   const now = current();
   const set = {};
   for (const [key, value] of now) if (sent.get(key) !== value) set[key] = value;
@@ -58,6 +64,29 @@ async function flush({ leaving = false } = {}) {
     }
   } catch {}
   sending = false;
+  if (again) {
+    again = false;
+    flush();
+  }
+}
+
+/** A setting changed on this page: send it now rather than at the next check. Changes made together go together. */
+export function settingsChanged() {
+  if (!running || stopped || soon) return;
+  soon = setTimeout(() => {
+    soon = null;
+    if (sending) again = true;
+    else flush();
+  }, 0);
+}
+
+/**
+ * Stop sending, because the page is about to start again from what's on disk
+ * (settings reset, or a saved copy put back): what it clears from the browser
+ * on its way out mustn't be cleared from the file too.
+ */
+export function stopSettingsSync() {
+  stopped = true;
 }
 
 /** Start keeping settings on disk, from the copy the server put in the page. */
@@ -66,6 +95,7 @@ export function startSettingsSync() {
   if (!saved) return;
   // Before there's a settings file, everything this browser has is new to the server, so the first check saves it all.
   sent = saved.initialized ? new Map(Object.entries(saved.values)) : new Map();
+  running = true;
   flush();
   setInterval(flush, EVERY_MS);
   // Another tab in this browser changed a setting, and sends it itself.
@@ -78,7 +108,9 @@ export function startSettingsSync() {
   // Settings were reset or put back in another tab: start again from the file.
   try {
     new BroadcastChannel('overtime').onmessage = (e) => {
-      if (e.data === 'reload') location.reload();
+      if (e.data !== 'reload') return;
+      stopSettingsSync();
+      location.reload();
     };
   } catch {}
   document.addEventListener('visibilitychange', () => {

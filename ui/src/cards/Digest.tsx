@@ -154,7 +154,7 @@ export function DigestDialog() {
     window.addEventListener('hashchange', close);
     return () => window.removeEventListener('hashchange', close);
   }, [setWeek]);
-  const d = q.data as Digest | undefined;
+  const d = q.data;
   const title = d ? `${w ? 'Last week' : 'This week so far'} · ${span(d)}` : w ? 'Last week' : 'This week so far';
   return (
     <Dialog

@@ -10,10 +10,11 @@ import { hasTag, isPinned, noteFor, tagsFor, titleFor } from './labels';
 import { byTokens, measureOf } from './measure';
 import { pageLink, parseDay, type Params } from './route';
 import type { SessionInRange } from './sessions';
+import { readJson, writeJson } from './storage';
 
 export const PAGE_SIZE = 50;
-export const VIEW_KEY = 'overtime-sessions-view';
-export const VIEWS_KEY = 'overtime-session-views';
+const VIEW_KEY = 'sessions-view';
+export const VIEWS_KEY = 'session-views';
 export const RANGES = { today: 'Today', '7': '7 days', '30': '30 days' } as const;
 export type Range = keyof typeof RANGES;
 /** The ranges in the order they're offered (an object's number-like keys would come first). */
@@ -36,28 +37,20 @@ export type Saved = { range: Range; sort: Sort; dir: Dir; collapsed: number[] };
 /** What's remembered: range, sort, and the days you folded (only those still in the list). */
 export function readSaved(now = Date.now()): Saved {
   const saved: Saved = { range: '30', sort: 'latest', dir: 'desc', collapsed: [] };
-  try {
-    const stored = JSON.parse(localStorage.getItem(VIEW_KEY) || '{}');
-    if (isRange(stored.range)) saved.range = stored.range;
-    if (isSort(stored.sort)) saved.sort = stored.sort;
-    if (stored.dir === 'asc') saved.dir = 'asc';
-    const oldest = now - 32 * 86_400_000;
-    if (Array.isArray(stored.collapsed))
-      saved.collapsed = stored.collapsed.filter(
-        (d: unknown) => d === PINNED || (typeof d === 'number' && Number.isFinite(d) && d > oldest),
-      );
-  } catch {}
+  const stored = readJson<Record<string, unknown>>(VIEW_KEY, {});
+  if (isRange(stored.range)) saved.range = stored.range;
+  if (isSort(stored.sort)) saved.sort = stored.sort;
+  if (stored.dir === 'asc') saved.dir = 'asc';
+  const oldest = now - 32 * 86_400_000;
+  if (Array.isArray(stored.collapsed))
+    saved.collapsed = stored.collapsed.filter(
+      (d: unknown) => d === PINNED || (typeof d === 'number' && Number.isFinite(d) && d > oldest),
+    );
   return saved;
 }
 
-export function writeSaved(s: Saved) {
-  try {
-    localStorage.setItem(
-      VIEW_KEY,
-      JSON.stringify({ range: s.range, sort: s.sort, dir: s.dir, collapsed: s.collapsed }),
-    );
-  } catch {}
-}
+export const writeSaved = (s: Saved) =>
+  writeJson(VIEW_KEY, { range: s.range, sort: s.sort, dir: s.dir, collapsed: s.collapsed });
 
 export type View = {
   range: Range;
@@ -188,12 +181,6 @@ export const groupKeys = (rows: SessionInRange[]) => [
   ...new Set(rows.map((s) => (isPinned(s.id) ? PINNED : s.lastDay))),
 ];
 
-/** The middle of the values over zero, or null. */
-export function median(values: number[]) {
-  const v = values.filter((x) => x > 0).sort((a, b) => a - b);
-  return v.length ? v[Math.floor(v.length / 2)] : null;
-}
-
 // ── Saved views ──────────────────────────────────────────────────────────────
 //
 // A view is the page's filters and sort under a name you give it, like "Shop
@@ -204,23 +191,12 @@ export type ViewParams = { range: Range; project: string; tag: string; q: string
 export type SavedView = { id: string; name: string; params: ViewParams };
 const VIEW_FIELDS = ['range', 'project', 'tag', 'q', 'sort', 'dir'] as const;
 
-export function loadViews(): SavedView[] {
-  try {
-    const list = JSON.parse(localStorage.getItem(VIEWS_KEY) || '[]');
-    return Array.isArray(list)
-      ? list.filter((v) => v && typeof v.name === 'string' && v.params && typeof v.params === 'object')
-      : [];
-  } catch {
-    return [];
-  }
-}
+export const loadViews = (): SavedView[] =>
+  readJson<SavedView[]>(VIEWS_KEY, [], Array.isArray).filter(
+    (v) => v && typeof v.name === 'string' && v.params && typeof v.params === 'object',
+  );
 
-export function saveViews(views: SavedView[]) {
-  try {
-    if (views.length) localStorage.setItem(VIEWS_KEY, JSON.stringify(views));
-    else localStorage.removeItem(VIEWS_KEY);
-  } catch {}
-}
+export const saveViews = (views: SavedView[]) => writeJson(VIEWS_KEY, views.length ? views : null);
 
 export const paramsOf = (v: View): ViewParams => ({
   range: v.range,

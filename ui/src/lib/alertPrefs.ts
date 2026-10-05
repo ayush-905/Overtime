@@ -2,6 +2,11 @@
 // for what the pages mention (a budget you passed, how long before an agent
 // counts as stuck), changed in Settings, and used by the alerts (lib/alerts.ts).
 
+import { readJson, readSetting } from './storage';
+
+export const NEEDS_KEY = 'alerts'; // the original switch, kept so it stays on for you
+export const PREFS_KEY = 'alert-prefs';
+
 export const WAIT_MAX_MINUTES = 25;
 export const STUCK_MAX_MINUTES = 40;
 
@@ -33,10 +38,8 @@ export function readAlertPrefs(): AlertPrefs {
     budgetUsd: 50,
     digest: false,
   };
-  try {
-    prefs.needs = localStorage.getItem('overtime-alerts') === '1';
-    Object.assign(prefs, JSON.parse(localStorage.getItem('overtime-alert-prefs') || '{}'), { needs: prefs.needs });
-  } catch {}
+  prefs.needs = readSetting(NEEDS_KEY) === '1';
+  Object.assign(prefs, readJson(PREFS_KEY, {}), { needs: prefs.needs });
   prefs.waitMinutes = Math.min(WAIT_MAX_MINUTES, Math.max(1, Math.round(prefs.waitMinutes) || 10));
   prefs.stuckMinutes = Math.min(STUCK_MAX_MINUTES, Math.max(2, Math.round(prefs.stuckMinutes) || 10));
   return prefs;

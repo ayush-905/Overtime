@@ -15,7 +15,7 @@ let container: HTMLDivElement;
 
 function InboxAction() {
   const { data } = useSessionTarget(id);
-  return data?.app ? <a href={data.app.url}>Open in {data.app.name}</a> : <button>Open session</button>;
+  return data?.app ? <a href={data.app.url}>Open in {data.app.name}</a> : <button type="button">Open session</button>;
 }
 
 beforeEach(() => {

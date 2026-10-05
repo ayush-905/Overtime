@@ -77,12 +77,12 @@ function inputNow(): LimitsInput {
   const l = useLimits.getState();
   return {
     now: Date.now() - env.timeOffset,
-    limits: (snap?.limits || null) as LimitsInput['limits'],
+    limits: snap?.limits || null,
     exactOn: l.exactOn,
-    exact: l.exact as LimitsInput['exact'],
-    codexRecorded: (snap?.codexLimits || null) as LimitsInput['codexRecorded'],
+    exact: l.exact,
+    codexRecorded: snap?.codexLimits || null,
     codexExactOn: l.codexExactOn,
-    codexExact: l.codexExact as LimitsInput['codexExact'],
+    codexExact: l.codexExact,
   };
 }
 
@@ -92,7 +92,7 @@ export function checkAll() {
   const snap = useLive.getState().snap;
   if (!snap) return;
   const prefs = readAlertPrefs();
-  const agents = snap.agents as unknown as LiveAgent[];
+  const agents = snap.agents;
   const inp = inputNow();
   const list = [
     ...checkLimits(prefs, quotaItems(inp, 'all'), snap.analytics?.all?.spend?.today?.cost, inp.now),
@@ -119,7 +119,7 @@ export function useAlerts(on: boolean) {
       at = snap.now;
       if (snap.agents !== agents) {
         agents = snap.agents;
-        const list = snap.agents as unknown as LiveAgent[];
+        const list = snap.agents;
         if (prev) for (const a of checkNeeds(readAlertPrefs(), prev, list)) deliver(a);
         prev = new Map(list.map((a) => [a.id, a]));
       }

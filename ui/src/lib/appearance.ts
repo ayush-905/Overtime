@@ -8,8 +8,9 @@
 // and Codex's own colours. Red, green and amber keep their meaning whatever the theme.
 
 import { changed } from './bus';
+import { onOtherTab, readJson, readSetting, writeJson, writeSetting } from './storage';
 
-const KEYS = { palette: 'overtime-palette', text: 'overtime-text', density: 'overtime-density' } as const;
+const KEYS = { palette: 'palette', text: 'text', density: 'density' } as const;
 
 type Colors = { accent: string; chart: string; side: string };
 export type Theme = { id: string; name: string; note?: string; light: Colors; dark: Colors };
@@ -157,28 +158,23 @@ export function resolve(palette: Palette): Record<string, string> {
 const isColor = (c: unknown) => typeof c === 'string' && /^#[0-9a-f]{6}$/i.test(c);
 
 export function loadAppearance() {
-  for (const what of ['text', 'density'] as const) {
-    let v: string | null = null;
-    try {
-      v = localStorage.getItem(KEYS[what]);
-    } catch {}
-    current[what] = v && ALLOWED[what].includes(v) ? v : DEFAULTS[what];
-  }
-  let saved: Palette | null = null;
-  try {
-    saved = JSON.parse(localStorage.getItem(KEYS.palette) || 'null');
-  } catch {}
+  for (const what of ['text', 'density'] as const)
+    current[what] = readSetting<string>(KEYS[what], DEFAULTS[what], ALLOWED[what]);
+  const saved = readJson<Palette | null>(KEYS.palette, null);
   if (saved?.theme === 'custom' && isColor(saved.accent) && isColor(saved.chart))
     current.palette = { theme: 'custom', accent: saved.accent, chart: saved.chart };
   else if (THEMES.some((t) => t.id === saved?.theme)) current.palette = { theme: saved!.theme };
   else current.palette = { theme: 'classic' };
 }
 
-function savePalette() {
-  try {
-    if (current.palette.theme === 'classic') localStorage.removeItem(KEYS.palette);
-    else localStorage.setItem(KEYS.palette, JSON.stringify({ ...current.palette, vars: resolve(current.palette) }));
-  } catch {}
+/** Put the colour theme on the page, and save it (with its colours, for the office); Classic is saved as nothing at all. */
+function showPalette() {
+  applyAppearance();
+  writeJson(
+    KEYS.palette,
+    current.palette.theme === 'classic' ? null : { ...current.palette, vars: resolve(current.palette) },
+    'appearance',
+  );
 }
 
 /** Put the look on the page. Classic sets nothing: the tokens' own accent is Classic's. */
@@ -206,12 +202,8 @@ export const palette = () => ({ ...current.palette });
 export function setAppearance(what: 'text' | 'density', value: string) {
   if (!ALLOWED[what].includes(value)) return;
   current[what] = value;
-  try {
-    if (value === DEFAULTS[what]) localStorage.removeItem(KEYS[what]);
-    else localStorage.setItem(KEYS[what], value);
-  } catch {}
   applyAppearance();
-  changed('appearance');
+  writeSetting(KEYS[what], value === DEFAULTS[what] ? null : value, 'appearance');
 }
 
 /** Switch to a preset, or to Custom (starting from the theme in use, so nothing jumps). */
@@ -222,9 +214,7 @@ export function setPaletteTheme(id: string) {
     current.palette = { theme: 'custom', accent: from.light.accent, chart: from.light.chart };
   } else if (THEMES.some((t) => t.id === id)) current.palette = { theme: id };
   else return;
-  savePalette();
-  applyAppearance();
-  changed('appearance');
+  showPalette();
 }
 
 /** One of Custom's colours. A colour another role already has isn't allowed. */
@@ -232,9 +222,7 @@ export function setCustomColor(role: (typeof ROLES)[number], color: string) {
   if (current.palette.theme !== 'custom' || !SWATCHES.some(([c]) => c === color)) return;
   if (ROLES.some((r) => r !== role && current.palette[r] === color)) return;
   current.palette = { ...current.palette, [role]: color };
-  savePalette();
-  applyAppearance();
-  changed('appearance');
+  showPalette();
 }
 
 /** The next one along, for ⌘K's actions. */
@@ -252,11 +240,9 @@ export function stepAppearance(what: 'text' | 'density' | 'palette', by: number)
 loadAppearance();
 
 // Another tab changed the look.
-if (typeof window !== 'undefined') {
-  window.addEventListener('storage', (e) => {
-    if (!e.key || !(Object.values(KEYS) as string[]).includes(e.key)) return;
-    loadAppearance();
-    applyAppearance();
-    changed('appearance');
-  });
-}
+onOtherTab((key) => {
+  if (!(Object.values(KEYS) as string[]).includes(key)) return;
+  loadAppearance();
+  applyAppearance();
+  changed('appearance');
+});

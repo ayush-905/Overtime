@@ -1,7 +1,8 @@
 // Notes in the corner. Undo, for the changes you make to the dashboard itself
 // (renaming or pinning a session, recolouring a project, hiding a section…): it
 // says what changed, with Undo for a few seconds, and ⌘Z works while it's there;
-// it stays while the pointer is on it. A plain note goes away by itself.
+// it stays while the pointer is on it. A plain note goes away by itself. The
+// store holds the notes on screen.
 
 import { useEffect, useRef } from 'react';
 import { create } from 'zustand';
@@ -60,6 +61,7 @@ function ToastItem({ t }: { t: Toast }) {
     clearTimeout(timer.current);
     timer.current = setTimeout(() => remove(t.id), t.ms);
   };
+  // biome-ignore lint/correctness/useExhaustiveDependencies: the note's timer starts once, when it appears
   useEffect(() => {
     arm();
     return () => clearTimeout(timer.current);

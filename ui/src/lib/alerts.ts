@@ -6,29 +6,31 @@
 // remembered, so a reload doesn't repeat it. app/alerts.ts runs the checks and
 // says them.
 
-import { changed } from './bus';
+import { readJson, writeJson, writeSetting } from './storage';
 import { clip, duration, money, projectName, whenText } from './format';
 import { titleFor } from './labels';
 import { doingText, sinceFor, type LiveAgent } from './agents';
 import { providerName, quotaFreshness, stuckState, stuckText, type QuotaItem } from './limits';
 import { digestReady } from './digest';
-import { readAlertPrefs, STUCK_MAX_MINUTES, WAIT_MAX_MINUTES, type AlertPrefs } from './alertPrefs';
+import {
+  NEEDS_KEY,
+  PREFS_KEY,
+  readAlertPrefs,
+  STUCK_MAX_MINUTES,
+  WAIT_MAX_MINUTES,
+  type AlertPrefs,
+} from './alertPrefs';
 
 export { STUCK_MAX_MINUTES, WAIT_MAX_MINUTES, readAlertPrefs, type AlertPrefs };
 
 const MINUTE = 60_000;
-const NEEDS_KEY = 'overtime-alerts'; // the original switch, kept so it stays on for you
-const PREFS_KEY = 'overtime-alert-prefs';
-const MEMORY_KEY = 'overtime-alert-memory';
+const MEMORY_KEY = 'alert-memory';
 const RESET_GRACE_MS = 15 * MINUTE; // a reset older than this, found on coming back, isn't worth a chime
 
 export function saveAlertPrefs(prefs: AlertPrefs) {
-  try {
-    localStorage.setItem(NEEDS_KEY, prefs.needs ? '1' : '0');
-    const { needs: _needs, ...rest } = prefs;
-    localStorage.setItem(PREFS_KEY, JSON.stringify(rest));
-  } catch {}
-  changed('prefs');
+  const { needs, ...rest } = prefs;
+  writeSetting(NEEDS_KEY, needs ? '1' : '0');
+  writeJson(PREFS_KEY, rest, 'prefs');
 }
 
 export type Level = 'info' | 'warn' | 'crit' | 'good';
@@ -40,11 +42,7 @@ type Memory = {
 };
 let memory: Memory = { said: {}, hot: {} };
 export function loadMemory() {
-  try {
-    memory = { said: {}, hot: {}, ...JSON.parse(localStorage.getItem(MEMORY_KEY) || '{}') };
-  } catch {
-    memory = { said: {}, hot: {} };
-  }
+  memory = { said: {}, hot: {}, ...readJson(MEMORY_KEY, {}) };
 }
 loadMemory();
 
@@ -52,9 +50,7 @@ function saveMemory() {
   // Forget what's over a week old.
   const cutoff = Date.now() - 8 * 86_400_000;
   for (const [k, t] of Object.entries(memory.said)) if (t < cutoff) delete memory.said[k];
-  try {
-    localStorage.setItem(MEMORY_KEY, JSON.stringify(memory));
-  } catch {}
+  writeJson(MEMORY_KEY, memory);
 }
 
 const said = (key: string) => !!memory.said[key];

@@ -33,7 +33,6 @@ import {
   shareText,
   windowsModel,
   type ChartResult,
-  type WindowPlan,
 } from '@/lib/usage';
 import { Card, CardHead } from '@/components/Card';
 import { Stat } from '@/components/Stat';
@@ -48,21 +47,10 @@ import { cx } from '@/components/cx';
 import { PageHeader } from '@/app/PageHeader';
 import { NoPlan } from '@/cards/Band';
 import { plansIn } from '@/lib/sources';
+import { readSetting, writeSetting } from '@/lib/storage';
 
-const WINDOW_KEY = 'overtime-window-kind';
-const CODEX_WINDOW_KEY = 'overtime-codex-window';
-const read = (key: string, value: string, fallback: string) => {
-  try {
-    return localStorage.getItem(key) === value ? value : fallback;
-  } catch {
-    return fallback;
-  }
-};
-const write = (key: string, value: string) => {
-  try {
-    localStorage.setItem(key, value);
-  } catch {}
-};
+const WINDOW_KEY = 'window-kind';
+const CODEX_WINDOW_KEY = 'codex-window';
 
 const toneText = { ok: 'text-ok', warn: 'text-warn', bad: 'text-bad' };
 
@@ -274,8 +262,8 @@ function ChartStats({ r }: { r: ChartResult | null }) {
 
 function ClaudeWindowCard({ inp }: { inp: LimitsInput }) {
   const v = useChanged();
-  const [kind, setKind] = useState<'session' | 'weekly'>(
-    () => read(WINDOW_KEY, 'weekly', 'session') as 'session' | 'weekly',
+  const [kind, setKind] = useState(() =>
+    readSetting<'session' | 'weekly'>(WINDOW_KEY, 'session', ['session', 'weekly']),
   );
   const r = useMemo(() => claudeWindow(inp, kind), [inp, kind, v]); // eslint-disable-line react-hooks/exhaustive-deps
   const note =
@@ -301,7 +289,7 @@ function ClaudeWindowCard({ inp }: { inp: LimitsInput }) {
         value={kind}
         onChange={(k) => {
           setKind(k);
-          write(WINDOW_KEY, k);
+          writeSetting(WINDOW_KEY, k);
         }}
         options={[
           ['session', 'Session'],
@@ -319,8 +307,8 @@ const claudeInsights = (s: ReturnType<typeof useLive.getState>) =>
 
 function WindowsCard({ inp }: { inp: LimitsInput }) {
   const v = useChanged();
-  const p = useLive((s) => claudeInsights(s)?.windows) as WindowPlan | undefined;
-  const hours = useLive((s) => claudeInsights(s)?.hours) as { typicalStop?: number | null } | undefined;
+  const p = useLive((s) => claudeInsights(s)?.windows);
+  const hours = useLive((s) => claudeInsights(s)?.hours);
   const m = useMemo(() => (p?.windows.length ? windowsModel(p, hours, inp) : null), [p, hours, inp, v]); // eslint-disable-line react-hooks/exhaustive-deps
   const note =
     "A window starts with your first message after the last one ended (on a 10-minute mark) and resets 5 hours later. It's rebuilt from Claude Code on this Mac, so claude.ai chats aren't counted. How full each got is its cost against what a full window costs: from the exact % when that's on, otherwise from when you last hit the limit.";
@@ -529,7 +517,7 @@ function CodexSection() {
   const { items, input: inp } = useQuota('codex');
   const refreshing = useLimits((s) => s.codexRefreshing);
   const exactOn = useLimits((s) => s.codexExactOn);
-  const [kind, setKind] = useState(() => read(CODEX_WINDOW_KEY, 'secondary', 'primary'));
+  const [kind, setKind] = useState(() => readSetting<string>(CODEX_WINDOW_KEY, 'primary', ['primary', 'secondary']));
   const first = items[0];
   const now = inp.now;
   const SOURCE: Record<string, string> = {
@@ -615,7 +603,7 @@ function CodexSection() {
             value={w.kind}
             onChange={(k) => {
               setKind(k);
-              write(CODEX_WINDOW_KEY, k);
+              writeSetting(CODEX_WINDOW_KEY, k);
             }}
             options={windows.map((x) => [x.kind, windowName(x.durationMs, x.kind)] as [string, string])}
           />

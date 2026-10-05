@@ -5,46 +5,34 @@
 // settings (overtime-layout-<page>, as { slot, span } items).
 
 import type { ReactNode } from 'react';
-import { create } from 'zustand';
 import { LayoutGrid } from 'lucide-react';
 import { useChanged } from '@/data/hooks';
-import { changed } from '@/lib/bus';
+import { readJson, writeJson } from '@/lib/storage';
 import { useCompact } from '@/app/layout';
+import { useArrange } from '@/app/dialogs';
 import { Button } from './Button';
 import { cx } from './cx';
 
 export type GridCard = { id: string; name: string; span: 6 | 12; node: ReactNode };
 
-const key = (page: string) => `overtime-layout-${page}`;
+const key = (page: string) => `layout-${page}`;
 
 /** The cards' order: as you saved it, with cards new since then where they ship. */
 export function readOrder(page: string, usual: string[]): string[] {
-  let saved: { slot: string }[] = [];
-  try {
-    saved = JSON.parse(localStorage.getItem(key(page)) || '[]') || [];
-  } catch {}
-  const order = (Array.isArray(saved) ? saved.map((x) => x?.slot) : []).filter((id) => usual.includes(id));
+  const saved = readJson<{ slot: string }[]>(key(page), [], Array.isArray);
+  const order = saved.map((x) => x?.slot).filter((id) => usual.includes(id));
   for (const id of usual) if (!order.includes(id)) order.splice(Math.min(usual.indexOf(id), order.length), 0, id);
   return order;
 }
 
 export function saveOrder(page: string, order: string[], cards: { id: string; span: number }[]) {
-  try {
-    if (order.join() === cards.map((c) => c.id).join()) localStorage.removeItem(key(page));
-    else
-      localStorage.setItem(
-        key(page),
-        JSON.stringify(order.map((slot) => ({ slot, span: cards.find((c) => c.id === slot)?.span ?? 6 }))),
-      );
-  } catch {}
-  changed('layout');
+  const usual = order.join() === cards.map((c) => c.id).join();
+  writeJson(
+    key(page),
+    usual ? null : order.map((slot) => ({ slot, span: cards.find((c) => c.id === slot)?.span ?? 6 })),
+    'layout',
+  );
 }
-
-export type Arranging = { page: string; title: string; cards: { id: string; name: string; span: number }[] } | null;
-export const useArrange = create<{ arranging: Arranging; open: (a: Arranging) => void }>((set) => ({
-  arranging: null,
-  open: (arranging) => set({ arranging }),
-}));
 
 /** The page's cards in its 12-column grid, in your order. */
 export function PageGrid({ page, cards }: { page: string; cards: GridCard[] }) {

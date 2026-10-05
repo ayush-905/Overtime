@@ -8,19 +8,8 @@ import { Empty, Skeleton } from '@/components/Bits';
 import { TextLink } from '@/components/Button';
 import { ExpandButton } from './Expand';
 
-type Performance = {
-  count: number;
-  pending: number;
-  interrupted: number;
-  inferred: number;
-  medianMs: number | null;
-  p90Ms: number | null;
-  maxMs: number | null;
-  buckets: { label: string; count: number }[];
-};
-
 export function TurnDurationCard({ expanded = false }: { expanded?: boolean }) {
-  const data = useInsight<Performance>('turnPerformance');
+  const data = useInsight('turnPerformance');
   const head = (
     <CardHead
       title={

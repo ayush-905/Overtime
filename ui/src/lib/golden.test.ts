@@ -140,7 +140,7 @@ describe('format', () => {
 
   test('project colours', () => {
     expect({
-      hues: ['overtime', 'thrive-backend', 'Member-Management', '', 'x'].map((name) => format.projectHue(name)),
+      hues: ['overtime', 'kettle-api', 'Kettle-Mobile', '', 'x'].map((name) => format.projectHue(name)),
       hashes: ['', 'abc', 'overtime'].map((s) => format.hashString(s)),
     }).toMatchSnapshot();
   });
@@ -151,7 +151,7 @@ describe('route', () => {
     const cases: [string, Record<string, string | number | null>][] = [
       ['sessions', {}],
       ['sessions', { range: '7', project: 'shop', q: 'a b', sort: null }],
-      ['projects', { p: 'Thrive API', range: '' }],
+      ['projects', { p: 'Kettle API', range: '' }],
     ];
     expect({
       links: cases.map(([page, params]) => route.pageLink(page, params)),
@@ -200,10 +200,10 @@ describe('sessions', () => {
 
 describe('search', () => {
   test('the words of a search, and where they fall', () => {
-    const escape = (s: string) =>
+    const escapeHtml = (s: string) =>
       s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
     const asHtml = (parts: { text: string; mark: boolean }[]) =>
-      parts.map((p) => (p.mark ? `<mark>${escape(p.text)}</mark>` : escape(p.text))).join('');
+      parts.map((p) => (p.mark ? `<mark>${escapeHtml(p.text)}</mark>` : escapeHtml(p.text))).join('');
     expect({
       terms: ['', 'Timezone', '"exact phrase" and more', 'a b c d e f g h i j', '  spaced   out  '].map((q) =>
         search.queryTerms(q),

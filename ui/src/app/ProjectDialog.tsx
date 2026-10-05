@@ -40,7 +40,12 @@ export function ProjectDialog() {
     setAlias(pref.alias || '');
     setHue(Number.isFinite(pref.hue) ? (pref.hue as number) : null);
   }, [name]);
-  if (!name) return <Dialog open={false} onOpenChange={() => {}} title="Name and colour" children={null} />;
+  if (!name)
+    return (
+      <Dialog open={false} onOpenChange={() => {}} title="Name and colour">
+        {null}
+      </Dialog>
+    );
   const pref = projectPref(name);
   const shown = hue ?? projectHue(name);
   const done = (next: { alias: string; hue: number | null }) => {

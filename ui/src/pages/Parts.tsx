@@ -87,8 +87,8 @@ export function Parts() {
           <div className="flex items-center gap-3 rounded-row bg-warn-soft px-3 py-2">
             <Avatar source="claude" />
             <span className="flex min-w-0 grow flex-col">
-              <span className="truncate font-semibold">Ordered inbox backend review (fork)</span>
-              <span className="truncate text-detail text-muted">Asked you a question · Thrive Backend API</span>
+              <span className="truncate font-semibold">Add offline mode to the shopping list</span>
+              <span className="truncate text-detail text-muted">Asked you a question · kettle-mobile</span>
             </span>
             <span className="whitespace-nowrap text-detail font-semibold text-warn tnum">5h 43m</span>
           </div>
@@ -200,14 +200,14 @@ export function Parts() {
           <Avatar source="claude" status="working" />
           <span className="flex min-w-0 grow flex-col">
             <span className="flex min-w-0 items-center gap-2">
-              <span className="truncate font-semibold">Timezone localization notifications architecture</span>
+              <span className="truncate font-semibold">Add full-text recipe search</span>
               <span className="shrink-0 rounded-sm bg-warn-soft px-1.5 text-label font-semibold text-warn">
                 82% full
               </span>
               <TagCount tags={['bug', 'release']} />
             </span>
             <span className="truncate text-detail text-muted">
-              Thrive Backend API · Opus 5.5 · 26 Sept, 17:52 · 5 messages · 2h of agent time
+              kettle-api · Opus 5.5 · 26 Sept, 17:52 · 5 messages · 2h of agent time
             </span>
           </span>
           <span className="font-semibold tnum">₹29,374</span>

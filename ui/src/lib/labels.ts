@@ -2,12 +2,12 @@
 // one, and its tags, all saved with your settings. Every card shows a session's title
 // through `titleFor`, so a rename shows up everywhere at once.
 
-import { changed } from './bus';
+import { readJson, writeJson } from './storage';
 
-const NAMES_KEY = 'overtime-session-names';
-const PINS_KEY = 'overtime-pinned';
-const NOTES_KEY = 'overtime-session-notes';
-const TAGS_KEY = 'overtime-session-tags';
+const NAMES_KEY = 'session-names';
+const PINS_KEY = 'pinned';
+const NOTES_KEY = 'session-notes';
+const TAGS_KEY = 'session-tags';
 export const LABEL_KEYS = [NAMES_KEY, PINS_KEY, NOTES_KEY, TAGS_KEY];
 export const MAX_TAGS = 8;
 export const MAX_NOTE = 2000;
@@ -17,28 +17,16 @@ let pins = new Set<string>();
 let notes: Record<string, string> = {};
 let tags: Record<string, string[]> = {};
 
-function read<T>(key: string, fallback: T): T {
-  try {
-    return (JSON.parse(localStorage.getItem(key) || 'null') as T) ?? fallback;
-  } catch {
-    return fallback;
-  }
-}
-
 export function loadLabels() {
-  names = read(NAMES_KEY, {}) || {};
-  pins = new Set(read<string[]>(PINS_KEY, []));
-  notes = read(NOTES_KEY, {}) || {};
-  tags = read(TAGS_KEY, {}) || {};
+  names = readJson(NAMES_KEY, {});
+  pins = new Set(readJson<string[]>(PINS_KEY, [], Array.isArray));
+  notes = readJson(NOTES_KEY, {});
+  tags = readJson(TAGS_KEY, {});
 }
 loadLabels();
 
-function save(key: string, value: unknown, empty = false) {
-  try {
-    if (empty) localStorage.removeItem(key);
-    else localStorage.setItem(key, JSON.stringify(value));
-  } catch {}
-}
+/** Save a kind of label, or forget it when it's `empty`; the cards showing labels redraw. */
+const save = (key: string, value: unknown, empty = false) => writeJson(key, empty ? null : value, 'labels');
 
 // A title made from your first message reads better without the greeting.
 // A greeting only counts when it's clearly one: followed by a comma, a name, or the request itself.
@@ -72,14 +60,12 @@ export function rename(id: string, name: string) {
   if (clean) names[id] = clean;
   else delete names[id];
   save(NAMES_KEY, names);
-  changed('labels');
 }
 
 export function togglePin(id: string) {
   if (pins.has(id)) pins.delete(id);
   else pins.add(id);
   save(PINS_KEY, [...pins]);
-  changed('labels');
 }
 
 export const noteFor = (id: string | null | undefined) => (id && notes[id]) || '';
@@ -95,7 +81,6 @@ export function setNote(id: string, text: string) {
   if (clean) notes[id] = clean;
   else delete notes[id];
   save(NOTES_KEY, notes, !Object.keys(notes).length);
-  changed('labels');
 }
 
 export const tagsFor = (id: string | null | undefined) => (id && tags[id]) || [];
@@ -129,7 +114,6 @@ export function setTags(id: string, list: string[]) {
   if (kept.length) tags[id] = kept;
   else delete tags[id];
   save(TAGS_KEY, tags, !Object.keys(tags).length);
-  changed('labels');
 }
 
 export const hasTag = (id: string, tag: string) =>

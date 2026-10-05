@@ -46,42 +46,30 @@ import { PageHeader } from '@/app/PageHeader';
 import { TimelineCard } from '@/cards/Timeline';
 import { OpenSessionsCard } from '@/cards/Sessions';
 import { ExpandButton, ExpandDialog } from '@/cards/Expand';
-import { sourceInfo, type Source } from '@/lib/sources';
+import { sourceInfo } from '@/lib/sources';
+import { readSetting, writeSetting } from '@/lib/storage';
+import type {
+  AgentCalendarDay,
+  AgentIdleDay,
+  AgentWorkDay,
+  OfferedSkill,
+  ParallelWork,
+  SkillKind,
+  UsedSkill,
+} from '@/data/types';
 
 const Delta = ({ now, before }: { now: number; before: number }) => {
   const c = change(now, before);
   return c ? <small className="ml-1 text-detail font-normal text-muted">{c}</small> : null;
 };
 
-type AgentDay = {
-  start: number;
-  wallMs: number;
-  agentMs: number;
-  first: number;
-  last: number;
-  peak: number;
-  sessions: number;
-  subagents: number;
-  unattendedMs: number;
-  stretches?: [number, number][];
-};
-type AgentHours = {
-  dates: AgentDay[];
-  days: AgentDay[];
-  week: number;
-  prevWeek: number;
-  weekAgentMs: number;
-  prevWeekAgentMs: number;
-  weekUnattendedMs: number;
-  typicalStart: number | null;
-  typicalStop: number | null;
-  lateNights: number;
-  lastLate: number | null;
-  longest: { from: number; to: number; ms: number } | null;
-};
+type AgentDay = AgentWorkDay | AgentIdleDay;
+
+/** Whether agents worked that day, so it has its first and last activity, peak and sessions. */
+const hasWork = <D extends AgentDay | AgentCalendarDay>(d: D): d is Exclude<D, AgentIdleDay> => d.wallMs > 0;
 
 function agentDayTip(d: AgentDay, today: AgentDay) {
-  if (!d.wallMs) return `${longDate(d.start)} · ${d === today ? 'no agent work yet' : 'no agent work'}`;
+  if (!hasWork(d)) return `${longDate(d.start)} · ${d === today ? 'no agent work yet' : 'no agent work'}`;
   return [
     `${longDate(d.start)} · agents worked ${duration(d.wallMs)}, ${clock(d.first)} to ${d === today ? 'now' : clock(d.last)}`,
     `${hoursText(d.agentMs)} of agent time added up, up to ${d.peak} at once`,
@@ -92,7 +80,7 @@ function agentDayTip(d: AgentDay, today: AgentDay) {
     .join('\n');
 }
 
-const useAgentHours = () => useInsight<AgentHours>('agentHours');
+const useAgentHours = () => useInsight('agentHours');
 
 function Loading({ title }: { title: string }) {
   return (
@@ -123,7 +111,7 @@ export function AgentHoursCard({ expanded = false }: { expanded?: boolean }) {
       }
     />
   );
-  const worked = days.filter((d) => d.wallMs);
+  const worked = days.filter(hasWork);
   if (!worked.length) {
     return (
       <Card>
@@ -167,7 +155,7 @@ export function AgentHoursCard({ expanded = false }: { expanded?: boolean }) {
           head: ['Day', 'Agents worked', 'From', 'To', 'Most at once', 'Sessions'],
           row: (v) => {
             const d = v.d as AgentDay;
-            return d.wallMs
+            return hasWork(d)
               ? [
                   longDate(d.start),
                   duration(d.wallMs),
@@ -238,7 +226,7 @@ export function TotalAgentTimeCard({ expanded = false }: { expanded?: boolean })
       }
     />
   );
-  const worked = days.filter((d) => d.agentMs);
+  const worked = days.filter((d): d is AgentWorkDay => d.agentMs > 0);
   if (!worked.length) {
     return (
       <Card>
@@ -289,7 +277,7 @@ export function TotalAgentTimeCard({ expanded = false }: { expanded?: boolean })
           head: ['Day', 'Agent time', 'At least one', 'From overlaps', 'Most at once'],
           row: (v) => {
             const d = v.d as AgentDay;
-            return d.agentMs
+            return hasWork(d)
               ? [longDate(d.start), hoursText(d.agentMs), hoursText(d.wallMs), hoursText(overlapMs(d)), d.peak]
               : [longDate(d.start)];
           },
@@ -353,13 +341,11 @@ export function TotalAgentTimeCard({ expanded = false }: { expanded?: boolean })
   );
 }
 
-type YouDay = { start: number; stretches?: [number, number][] };
-
 export function AgentWorkCard() {
   // Its "now" line moves by the minute.
   useMinute();
   const a = useAgentHours();
-  const hours = useInsight<{ days: YouDay[] }>('hours');
+  const hours = useInsight('hours');
   if (!a) return <Loading title="When your agents worked" />;
   const note = `When at least one agent was working, whatever set it off, next to your own active time (the thin grey blocks). A day runs ${dayRuns()} here${workdayHour() ? ', so agent work past midnight counts toward the day it started, shown deeper' : ''}.`;
   const head = <CardHead title="When your agents worked" sub="Last 14 days" tools={<InfoTip note={note} />} />;
@@ -394,14 +380,16 @@ export function AgentWorkCard() {
     };
   });
   const typical = a.typicalStart != null && a.typicalStop != null;
-  const peak = a.days.reduce<AgentDay | null>((best, d) => ((d.peak || 0) > (best?.peak || 0) ? d : best), null);
-  const lastLate = a.lastLate == null ? null : a.days.find((d) => d.start === a.lastLate);
+  const peak = a.days
+    .filter(hasWork)
+    .reduce<AgentWorkDay | null>((best, d) => ((d.peak || 0) > (best?.peak || 0) ? d : best), null);
+  const lastLate = a.lastLate == null ? null : a.days.filter(hasWork).find((d) => d.start === a.lastLate);
   return (
     <Card className="flex flex-col gap-4">
       {head}
       <Hero
         value={typical ? `${atOffset(a.typicalStart!)} – ${atOffset(a.typicalStop!)}` : '—'}
-        sub={`${typical ? 'a typical day, first to last agent activity' : 'Not enough days yet for a typical day'}${today.wallMs ? ` · today since ${clock(today.first)}` : ''}`}
+        sub={`${typical ? 'a typical day, first to last agent activity' : 'Not enough days yet for a typical day'}${hasWork(today) ? ` · today since ${clock(today.first)}` : ''}`}
       />
       <Calendar columns={columns} height={170} now={now} />
       <p className="flex flex-wrap gap-x-4 gap-y-1 text-label text-muted" aria-hidden>
@@ -473,19 +461,10 @@ export function AgentWorkCard() {
   );
 }
 
-type Parallel = {
-  peak: { count: number; at: number; main: number; sub: number };
-  peakToday: { count: number; at: number; main: number; sub: number };
-  hours: { max: number; agentMs: number }[];
-  busyMs: number;
-  agentMs: number;
-  agentMsToday: number;
-};
-
 export function ParallelCard() {
   // The hour it's in now is marked, so it's looked at again each minute.
   useMinute();
-  const p = useInsight<Parallel>('parallel');
+  const p = useInsight('parallel');
   const kind = useChartKind('parallel');
   if (!p) return <Loading title="Agents at once" />;
   const head = (
@@ -503,7 +482,7 @@ export function ParallelCard() {
       </Card>
     );
   }
-  const split = (x: Parallel['peak']) =>
+  const split = (x: ParallelWork['peak']) =>
     x.sub ? `${x.main} main, ${x.sub} subagent${x.sub === 1 ? '' : 's'}` : `${x.main} main`;
   const ratio = p.busyMs > 0 ? p.agentMs / p.busyMs : null;
   const hourNow = new Date(serverNow()).getHours();
@@ -524,7 +503,7 @@ export function ParallelCard() {
             values={p.hours.map((h, i) => ({ value: h.max, current: i === hourNow, h, i }))}
             color="var(--claude)"
             tip={(v) => {
-              const h = v.h as Parallel['hours'][number];
+              const h = v.h as ParallelWork['hours'][number];
               const i = v.i as number;
               return `${hourLabel(i)}–${hourLabel((i + 1) % 24)} · ${h.max ? `up to ${h.max} at once · ${hoursText(h.agentMs)} of agent work` : 'no agents working'}`;
             }}
@@ -535,7 +514,7 @@ export function ParallelCard() {
             table={{
               head: ['Hour', 'Most at once', 'Agent work'],
               row: (v) => {
-                const h = v.h as Parallel['hours'][number];
+                const h = v.h as ParallelWork['hours'][number];
                 const i = v.i as number;
                 return [
                   `${hourLabel(i)}–${hourLabel((i + 1) % 24)}`,
@@ -571,18 +550,8 @@ export function ParallelCard() {
   );
 }
 
-type Tools = {
-  calls: number;
-  failed: number;
-  denied: number;
-  today: { failed: number; calls: number };
-  byTool: { name: string; failed: number; calls: number; denied?: number }[];
-  reasons: { text: string; count: number }[];
-  staleEdits: number;
-};
-
 export function ToolsCard() {
-  const t = useInsight<Tools>('tools');
+  const t = useInsight('tools');
   if (!t) return <Loading title="Tool failures" />;
   const note =
     "Tool calls that came back with an error, over the last 7 days. A search that finds nothing (grep exiting with 1) doesn't count, and calls you said no to are counted separately.";
@@ -664,24 +633,10 @@ export function ToolsCard() {
 
 // ── Skills ───────────────────────────────────────────────────────────────────
 
-type Skill = {
-  name: string;
-  about?: string;
-  kind: 'personal' | 'project' | 'plugin' | 'app' | 'builtin';
-  source: Source;
-  project?: string;
-  plugin?: string;
-  uses: number;
-  you: number;
-  agent: number;
-  days: number;
-  sessions: number;
-  projects?: string[];
-  lastAt: number;
-};
-type Skills = { offered: number; usedCount: number; uses: number; used: Skill[]; unused: Skill[] };
+/** A skill on offer, used or not. */
+type Skill = OfferedSkill;
 
-const KINDS: Record<Skill['kind'], [string, string]> = {
+const KINDS: Record<SkillKind, [string, string]> = {
   personal: ['Yours', 'In ~/.claude/skills or ~/.codex/skills'],
   project: ['Project', "In a project's .claude/skills"],
   plugin: ['Plugin', 'From a plugin you installed'],
@@ -689,7 +644,7 @@ const KINDS: Record<Skill['kind'], [string, string]> = {
   builtin: ['Built in', 'Comes with Claude Code or Codex'],
 };
 const SKILL_KINDS: ChartKind[] = ['list', 'table'];
-const SKILLS_VIEW = 'overtime-skills-view';
+const SKILLS_VIEW = 'skills-view';
 const SKILLS_NOTE =
   'A skill counts as used when Claude Code loads it (you ran it as a command, or the agent chose it with its Skill tool) or when Codex reads its SKILL.md. What was on offer comes from the sessions themselves, so a skill no session was offered in 30 days isn’t listed.';
 
@@ -713,7 +668,7 @@ function KindChip({ s }: { s: Skill }) {
   );
 }
 
-const skillTip = (s: Skill) =>
+const skillTip = (s: UsedSkill) =>
   [
     s.name,
     s.about,
@@ -729,15 +684,9 @@ const skillTip = (s: Skill) =>
 
 export function SkillsCard() {
   useMinute();
-  const k = useInsight<Skills>('skills');
+  const k = useInsight('skills');
   const kind = useChartKind('skills', SKILL_KINDS);
-  const [view, setView] = useState<'used' | 'unused'>(() => {
-    try {
-      return localStorage.getItem(SKILLS_VIEW) === 'unused' ? 'unused' : 'used';
-    } catch {
-      return 'used';
-    }
-  });
+  const [view, setView] = useState(() => readSetting<'used' | 'unused'>(SKILLS_VIEW, 'used', ['used', 'unused']));
   const [builtIn, setBuiltIn] = useState(false);
   if (!k) return <Loading title="Skills" />;
   const now = serverNow();
@@ -746,10 +695,7 @@ export function SkillsCard() {
     : `Last 30 days · ${plural(k.usedCount, 'skill')} used, ${plural(k.uses, 'time')}`;
   const pick = (v: 'used' | 'unused') => {
     setView(v);
-    try {
-      if (v === 'used') localStorage.removeItem(SKILLS_VIEW);
-      else localStorage.setItem(SKILLS_VIEW, v);
-    } catch {}
+    writeSetting(SKILLS_VIEW, v === 'used' ? null : v);
   };
   const mine = k.unused.filter((s) => s.kind === 'personal' || s.kind === 'project');
   const you = k.used.reduce((n, s) => n + s.you, 0);
@@ -797,7 +743,7 @@ export function SkillsCard() {
           <Plot
             kind="table"
             values={k.used.map((s) => ({ value: s.uses, s }))}
-            tip={(v) => skillTip(v.s as Skill)}
+            tip={(v) => skillTip(v.s)}
             labels={[]}
             height={230}
             table={{
@@ -812,7 +758,7 @@ export function SkillsCard() {
                 'Last used',
               ],
               row: (v) => {
-                const s = v.s as Skill;
+                const s = v.s;
                 return [
                   s.name,
                   sourceInfo(s.source).name,
@@ -880,7 +826,7 @@ export function SkillsCard() {
         </Empty>
       ) : (
         <div className="flex flex-col gap-3">
-          {(Object.keys(KINDS) as Skill['kind'][]).map((kd) => {
+          {(Object.keys(KINDS) as SkillKind[]).map((kd) => {
             const list = shownUnused.filter((s) => s.kind === kd);
             if (!list.length) return null;
             return (

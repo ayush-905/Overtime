@@ -4,7 +4,8 @@
 // a view you come back to. Newest first, it's a day at a time, with the sessions
 // you pinned above. The band says what's in view; a row opens the session panel.
 // The filters live in the address (lib/sessionsView), so cards elsewhere link to
-// a view of this page.
+// a view of this page. Its store (useSessionsView) holds the view, the days you
+// folded and how many rows show.
 
 import { Fragment, memo, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { create } from 'zustand';
@@ -42,7 +43,6 @@ import {
   isPlain,
   loadViews,
   matches,
-  median,
   PAGE_SIZE,
   paramsOf,
   PINNED,
@@ -75,6 +75,8 @@ import { useRoute } from '@/app/router';
 import { useCompact } from '@/app/layout';
 import { offerUndo } from '@/app/toasts';
 import { SOURCE } from '@/lib/sources';
+import { onOtherTab } from '@/lib/storage';
+import { median } from '@shared/sums.js';
 
 // ── The view ─────────────────────────────────────────────────────────────────
 
@@ -293,11 +295,7 @@ const Tools = memo(function Tools({ projects }: { projects: string[] }) {
 
 function useViews() {
   const [views, setViews] = useState(loadViews);
-  useEffect(() => {
-    const on = (e: StorageEvent) => e.key === VIEWS_KEY && setViews(loadViews());
-    window.addEventListener('storage', on);
-    return () => window.removeEventListener('storage', on);
-  }, []);
+  useEffect(() => onOtherTab((key) => key === VIEWS_KEY && setViews(loadViews())), []);
   const put = (next: SavedView[]) => {
     saveViews(next);
     setViews(next);
@@ -433,8 +431,9 @@ const Summary = memo(function Summary({ rows }: { rows: SessionInRange[] }) {
   const sum = (k: keyof SessionInRange) => totals[k as string];
   const tools = sum('tools');
   const failed = sum('failed');
-  const typical = median(rows.map((s) => measureOf(s)));
-  const typicalTime = median(rows.map((s) => s.agentMs));
+  // Typical among the sessions that cost (or used) something, and kept an agent busy at all.
+  const typical = median(rows.map((s) => measureOf(s)).filter((v) => v > 0));
+  const typicalTime = median(rows.map((s) => s.agentMs).filter((ms) => ms > 0));
   const partial = rows.some((s) => s.partial);
   const note =
     rows.length >= 3 && typical != null

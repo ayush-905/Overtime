@@ -1,0 +1,41 @@
+{
+  // The server's check against types/api.d.ts (npm run check:server): the server's
+  // routes and the modules that make what the API sends. Each starts with `// @ts-check` and says what its
+  // producers return with JSDoc (`@returns {import('../types/api.js').X}`), so tsc
+  // fails when a field is renamed, dropped, added or given another type, or when
+  // one that can be null isn't typed so. Plain JS stays plain: no implicit-any
+  // rule, and the modules they read from (the readers, the harnesses) aren't checked.
+  "compilerOptions": {
+    "target": "ES2023",
+    "lib": ["ES2023"],
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
+    "allowJs": true,
+    "checkJs": false,
+    "noEmit": true,
+    "strict": false,
+    "strictNullChecks": true,
+    "skipLibCheck": true,
+    "types": ["node"]
+  },
+  "include": [
+    "types/api.d.ts",
+    "server.js",
+    "lib/resume.js",
+    "lib/live-feed.js",
+    "lib/static-files.js",
+    "lib/page-policy.js",
+    "lib/insights.js",
+    "lib/insights/*.js",
+    "lib/agents.js",
+    "lib/limits.js",
+    "lib/codex-limits.js",
+    "lib/open-sessions.js",
+    "lib/store.js",
+    "lib/usage-index.js",
+    "lib/skills.js",
+    "lib/prompts.js",
+    "lib/turn-performance.js",
+    "web/shared/demo.js"
+  ]
+}

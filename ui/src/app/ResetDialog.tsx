@@ -9,6 +9,7 @@ import { useLive } from '@/data/live';
 import { useHistory } from '@/data/queries';
 import { plural } from '@/lib/format';
 import { dayParam } from '@/lib/route';
+import { forgetAllSettings } from '@/lib/storage';
 import { Dialog } from '@/components/Dialog';
 import { Button } from '@/components/Button';
 import { note } from './toasts';
@@ -23,12 +24,7 @@ const send = (path: string, body: unknown) =>
 
 /** Clear this browser's copy too, tell other tabs, and start again from what's on disk. */
 function reloadEverywhere() {
-  try {
-    const keys: string[] = [];
-    for (let i = 0; i < localStorage.length; i++)
-      if (localStorage.key(i)!.startsWith('overtime-')) keys.push(localStorage.key(i)!);
-    for (const k of keys) localStorage.removeItem(k);
-  } catch {}
+  forgetAllSettings();
   try {
     new BroadcastChannel('overtime').postMessage('reload');
   } catch {}
@@ -76,7 +72,7 @@ export function ResetDialog() {
   const [sure, setSure] = useState(false);
   const [busy, setBusy] = useState(false);
   const { data } = useHistory('all', mode === 'reset');
-  const days = Math.max(0, ((data?.days as unknown[]) || []).length - 30);
+  const days = Math.max(0, (data?.days || []).length - 30);
   const done = () => {
     setSure(false);
     setHistory(false);

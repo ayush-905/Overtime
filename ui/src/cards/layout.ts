@@ -4,9 +4,9 @@
 // as overtime-overview-cards.
 // Cards from Cost, Agents and You are optional additions.
 
-import { changed } from '@/lib/bus';
+import { readJson, writeJson } from '@/lib/storage';
 
-const KEY = 'overtime-overview-cards';
+const KEY = 'overview-cards';
 
 export type OverviewCard = {
   id: string;
@@ -57,10 +57,7 @@ export const usualLayout = (): Layout => ({
 
 export function readLayout(): Layout {
   const known = new Set(CATALOG.map((c) => c.id));
-  let saved: Partial<Layout> = {};
-  try {
-    saved = JSON.parse(localStorage.getItem(KEY) || '{}') || {};
-  } catch {}
+  const saved = readJson<Partial<Layout>>(KEY, {});
   const order = (Array.isArray(saved.order) ? saved.order : []).filter((id) => known.has(id));
   // Cards added since you saved come in where they'd normally be, as they ship.
   const usual = usualLayout();
@@ -76,13 +73,7 @@ export function readLayout(): Layout {
 const same = (a: Layout, b: Layout) =>
   a.order.join() === b.order.join() && [...a.hidden].sort().join() === [...b.hidden].sort().join();
 
-export function saveLayout(layout: Layout) {
-  try {
-    if (same(layout, usualLayout())) localStorage.removeItem(KEY);
-    else localStorage.setItem(KEY, JSON.stringify(layout));
-  } catch {}
-  changed('layout');
-}
+export const saveLayout = (layout: Layout) => writeJson(KEY, same(layout, usualLayout()) ? null : layout, 'layout');
 
 /** The cards on the page, in order. */
 export const shownCards = (layout: Layout) =>

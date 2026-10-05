@@ -530,8 +530,8 @@ exports[`format > project colours 1`] = `
   ],
   "hues": [
     38,
-    160,
-    121,
+    215,
+    231,
     61,
     135,
   ],
@@ -1182,7 +1182,7 @@ exports[`route > links and addresses 1`] = `
   "links": [
     "#sessions",
     "#sessions?range=7&project=shop&q=a+b",
-    "#projects?p=Thrive+API",
+    "#projects?p=Kettle+API",
   ],
 }
 `;

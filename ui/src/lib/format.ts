@@ -2,7 +2,9 @@
 // 3h 20m, Tue 12 Sept, ₹1,78,721, 229.5M (golden tests in golden.test.ts hold
 // them). A working day starts at the hour set in Settings.
 
+import { workDayStart } from '@shared/sums.js';
 import { env, serverNow } from './env';
+import type { WorkingHours } from '@/data/types';
 
 export const MINUTE = 60_000;
 export const HOUR = 3_600_000;
@@ -30,15 +32,8 @@ export function whenText(t: number | null | undefined) {
   return new Date(t).toDateString() === new Date().toDateString() ? clock(t) : `${weekday(t)} ${clock(t)}`;
 }
 
-/** The start (4am, unless you changed it) of the working day `t` belongs to, moved by `days`. */
-export function workDay(t: number, days = 0) {
-  const hour = workdayHour();
-  const d = new Date(t);
-  if (d.getHours() < hour) d.setDate(d.getDate() - 1);
-  d.setDate(d.getDate() + days);
-  d.setHours(hour, 0, 0, 0);
-  return d.getTime();
-}
+/** The start (4am, unless you changed it) of the working day `t` belongs to, moved by `days`. The demo works its days out the same way. */
+export const workDay = (t: number, days = 0) => workDayStart(t, workdayHour(), days);
 
 /** How a working day reads in a note: "from 4am to 4am", or "midnight to midnight". */
 export const dayRuns = () =>
@@ -96,12 +91,18 @@ export function hoursText(ms: number) {
   return `${Math.round(ms / MINUTE)}m`;
 }
 
-/** How a stretch of time compares with the one before, once both are an hour or more: "↑ 12%". */
-export const change = (now: number, before: number) => {
-  if (!(before >= HOUR)) return '';
+/**
+ * How `now` compares with `before`, as every card writes it: "↑ 12%" or "↓ 3%".
+ * Empty when it's less than `least` percent either way, so each card can say
+ * "about the same" in its own words. `before` must be more than nothing.
+ */
+export function changeText(now: number, before: number, least = 5) {
   const pct = Math.round(((now - before) / before) * 100);
-  return Math.abs(pct) >= 5 ? `${pct > 0 ? '↑' : '↓'} ${Math.abs(pct)}%` : '';
-};
+  return Math.abs(pct) >= least ? `${pct > 0 ? '↑' : '↓'} ${Math.abs(pct)}%` : '';
+}
+
+/** How a stretch of time compares with the one before, once that was an hour or more: "↑ 12%". */
+export const change = (now: number, before: number) => (before >= HOUR ? changeText(now, before) : '');
 
 export const pctOf = (n: number, d: number) => {
   const v = d ? (n / d) * 100 : 0;
@@ -130,7 +131,7 @@ export function bytesText(n: number | null | undefined) {
 export const cpuText = (pct: number | null | undefined) =>
   pct == null ? '—' : `${pct < 10 ? pct.toFixed(1) : Math.round(pct)}%`;
 
-type Hours = { days?: { stretches?: [number, number][] }[] } | null | undefined;
+type Hours = Pick<WorkingHours, 'days'> | null | undefined;
 
 /** Active time between two moments, from the working-hours stretches. */
 export function activeBetween(hours: Hours, from: number, to: number) {
@@ -144,7 +145,7 @@ export function activeBetween(hours: Hours, from: number, to: number) {
 
 export function clip(text: unknown, max: number) {
   const s = String(text ?? '');
-  return s.length > max ? s.slice(0, max - 1) + '…' : s;
+  return s.length > max ? `${s.slice(0, max - 1)}…` : s;
 }
 
 export function ago(ms: number) {

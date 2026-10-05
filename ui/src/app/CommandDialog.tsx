@@ -12,13 +12,12 @@ import { Dialog } from '@/components/Dialog';
 import { Button } from '@/components/Button';
 import { Seg } from '@/components/Seg';
 import { cx } from '@/components/cx';
-import { changed } from '@/lib/bus';
+import { readJson, writeJson } from '@/lib/storage';
 import { SOURCE, commandUse, isSource, type Source } from '@/lib/sources';
 import { useSources } from '@/data/scope';
 import { note } from './toasts';
-import { useCommand } from './dialogs';
+import { MADE_KEY, useCommand, type MadeCommands } from './dialogs';
 
-const MADE_KEY = 'overtime-commands-made';
 const NAME = /^[a-z0-9][a-z0-9_-]{0,39}$/;
 const slug = (v: string) =>
   v
@@ -73,11 +72,11 @@ export function CommandDialog() {
       setError(res?.message || "Couldn't reach Overtime's server, so nothing was written");
       return;
     }
-    try {
-      const made = JSON.parse(localStorage.getItem(MADE_KEY) || '{}') || {};
-      localStorage.setItem(MADE_KEY, JSON.stringify({ ...made, [g.key]: { name, target, at: Date.now() } }));
-    } catch {}
-    changed('labels');
+    writeJson(
+      MADE_KEY,
+      { ...readJson<MadeCommands>(MADE_KEY, {}), [g.key]: { name, target, at: Date.now() } },
+      'labels',
+    );
     close();
     note(`Made ${res.use || commandUse(target, name)}. ${ready}`);
   };

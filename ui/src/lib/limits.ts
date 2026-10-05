@@ -5,54 +5,44 @@
 
 import { ago, duration, HOUR, MINUTE, DAY, whenText } from './format';
 import { SOURCE, isSource } from './sources';
+import type {
+  CodexWindow as ApiCodexWindow,
+  EstimateSession,
+  EstimateWeekly,
+  ExactWindowSpend,
+  LimitsEstimate,
+} from '@/data/types';
 
-// ── What the server and the checks send ─────────────────────────────────────
+// ── What the server and the checks send, as this reads it ───────────────────
+// Each is the server's type (data/types.ts), or a view of it that tests can
+// build in part; the server's always fits, without a cast.
 
-type EstimateWindow = {
-  active?: boolean;
-  start?: number;
-  resetsAt: number | null;
-  limited: boolean;
-  used: number | null;
-  pct: number | null;
-  capacity: number | null;
-  rolling?: boolean;
-  calibration?: { lastHitAt?: number } | null;
-};
-/** Local spend in steps: `costs[i]` is what the step starting at `from + i * step` cost. */
-export type SpendSeries = { from: number; step: number; costs: number[] };
-export type Estimate = {
-  source: string;
-  session: EstimateWindow;
-  weekly: EstimateWindow;
-  rates?: { cost30m?: number; cost24h?: number; cost7d?: number };
-  spend?: { today?: { cost: number } };
-  computedAt?: number;
-  usage?: { fine: SpendSeries; hourly: SpendSeries };
-};
-type ExactWindow = { pct: number; resetsAt: number; spend?: { cost: number } };
+export type { SpendSeries } from '@/data/types';
+/** The session or weekly window of the estimate: the two read alike. */
+type EstimateWindow = Omit<EstimateSession, 'active' | 'start'> &
+  Partial<Pick<EstimateSession, 'active' | 'start'>> &
+  Partial<Pick<EstimateWeekly, 'rolling'>>;
+/** Claude Code's plan limits estimated on this Mac (the snapshot's `limits`). */
+export type Estimate = Omit<LimitsEstimate, 'session' | 'weekly'> & { session: EstimateWindow; weekly: EstimateWindow };
+type ExactWindow = Pick<ExactWindowSpend, 'pct' | 'resetsAt'> & { spend?: { cost: number } | null };
+/** Anthropic's numbers (/api/limits/exact), or why there are none. */
 export type Exact = {
   status: string;
   message?: string;
   fetchedAt?: number;
   stale?: boolean;
   retryAt?: number;
-  session?: ExactWindow;
-  weekly?: ExactWindow;
+  session?: ExactWindow | null;
+  weekly?: ExactWindow | null;
 };
-export type CodexWindow = {
-  bucketId: string;
-  bucketName?: string;
-  kind: string;
-  durationMs?: number;
-  usedPercent: number | null;
-  resetsAt: number | null;
-  pace?: { rate: number; basis: string; history?: [number, number][] } | null;
-};
+/** One of Codex's plan windows. */
+export type CodexWindow = Pick<ApiCodexWindow, 'bucketId' | 'kind' | 'usedPercent' | 'resetsAt'> &
+  Partial<Pick<ApiCodexWindow, 'bucketName' | 'durationMs' | 'pace'>>;
+/** Codex's windows: what it recorded here (the snapshot's `codexLimits`), or its live check (/api/limits/codex). */
 export type CodexQuota = {
   status?: string;
   source?: string;
-  message?: string;
+  message?: string | null;
   observedAt?: number;
   stale?: boolean;
   windows?: CodexWindow[];
@@ -159,7 +149,7 @@ export type LimitInfo =
 export function limitInfo(inp: LimitsInput, kind: 'session' | 'weekly'): LimitInfo | null {
   const est = inp.limits;
   const exact = inp.exactOn && inp.exact?.status === 'ok' ? inp.exact : null;
-  const rates = est?.rates || {};
+  const rates: Partial<Estimate['rates']> = est?.rates || {};
   const session = kind === 'session';
   const rate = session ? (rates.cost30m || 0) / (30 * MINUTE) : (rates.cost7d || 0) / (7 * DAY);
   const basis = session ? 'over the last 30 minutes' : 'over the last 7 days';
@@ -235,7 +225,7 @@ function codexOutlook(inp: LimitsInput, w: CodexWindow) {
   return forecast(used, pace.rate, w.resetsAt, pace.basis, inp.now);
 }
 
-export function windowName(ms: number | undefined, kind: string) {
+export function windowName(ms: number | null | undefined, kind: string) {
   if (ms === 7 * DAY) return 'Weekly';
   if (ms) return ms >= HOUR ? `${Math.round((ms / HOUR) * 10) / 10}-hour` : `${Math.round(ms / MINUTE)}-minute`;
   return kind === 'primary' ? 'Primary' : 'Secondary';

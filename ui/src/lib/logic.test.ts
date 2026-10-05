@@ -39,11 +39,11 @@ describe('the sidebar', () => {
 describe('⌘K', () => {
   test('a start beats a word’s start beats anywhere, and letters in order count once there are three', () => {
     expect(score('Sessions', 'ses')).toBe(4);
-    expect(score('Pulse survey scoring', 'sur')).toBe(3);
+    expect(score('Recipe search ranking', 'sea')).toBe(3);
     expect(score('Checkout-flow', 'flow')).toBe(3);
     expect(score('Dashboards', 'board')).toBe(2);
-    expect(score('pulse survey', 'psv')).toBe(1);
-    expect(score('pulse survey', 'ps')).toBe(0);
+    expect(score('recipe search', 'rsh')).toBe(1);
+    expect(score('recipe search', 'rs')).toBe(0);
     expect(score('anything', '')).toBe(1);
   });
 });

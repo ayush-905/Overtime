@@ -33,8 +33,7 @@ function Loading() {
 }
 import { useAlerts } from './alerts';
 import { useGlance } from './glance';
-import { useArrange } from '@/components/PageGrid';
-import { useCommand, useCompare, useProjectDialog, useReset } from './dialogs';
+import { useArrange, useCommand, useCompare, useExpand, useProjectDialog, useReset } from './dialogs';
 import { MAIN, startRouter, useRoute, type RoutePage } from './router';
 import { restoreScroll, startBack } from './back';
 import { useUi, usePanelDocked } from './ui';
@@ -45,7 +44,6 @@ import { TooltipLayer } from './Tooltip';
 import { Toasts } from './toasts';
 import { useCompact } from './layout';
 import { later, loadLater } from './later';
-import { useExpand } from '@/cards/Expand';
 import { inPopover } from '@/data/desktop';
 
 // What opens only now and then loads later (later.tsx), and is only there while it's open.
