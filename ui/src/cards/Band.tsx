@@ -259,14 +259,14 @@ const leftOf = (w: QuotaItem) => (w.limited ? 0 : Math.max(0, Math.round(100 - (
 const unitFor = (w: QuotaItem) =>
   w.label === '5-hour' ? 'left in this 5-hour window' : w.label === 'Weekly' ? 'left this week' : `left · ${w.label}`;
 
-/** Where it's heading, in "left" terms: "On pace to keep ~87%", "Runs out around 16:40". */
+/** Where it's heading, as the Usage page says it, only shorter: "On pace to use ~66%", "Runs out around 16:40". */
 export function outlookWords(w: QuotaItem) {
   const o = w.outlook;
   if (!o) return null;
   if (o.level === 'warn' || o.level === 'crit')
     return { text: o.text, tone: o.level === 'crit' ? 'text-bad' : 'text-warn', tip: o.tip };
   if (o.level === 'quiet') return { text: 'Quiet lately', tone: 'text-muted', tip: o.tip };
-  return { text: `On pace to keep ~${Math.max(0, Math.round(100 - o.projected))}%`, tone: 'text-ok', tip: o.tip };
+  return { text: `On pace to use ~${Math.round(o.projected)}%`, tone: 'text-ok', tip: o.tip };
 }
 
 function OtherWindow({ w, now }: { w: QuotaItem; now: number }) {

@@ -98,10 +98,10 @@ function forecast(used: number, rate: number, resetsAt: number, basis: string, n
     };
   }
   const projected = used + rate * (resetsAt - now);
-  // In "left" terms, as every figure beside it is.
+  // What you'll have used of it, the same words on the Overview (Band.tsx) and the Usage page.
   return {
     level: 'ok',
-    text: `On pace to keep ~${Math.max(0, Math.round(100 - projected))}% by the reset`,
+    text: `On pace to use ~${Math.round(projected)}% by the reset`,
     tip: `Based on your pace ${basis}.`,
     projected,
   };

@@ -40,7 +40,7 @@ export function Meter({
       aria-valuetext={
         value == null
           ? 'No reading'
-          : `${Math.round(value)}% left${keep != null && keep < value ? `, about ${Math.round(keep)}% by the reset at your pace` : ''}`
+          : `${Math.round(value)}% left${keep != null && keep < value ? `, on pace to use about ${Math.round(100 - keep)}% by the reset` : ''}`
       }
       className={cx('relative overflow-hidden rounded-full bg-sunken', size === 'sm' ? 'h-1.5' : 'h-2', className)}
     >
