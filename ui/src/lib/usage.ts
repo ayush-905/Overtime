@@ -429,13 +429,8 @@ export function claudeWindow(inp: LimitsInput, kind: 'session' | 'weekly'): Char
   // Where it's heading: your pace over the last 30 minutes (session) or 7 days (weekly).
   const rates: Partial<NonNullable<LimitsInput['limits']>['rates']> = inp.limits?.rates || {};
   const costRate = session ? (rates.cost30m || 0) / (30 * MINUTE) : (rates.cost7d || 0) / (7 * DAY);
-  // The limit's size in dollars, worked out the same way as the limit card's forecast, so they agree.
-  const spent = info.spent ?? total;
-  const cap = pctMode
-    ? pctNow! >= 3 && spent > 0.5
-      ? spent / (pctNow! / 100)
-      : inp.limits?.[kind]?.capacity || null
-    : null;
+  // The limit's size in dollars is the one the limit card's forecast goes by, so they agree.
+  const cap = pctMode ? info.size : null;
   const rate = pctMode ? (cap ? (costRate / cap) * 100 : 0) : costRate;
   const points: [number, number][] = [[start, 0], ...steps.map((st) => [st.b, valueAt(st.cum)] as [number, number])];
   if (pctMode && total === 0 && pctNow! > 0) points.push([now, pctNow!]); // used elsewhere, like claude.ai

@@ -101,6 +101,7 @@ export function Avatar({
             'absolute -bottom-0.5 -right-0.5 size-2.5 rounded-full border-2 border-card',
             status === 'needs' ? 'bg-warn-fill' : 'bg-ok-fill',
           )}
+          role="img"
           aria-label={status === 'needs' ? 'Needs you' : 'Working'}
         />
       )}
@@ -159,12 +160,14 @@ export function Kbd({ children }: { children: ReactNode }) {
 /** A placeholder while data is on its way. */
 export function Skeleton({ lines = 2, className }: { lines?: number; className?: string }) {
   return (
-    <div className={cx('flex flex-col gap-2', className)} aria-busy="true" aria-label="Loading">
+    <div className={cx('flex flex-col gap-2', className)} aria-busy="true">
+      <span className="sr-only">Loading…</span>
       {Array.from({ length: lines }, (_, i) => (
         <span
           key={i}
           className="h-3.5 animate-pulse rounded-sm bg-sunken"
           style={{ width: i === lines - 1 ? '60%' : '100%' }}
+          aria-hidden
         />
       ))}
     </div>

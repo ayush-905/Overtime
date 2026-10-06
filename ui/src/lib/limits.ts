@@ -98,33 +98,38 @@ function forecast(used: number, rate: number, resetsAt: number, basis: string, n
     };
   }
   const projected = used + rate * (resetsAt - now);
+  // In "left" terms, as every figure beside it is.
   return {
     level: 'ok',
-    text: `On pace for ~${Math.round(projected)}% by the reset`,
+    text: `On pace to keep ~${Math.max(0, Math.round(100 - projected))}% by the reset`,
     tip: `Based on your pace ${basis}.`,
     projected,
   };
 }
 
 /**
- * Where a limit is heading at the recent pace. The limit's size in dollars comes
- * from the % used and what the window has cost (or, for the estimate, from how
- * much you had used when you last hit it).
+ * A limit's size in dollars: from the exact % used and what the window has cost,
+ * when there's enough of both to go on, else (and for the estimate) from how much
+ * you had used when you last hit it.
  */
+const limitSize = (exactPct: number | null, spent: number | null, capacity?: number | null) =>
+  exactPct != null && spent != null && exactPct >= 3 && spent > 0.5 ? spent / (exactPct / 100) : capacity || null;
+
+/** Where a limit at `pct`% (what the card shows), `size` dollars in all, is heading at the recent pace. */
 function outlook(
   {
     pct,
     spent,
-    capacity,
+    size,
     resetsAt,
     limited,
-  }: { pct: number | null; spent: number | null; capacity?: number | null; resetsAt: number | null; limited: boolean },
+  }: { pct: number | null; spent: number | null; size: number | null; resetsAt: number | null; limited: boolean },
   rate: number,
   basis: string,
   now: number,
 ) {
   if (limited || !resetsAt || resetsAt <= now || spent == null) return null;
-  const cap = pct != null && pct >= 3 && spent > 0.5 ? spent / (pct / 100) : capacity;
+  const cap = size;
   if (!cap || cap <= spent) return null;
   const used = pct ?? (spent / cap) * 100;
   if (!(rate > 0) || rate * 60 * MINUTE < 0.25) return quietOutlook(used, basis);
@@ -139,6 +144,8 @@ export type LimitInfo =
       resetsAt: number | null;
       limited: boolean;
       spent: number | null;
+      /** The limit's size in dollars, which its forecast and the window's chart both go by. */
+      size: number | null;
       active: true;
       stale?: boolean;
       rolling?: boolean;
@@ -159,35 +166,32 @@ export function limitInfo(inp: LimitsInput, kind: 'session' | 'weekly'): LimitIn
     const spent = w.spend?.cost ?? null;
     const limited = w.pct >= 100;
     const stale = quotaFreshness({ source: 'exact', observedAt: exact.fetchedAt, stale: exact.stale }, inp.now).stale;
+    const size = limitSize(w.pct, spent, est?.[kind]?.capacity);
     return {
       pct: w.pct,
       resetsAt: w.resetsAt,
       limited,
       spent,
+      size,
       active: true,
       stale,
-      outlook: stale
-        ? null
-        : outlook(
-            { pct: w.pct, spent, capacity: est?.[kind]?.capacity, resetsAt: w.resetsAt, limited },
-            rate,
-            basis,
-            inp.now,
-          ),
+      outlook: stale ? null : outlook({ pct: w.pct, spent, size, resetsAt: w.resetsAt, limited }, rate, basis, inp.now),
     };
   }
   if (!est) return null;
   const w = est[kind];
   if (session && !w.active) return { idle: true };
+  const size = limitSize(null, w.used, w.capacity);
   return {
     pct: w.pct,
     resetsAt: w.resetsAt,
     limited: w.limited,
     spent: w.used,
+    size,
     active: true,
     rolling: w.rolling,
     outlook: outlook(
-      { pct: null, spent: w.used, capacity: w.capacity, resetsAt: w.resetsAt, limited: w.limited },
+      { pct: w.pct, spent: w.used, size, resetsAt: w.resetsAt, limited: w.limited },
       rate,
       basis,
       inp.now,

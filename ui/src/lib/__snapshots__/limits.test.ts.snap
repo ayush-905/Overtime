@@ -986,8 +986,8 @@ exports[`plan windows > exact switched on but failing 1`] = `
       "observedAt": 1790707443022,
       "outlook": {
         "level": "ok",
-        "projected": 27.814476522266126,
-        "text": "On pace for ~28% by the reset",
+        "projected": 27.62662082790721,
+        "text": "On pace to keep ~72% by the reset",
         "tip": "Based on your pace over the last 30 minutes.",
       },
       "provider": "claude",
@@ -1021,8 +1021,8 @@ exports[`plan windows > exact switched on but failing 1`] = `
       "observedAt": 1790707443022,
       "outlook": {
         "level": "ok",
-        "projected": 27.814476522266126,
-        "text": "On pace for ~28% by the reset",
+        "projected": 27.62662082790721,
+        "text": "On pace to keep ~72% by the reset",
         "tip": "Based on your pace over the last 30 minutes.",
       },
       "provider": "claude",
@@ -1062,8 +1062,8 @@ exports[`plan windows > exact switched on but failing, 24-hour clock 1`] = `
       "observedAt": 1790707443022,
       "outlook": {
         "level": "ok",
-        "projected": 27.814476522266126,
-        "text": "On pace for ~28% by the reset",
+        "projected": 27.62662082790721,
+        "text": "On pace to keep ~72% by the reset",
         "tip": "Based on your pace over the last 30 minutes.",
       },
       "provider": "claude",
@@ -1097,8 +1097,8 @@ exports[`plan windows > exact switched on but failing, 24-hour clock 1`] = `
       "observedAt": 1790707443022,
       "outlook": {
         "level": "ok",
-        "projected": 27.814476522266126,
-        "text": "On pace for ~28% by the reset",
+        "projected": 27.62662082790721,
+        "text": "On pace to keep ~72% by the reset",
         "tip": "Based on your pace over the last 30 minutes.",
       },
       "provider": "claude",
@@ -1215,7 +1215,7 @@ exports[`plan windows > exact, fresh 1`] = `
       "outlook": {
         "level": "ok",
         "projected": 29.66460336,
-        "text": "On pace for ~30% by the reset",
+        "text": "On pace to keep ~70% by the reset",
         "tip": "Based on your pace over the last 30 minutes.",
       },
       "provider": "claude",
@@ -1234,7 +1234,7 @@ exports[`plan windows > exact, fresh 1`] = `
       "outlook": {
         "level": "ok",
         "projected": 66.21646726107126,
-        "text": "On pace for ~66% by the reset",
+        "text": "On pace to keep ~34% by the reset",
         "tip": "Based on your pace over the last 7 days.",
       },
       "provider": "claude",
@@ -1255,7 +1255,7 @@ exports[`plan windows > exact, fresh 1`] = `
       "outlook": {
         "level": "ok",
         "projected": 29.66460336,
-        "text": "On pace for ~30% by the reset",
+        "text": "On pace to keep ~70% by the reset",
         "tip": "Based on your pace over the last 30 minutes.",
       },
       "provider": "claude",
@@ -1274,7 +1274,7 @@ exports[`plan windows > exact, fresh 1`] = `
       "outlook": {
         "level": "ok",
         "projected": 66.21646726107126,
-        "text": "On pace for ~66% by the reset",
+        "text": "On pace to keep ~34% by the reset",
         "tip": "Based on your pace over the last 7 days.",
       },
       "provider": "claude",
@@ -1301,7 +1301,7 @@ exports[`plan windows > exact, fresh, 24-hour clock 1`] = `
       "outlook": {
         "level": "ok",
         "projected": 29.66460336,
-        "text": "On pace for ~30% by the reset",
+        "text": "On pace to keep ~70% by the reset",
         "tip": "Based on your pace over the last 30 minutes.",
       },
       "provider": "claude",
@@ -1320,7 +1320,7 @@ exports[`plan windows > exact, fresh, 24-hour clock 1`] = `
       "outlook": {
         "level": "ok",
         "projected": 66.21646726107126,
-        "text": "On pace for ~66% by the reset",
+        "text": "On pace to keep ~34% by the reset",
         "tip": "Based on your pace over the last 7 days.",
       },
       "provider": "claude",
@@ -1341,7 +1341,7 @@ exports[`plan windows > exact, fresh, 24-hour clock 1`] = `
       "outlook": {
         "level": "ok",
         "projected": 29.66460336,
-        "text": "On pace for ~30% by the reset",
+        "text": "On pace to keep ~70% by the reset",
         "tip": "Based on your pace over the last 30 minutes.",
       },
       "provider": "claude",
@@ -1360,7 +1360,7 @@ exports[`plan windows > exact, fresh, 24-hour clock 1`] = `
       "outlook": {
         "level": "ok",
         "projected": 66.21646726107126,
-        "text": "On pace for ~66% by the reset",
+        "text": "On pace to keep ~34% by the reset",
         "tip": "Based on your pace over the last 7 days.",
       },
       "provider": "claude",
@@ -1650,8 +1650,8 @@ exports[`plan windows > the estimate, and what Codex recorded a day ago 1`] = `
       "observedAt": 1790707443022,
       "outlook": {
         "level": "ok",
-        "projected": 27.814476522266126,
-        "text": "On pace for ~28% by the reset",
+        "projected": 27.62662082790721,
+        "text": "On pace to keep ~72% by the reset",
         "tip": "Based on your pace over the last 30 minutes.",
       },
       "provider": "claude",
@@ -1711,8 +1711,8 @@ exports[`plan windows > the estimate, and what Codex recorded a day ago 1`] = `
       "observedAt": 1790707443022,
       "outlook": {
         "level": "ok",
-        "projected": 27.814476522266126,
-        "text": "On pace for ~28% by the reset",
+        "projected": 27.62662082790721,
+        "text": "On pace to keep ~72% by the reset",
         "tip": "Based on your pace over the last 30 minutes.",
       },
       "provider": "claude",
@@ -1779,8 +1779,8 @@ exports[`plan windows > the estimate, and what Codex recorded a day ago, 24-hour
       "observedAt": 1790707443022,
       "outlook": {
         "level": "ok",
-        "projected": 27.814476522266126,
-        "text": "On pace for ~28% by the reset",
+        "projected": 27.62662082790721,
+        "text": "On pace to keep ~72% by the reset",
         "tip": "Based on your pace over the last 30 minutes.",
       },
       "provider": "claude",
@@ -1840,8 +1840,8 @@ exports[`plan windows > the estimate, and what Codex recorded a day ago, 24-hour
       "observedAt": 1790707443022,
       "outlook": {
         "level": "ok",
-        "projected": 27.814476522266126,
-        "text": "On pace for ~28% by the reset",
+        "projected": 27.62662082790721,
+        "text": "On pace to keep ~72% by the reset",
         "tip": "Based on your pace over the last 30 minutes.",
       },
       "provider": "claude",

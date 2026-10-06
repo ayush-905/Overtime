@@ -69,8 +69,15 @@ export const useUi = create<UiState>((set, get) => ({
   setKeysOpen: (keysOpen) => set({ keysOpen }),
   setDigest: (digest) => set({ digest }),
   setCustomizing: (customizing) => set({ customizing }),
-  openSession: (id, { at = null, q = '' } = {}) => set({ session: { id, at, q } }),
-  closeSession: () => set({ session: null }),
+  openSession: (id, { at = null, q = '' } = {}) => {
+    if (!get().session) opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    set({ session: { id, at, q } });
+  },
+  closeSession: () => {
+    if (!get().session) return;
+    set({ session: null });
+    giveFocusBack();
+  },
   setDocked: (on) => {
     writeSetting(DOCK_KEY, on ? '1' : null);
     set({ docked: on });
@@ -98,6 +105,24 @@ export const useUi = create<UiState>((set, get) => ({
     set({ nav });
   },
 }));
+
+// What had the focus when the panel opened gets it back when it closes, if
+// it's still there and nothing else has taken it.
+let opener: HTMLElement | null = null;
+function giveFocusBack() {
+  const to = opener;
+  opener = null;
+  requestAnimationFrame(() => {
+    const now = document.activeElement;
+    if (to?.isConnected && (!now || now === document.body)) to.focus({ preventScroll: true });
+  });
+}
+
+const roomyQuery = matchMedia('(min-width: 1100px)');
+
+/** Whether the open session's panel sits beside the page (docked, with room) rather than over it. */
+export const panelBeside = () =>
+  !!useUi.getState().session && useUi.getState().docked && roomyQuery.matches && !inPopover;
 
 /** Whether the session panel sits beside the page (docked, with room) rather than over it. */
 export function usePanelDocked() {

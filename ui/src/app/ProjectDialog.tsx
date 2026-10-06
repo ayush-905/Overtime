@@ -4,6 +4,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { Check } from 'lucide-react';
+import { RadioGroup } from 'radix-ui';
 import { projectHue, projectName } from '@/lib/format';
 import { projectPref, setProjectPref } from '@/lib/prefs';
 import { Dialog } from '@/components/Dialog';
@@ -89,12 +90,14 @@ export function ProjectDialog() {
         </label>
         <div className="flex flex-col gap-1.5">
           <span className="text-detail font-semibold">Colour</span>
-          <div role="radiogroup" aria-label="Colour" className="flex flex-wrap gap-2">
-            <button
-              type="button"
-              role="radio"
-              aria-checked={hue == null}
-              onClick={() => setHue(null)}
+          <RadioGroup.Root
+            aria-label="Colour"
+            value={hue == null ? 'auto' : String(hue)}
+            onValueChange={(v) => setHue(v === 'auto' ? null : Number(v))}
+            className="flex flex-wrap gap-2"
+          >
+            <RadioGroup.Item
+              value="auto"
               data-tip="From its name"
               className={cx(
                 'h-8 rounded-full border-2 px-3 text-detail font-semibold',
@@ -102,22 +105,19 @@ export function ProjectDialog() {
               )}
             >
               Auto
-            </button>
+            </RadioGroup.Item>
             {HUES.map((h) => (
-              <button
+              <RadioGroup.Item
                 key={h}
-                type="button"
-                role="radio"
-                aria-checked={hue === h}
+                value={String(h)}
                 aria-label={`Hue ${h}`}
-                onClick={() => setHue(h)}
                 className={cx(swatch, hue === h ? 'border-ink' : 'border-transparent')}
                 style={{ background: `hsl(${h} 55% 50%)` }}
               >
                 {hue === h && <Check size={14} strokeWidth={3} className="text-white" aria-hidden />}
-              </button>
+              </RadioGroup.Item>
             ))}
-          </div>
+          </RadioGroup.Root>
         </div>
         <p className="flex items-center gap-2 rounded-row bg-sunken px-3 py-2 text-body">
           <i className="size-2.5 rounded-full" style={{ background: `hsl(${shown} 55% 50%)` }} />

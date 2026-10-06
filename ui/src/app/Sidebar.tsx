@@ -173,11 +173,7 @@ function ProviderSwitch({ folded }: { folded: boolean }) {
     );
   }
   return (
-    <div
-      role="group"
-      aria-label="Provider"
-      className="grid auto-cols-fr grid-flow-col gap-0.5 rounded-[9px] bg-sunken p-[3px]"
-    >
+    <fieldset aria-label="Provider" className="grid auto-cols-fr grid-flow-col gap-0.5 rounded-[9px] bg-sunken p-[3px]">
       {PROVIDERS.map(([p, label, tip]) => (
         <button
           key={p}
@@ -193,7 +189,7 @@ function ProviderSwitch({ folded }: { folded: boolean }) {
           {label}
         </button>
       ))}
-    </div>
+    </fieldset>
   );
 }
 
@@ -237,6 +233,7 @@ function Edge() {
     else if (!folded) setSideWidth(width + by);
   };
   return (
+    // biome-ignore lint/a11y/useSemanticElements: a splitter you can focus and move with the arrow keys, which an <hr> can't be
     <div
       role="separator"
       aria-orientation="vertical"

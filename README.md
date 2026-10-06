@@ -68,8 +68,9 @@ A sidebar of sections, each a page of cards:
   it, pin it, give it a note and tags, **Compare** it with another session, or pick it back
   up: **Resume in Terminal** runs `claude --resume`, `codex resume` or `pi --session` in its folder, and
   **Open in the Claude app** (for sessions the app started) or **the Codex app** opens it
-  there. Dock the panel beside the page to keep it open as you move around.
-  `/#session=<id>` opens one directly.
+  there. Dock the panel beside the page to keep it open as you move around. The open
+  session is in the address, so a refresh keeps it, Back closes it, and **Copy link** (or
+  ⌘-click on any session) gives you a link to it. `/#session=<id>` opens one directly.
 - **Search.** ⌘K (Ctrl+K elsewhere) goes to any section, project or session, runs an
   action, and finds words inside your conversations of the last 30 days: every word, in any
   order, or a "phrase in quotes". That text stays in the server's memory, never on disk;
@@ -89,7 +90,8 @@ A sidebar of sections, each a page of cards:
 - **Undo.** Renaming, pinning, recolouring, changing a layout or hiding a section leaves a
   note with **Undo** for a few seconds (or ⌘Z).
 - **Keyboard.** `/` searches the page you're on, `j` and `k` step through a list and Enter
-  opens a row, `T` switches between light and dark, and `?` lists every shortcut.
+  opens a row, `T` switches between light and dark, and `?` lists every shortcut. Every
+  chart and card note can be reached and read out by a screen reader.
 - **Your settings are saved on disk**, in `~/.overtime/settings.json`, so clearing the
   browser loses nothing and every browser on the Mac gets the same ones. Settings → Data
   saves a copy, restores one, or resets everything.
@@ -296,6 +298,11 @@ draws at 30 frames a second, about 5%, while its tab is showing.
   terminal, say), the app uses that one; otherwise it runs its own, and your browser can
   still open <http://localhost:4777>. If the one it uses stops, it takes over within about
   10 seconds.
+- **When something stops.** A page whose process dies (the window's, the mini view's or the
+  office's) loads again where it was. If one keeps stopping, or the server does (six times
+  in a minute), the menu bar says so (**Stopped** beside the icon when it's the server), with
+  a notification, and its menu offers to start it again. While the window's page is down,
+  alerts can't arrive, so the menu says that too.
 - An app opened from the Dock gets a bare `PATH`, so it asks your login shell for yours,
   which is how it finds `codex` in Homebrew's or npm's folder.
 - Its log is in `~/Library/Logs/Overtime/overtime.log` (**Help → Show the Log**), with the run before in `overtime.old.log` beside it.
@@ -316,7 +323,7 @@ All optional.
 | `PI_CODING_AGENT_DIR` | Pi's folder, for `prompts/` (default `~/.pi/agent`) |
 | `CODEX_BIN` | The Codex executable for its live limits (default: the Codex app's own, else `codex`) |
 | `OVERTIME_PORT` | The port the Mac app prefers (default `4777`) |
-| `OVERTIME_USER_DATA` | The Mac app's own data folder, to run a second copy beside yours |
+| `OVERTIME_USER_DATA` | The Mac app's own data folder (and its log, in `logs/` there), to run a second copy beside yours |
 | `OVERTIME_DEBUG=1` | The Mac app logs to the terminal too |
 | `OVERTIME_UPDATE_FEED` | Where the Mac app looks for updates instead of GitHub Releases, such as a folder of builds served on this Mac |
 

@@ -213,7 +213,7 @@ function Side({ f, side, change }: { f: Figures; side: number; change: () => voi
     ? `${dayLabel(f.startedAt)}${f.lastAt && dayLabel(f.lastAt) !== dayLabel(f.startedAt) ? ` – ${dayLabel(f.lastAt)}` : ''}`
     : '';
   return (
-    <div
+    <section
       className="flex min-w-0 items-start gap-2.5 rounded-row border border-line bg-sunken/40 p-3"
       aria-label={side ? 'Right' : 'Left'}
     >
@@ -246,7 +246,7 @@ function Side({ f, side, change }: { f: Figures; side: number; change: () => voi
       <IconButton size="sm" variant="quiet" label="Pick another session" tip="Pick another" onClick={change}>
         <Pencil size={14} strokeWidth={2} aria-hidden />
       </IconButton>
-    </div>
+    </section>
   );
 }
 

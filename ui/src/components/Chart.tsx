@@ -2,7 +2,8 @@
 // table (Plot), the switch in a card's corner that picks between them, shares of
 // a whole as a list or a donut, and the week-view calendar and hour grid the time
 // cards use. Every column has a tooltip, and one that leads somewhere (a day's
-// sessions) is a link.
+// sessions) is a link. A screen reader hears each chart's name and every column's
+// tooltip as its own words.
 
 import type { CSSProperties, ReactNode } from 'react';
 import { AreaChart, BarChart3, Copy, Grid3x3, LineChart, List, PieChart, Table2 } from 'lucide-react';
@@ -17,6 +18,8 @@ export type Point = { value: number; current?: boolean; [key: string]: unknown }
 export type Segment = { value: number; color: string; name?: string };
 
 export type PlotOptions<V extends Point> = {
+  /** What the chart shows, for a screen reader: "Cost by day". */
+  label: string;
   tip: (v: V, i: number) => string;
   labels: string[];
   height?: number;
@@ -52,11 +55,14 @@ export function useChartKind(id: string, kinds: ChartKind[] = SERIES) {
   return chartKind(id, kinds);
 }
 
+/** A tooltip as words to read out: its lines, one after another. */
+export const spoken = (tip: string) => tip.replace(/\n+/g, '. ');
+
 /** The switch in a chart card's corner: one small button per style it offers. */
 export function ChartSwitch({ id, kinds = SERIES }: { id: string; kinds?: ChartKind[] }) {
   const on = useChartKind(id, kinds);
   return (
-    <div role="group" aria-label="Chart style" className="inline-flex gap-0.5 rounded-[8px] bg-sunken p-0.5">
+    <fieldset aria-label="Chart style" className="inline-flex gap-0.5 rounded-[8px] bg-sunken p-0.5">
       {kinds.map((k) => {
         const Icon = ICONS[k];
         return (
@@ -76,7 +82,7 @@ export function ChartSwitch({ id, kinds = SERIES }: { id: string; kinds?: ChartK
           </button>
         );
       })}
-    </div>
+    </fieldset>
   );
 }
 
@@ -103,12 +109,13 @@ function Column<V extends Point>({
     href && 'cursor-pointer hover:[&>*]:opacity-80',
     className,
   );
+  const text = tip(v, i);
   return href ? (
-    <a href={href} data-tip={tip(v, i)} className={cls} style={style}>
+    <a href={href} data-tip={text} aria-label={spoken(text)} className={cls} style={style}>
       {children}
     </a>
   ) : (
-    <span data-tip={tip(v, i)} className={cls} style={style}>
+    <span role="img" data-tip={text} aria-label={spoken(text)} className={cls} style={style}>
       {children}
     </span>
   );
@@ -156,6 +163,7 @@ function Gridlines({
     <div
       className="pointer-events-none absolute inset-x-0 border-t border-dashed border-line"
       style={{ bottom: `${at}%` }}
+      aria-hidden
     >
       <span className="absolute -top-2 left-0 bg-card pr-1 text-[10px] leading-none text-faint tnum">{label(v)}</span>
     </div>
@@ -169,6 +177,7 @@ function Gridlines({
 }
 
 function Bars<V extends Point>({
+  label,
   values,
   tip,
   labels,
@@ -185,7 +194,7 @@ function Bars<V extends Point>({
   const max = Math.max(...values.map((v) => v.value), 0);
   const top = valueText ? 84 : 100;
   return (
-    <div>
+    <figure aria-label={label}>
       <div className="relative" style={{ height }}>
         {!valueText && <Gridlines max={max} top={top} half={halfLine} label={gridLabel} />}
         <div className="absolute inset-0 flex items-end gap-[3px]">
@@ -198,6 +207,7 @@ function Bars<V extends Point>({
                   <b
                     className="absolute inset-x-0 text-center text-[10px] font-semibold text-muted tnum"
                     style={{ bottom: `calc(${h.toFixed(1)}% + 2px)` }}
+                    aria-hidden
                   >
                     {valueText(v, i)}
                   </b>
@@ -231,11 +241,12 @@ function Bars<V extends Point>({
         </div>
       </div>
       <Axis labels={labels} even={even} markLabel={markLabel} count={values.length} />
-    </div>
+    </figure>
   );
 }
 
 function Lines<V extends Point>({
+  label,
   values,
   tip,
   labels,
@@ -270,7 +281,7 @@ function Lines<V extends Point>({
       });
   }
   return (
-    <div>
+    <figure aria-label={label}>
       <div className="relative" style={{ height }}>
         {!valueText && <Gridlines max={max} top={top} half={halfLine} label={gridLabel} />}
         <svg
@@ -332,6 +343,7 @@ function Lines<V extends Point>({
                 <b
                   className="absolute inset-x-0 text-center text-[10px] font-semibold text-muted tnum"
                   style={{ bottom: `calc(${total[i].toFixed(1)}% + 7px)` }}
+                  aria-hidden
                 >
                   {valueText(v, i)}
                 </b>
@@ -348,7 +360,7 @@ function Lines<V extends Point>({
         </div>
       </div>
       <Axis labels={labels} even={even} markLabel={markLabel} count={n} />
-    </div>
+    </figure>
   );
 }
 
@@ -371,6 +383,7 @@ export function HeatLegend({ color = 'var(--s1)' }: { color?: string }) {
 }
 
 function Heat<V extends Point>({
+  label,
   values,
   tip,
   labels,
@@ -382,7 +395,7 @@ function Heat<V extends Point>({
 }: PlotOptions<V> & { values: V[] }) {
   const max = Math.max(...values.map((v) => v.value), 0);
   return (
-    <div>
+    <figure aria-label={label}>
       <div className="grid gap-[3px]" style={{ gridTemplateColumns: `repeat(${values.length}, minmax(0, 1fr))` }}>
         {values.map((v, i) => {
           const href = link?.(v, i);
@@ -391,20 +404,33 @@ function Heat<V extends Point>({
             v.current && 'ring-1 ring-ink/40',
           );
           const body =
-            // biome-ignore lint/correctness/useJsxKeyInIterable: the cell's content, not an item of the list (the cell around it has the key)
-            valueText && v.value > 0 ? <b className="mix-blend-difference text-white">{valueText(v, i)}</b> : null;
+            valueText && v.value > 0 ? (
+              // biome-ignore lint/correctness/useJsxKeyInIterable: the cell's content, not an item of the list (the cell around it has the key)
+              <b className="mix-blend-difference text-white" aria-hidden>
+                {valueText(v, i)}
+              </b>
+            ) : null;
+          const text = tip(v, i);
           return href ? (
             <a
               key={i}
               href={href}
-              data-tip={tip(v, i)}
+              data-tip={text}
+              aria-label={spoken(text)}
               className={cls}
               style={heatStyle(heatLevel(v.value, max), color)}
             >
               {body}
             </a>
           ) : (
-            <span key={i} data-tip={tip(v, i)} className={cls} style={heatStyle(heatLevel(v.value, max), color)}>
+            <span
+              key={i}
+              role="img"
+              data-tip={text}
+              aria-label={spoken(text)}
+              className={cls}
+              style={heatStyle(heatLevel(v.value, max), color)}
+            >
               {body}
             </span>
           );
@@ -412,11 +438,18 @@ function Heat<V extends Point>({
       </div>
       <Axis labels={labels} even={even} markLabel={markLabel} count={values.length} />
       <HeatLegend color={color} />
-    </div>
+    </figure>
   );
 }
 
-function DataTable<V extends Point>({ values, tip, link, height = 150, table }: PlotOptions<V> & { values: V[] }) {
+function DataTable<V extends Point>({
+  label,
+  values,
+  tip,
+  link,
+  height = 150,
+  table,
+}: PlotOptions<V> & { values: V[] }) {
   const head = table?.head || ['', 'Value', 'More'];
   let rows = values.map((v, i) => {
     const cells = table
@@ -442,11 +475,13 @@ function DataTable<V extends Point>({ values, tip, link, height = 150, table }: 
   return (
     <div className="flex flex-col gap-1.5">
       <div
+        // biome-ignore lint/a11y/noNoninteractiveTabindex: it scrolls, so it takes the focus for the arrow keys
         tabIndex={0}
         className="overflow-auto rounded-row border border-line"
         style={{ maxHeight: Math.max(150, height + 26) }}
       >
         <table className="w-full text-detail tnum">
+          <caption className="sr-only">{label}</caption>
           <thead className="sticky top-0 bg-sunken text-label text-muted">
             <tr>
               {head.map((h, i) => (
@@ -584,7 +619,8 @@ export function Donut({ items, total }: { items: Share[]; total: number }) {
   let at = 0;
   return (
     <div className="flex flex-wrap items-center gap-5">
-      <svg viewBox="0 0 42 42" role="img" aria-label="Shares of the total" className="size-32 shrink-0 -rotate-90">
+      {/* The list beside it says every share, so a screen reader skips the ring. */}
+      <svg viewBox="0 0 42 42" aria-hidden className="size-32 shrink-0 -rotate-90">
         <circle r={R} cx={21} cy={21} fill="none" stroke="var(--sunken)" strokeWidth={7} />
         {items.map((it, i) => {
           const share = total > 0 ? (it.value / total) * 100 : 0;
@@ -637,18 +673,28 @@ export function Donut({ items, total }: { items: Share[]; total: number }) {
 
 /** Hour of the day by day of the week, darker for more: when in the week you work. */
 export function HourGrid({
+  label,
   grid,
   tip,
   color = 'var(--s1)',
 }: {
+  label: string;
   grid: number[][];
   tip: (day: number, hour: number, v: number) => string;
   color?: string;
 }) {
   const max = Math.max(...grid.flat(), 0);
+  // A screen reader hears the grid as one picture: what it shows, and its busiest hour.
+  const day = WEEK_ORDER.find((d) => grid[d].includes(max));
+  const busiest = max > 0 && day != null ? `. Busiest: ${spoken(tip(day, grid[day].indexOf(max), max))}` : '';
   return (
     <div>
-      <div className="grid items-center gap-[2px]" style={{ gridTemplateColumns: '32px repeat(24, minmax(0, 1fr))' }}>
+      <div
+        role="img"
+        aria-label={`${label}${busiest}`}
+        className="grid items-center gap-[2px]"
+        style={{ gridTemplateColumns: '32px repeat(24, minmax(0, 1fr))' }}
+      >
         {WEEK_ORDER.map((d) => (
           <div key={d} className="contents">
             <span className="text-label text-muted">{WEEKDAY_NAMES[d].slice(0, 3)}</span>
@@ -693,11 +739,13 @@ export type CalendarColumn = { day: number; label: string; current?: boolean; ti
  * midnight). The hours shown fit the blocks.
  */
 export function Calendar({
+  label,
   columns,
   height = 180,
   now = null,
   dayHour = workdayHour(),
 }: {
+  label: string;
   columns: CalendarColumn[];
   height?: number;
   now?: number | null;
@@ -722,7 +770,7 @@ export function Calendar({
   // Moves once a minute, so the card isn't redrawn every second.
   const minute = now == null ? null : Math.floor(now / MINUTE) * MINUTE;
   return (
-    <div className="grid gap-x-2" style={{ gridTemplateColumns: '40px minmax(0, 1fr)' }}>
+    <figure aria-label={label} className="grid gap-x-2" style={{ gridTemplateColumns: '40px minmax(0, 1fr)' }}>
       <div className="relative text-label text-muted" style={{ height }} aria-hidden>
         {marks.map(([off, h]) => (
           <span key={off} className="absolute right-0 -translate-y-1/2 tnum" style={{ top: `${y(off).toFixed(2)}%` }}>
@@ -746,7 +794,13 @@ export function Calendar({
           style={{ gridTemplateColumns: `repeat(${columns.length}, minmax(0, 1fr))` }}
         >
           {columns.map((c) => (
-            <span key={c.day} data-tip={c.tip} className={cx('relative rounded-[4px]', c.current && 'bg-sunken/60')}>
+            <span
+              key={c.day}
+              role="img"
+              data-tip={c.tip}
+              aria-label={`${c.label}: ${c.tip ? spoken(c.tip) : 'nothing'}`}
+              className={cx('relative rounded-[4px]', c.current && 'bg-sunken/60')}
+            >
               {c.blocks.map((b, i) => {
                 const from = Math.max(b.from, c.day + lo);
                 const to = Math.min(b.to, c.day + hi);
@@ -792,6 +846,6 @@ export function Calendar({
           </span>
         ))}
       </div>
-    </div>
+    </figure>
   );
 }

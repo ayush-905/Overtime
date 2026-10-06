@@ -44,7 +44,7 @@ export function TurnDurationCard({ expanded = false }: { expanded?: boolean }) {
             <Stat label="P90" value={duration(data.p90Ms)} />
             <Stat label="Longest" value={duration(data.maxMs)} />
           </StatRow>
-          <div className="turn-distribution mt-4" aria-label="Turn-duration distribution">
+          <figure className="turn-distribution mt-4" aria-label="Turn-duration distribution">
             {data.buckets.map((bucket) => (
               <div key={bucket.label} className="flex min-w-0 flex-col gap-1.5">
                 <div className="flex items-center justify-between gap-1 text-label">
@@ -59,7 +59,7 @@ export function TurnDurationCard({ expanded = false }: { expanded?: boolean }) {
                 </div>
               </div>
             ))}
-          </div>
+          </figure>
           <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-label text-muted">
             <span>
               {plural(data.count, 'sampled turn')}

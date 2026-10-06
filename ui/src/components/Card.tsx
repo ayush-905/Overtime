@@ -58,9 +58,11 @@ export function Eyebrow({ children, className }: { children: ReactNode; classNam
 
 /** The ⓘ in a card's tools: what the card counts, and how, in its tooltip. */
 export function InfoTip({ note }: { note: string }) {
+  // A button, so the keyboard reaches it and its tip shows on focus; a screen reader reads the note out.
   return (
-    <span data-tip={note} className="text-muted">
-      <Info size={15} strokeWidth={1.8} aria-label="About this card" />
-    </span>
+    <button type="button" data-tip={note} className="grid place-items-center rounded-sm text-muted hover:text-ink">
+      <Info size={15} strokeWidth={1.8} aria-hidden />
+      <span className="sr-only">About this card: {note}</span>
+    </button>
   );
 }

@@ -6,7 +6,6 @@
 // minute, a fraction of a percent across.
 
 import { useMemo, useState } from 'react';
-import { Info } from 'lucide-react';
 import { useHasInsights, useInsight, useProvider, useScopedAgents, useSources } from '@/data/scope';
 import { useChanged, useMinute } from '@/data/hooks';
 import { clip, clock, duration, hourLabel, money, plural, projectName } from '@/lib/format';
@@ -15,9 +14,9 @@ import { titleFor } from '@/lib/labels';
 import { byTokens, measureOf, otherText, something, valueShort } from '@/lib/measure';
 import { timelineModel, total } from '@/lib/timeline';
 import { liveStateOf } from '@/lib/agents';
-import { Card, CardHead } from '@/components/Card';
+import { Card, CardHead, InfoTip } from '@/components/Card';
+import { SessionLink } from '@/components/SessionRow';
 import { Avatar, Empty, Insight, Skeleton } from '@/components/Bits';
-import { useUi } from '@/app/ui';
 import { useCompact } from '@/app/layout';
 import { cx } from '@/components/cx';
 import { ExpandButton } from './Expand';
@@ -54,7 +53,6 @@ export function TimelineCard({ expanded = false }: { expanded?: boolean }) {
   const minute = useMinute();
   const agents = useScopedAgents();
   const hasInsights = useHasInsights();
-  const openSession = useUi((s) => s.openSession);
   const [showAll, setShowAll] = useState(false);
   // Narrow (a phone, the popover), each session's name sits over its bar.
   const stacked = useCompact();
@@ -67,9 +65,7 @@ export function TimelineCard({ expanded = false }: { expanded?: boolean }) {
   const title = "Today's timeline";
   const tools = (
     <>
-      <span data-tip={NOTE} className="grid size-7 place-items-center text-muted" aria-label={NOTE}>
-        <Info size={15} strokeWidth={1.8} aria-hidden />
-      </span>
+      <InfoTip note={NOTE} />
       {!expanded && <ExpandButton card="timeline" />}
     </>
   );
@@ -102,7 +98,7 @@ export function TimelineCard({ expanded = false }: { expanded?: boolean }) {
   return (
     <Card aria-label={title} className="flex flex-col gap-3">
       <CardHead className="mb-0" title={title} sub={m.summary} tools={tools} />
-      <div className="relative flex flex-col" role="list" aria-label="Sessions today">
+      <div className="relative flex flex-col">
         <div className="grid h-5 gap-4" style={grid} aria-hidden>
           {!stacked && <span />}
           <div className="relative">
@@ -122,94 +118,96 @@ export function TimelineCard({ expanded = false }: { expanded?: boolean }) {
               ))}
           </div>
         </div>
-        {lanes.map((l) => {
-          const status = agents.find((a) => a.id === l.id);
-          const waitMs = total(l.waits);
-          const tip = [
-            titleFor(l.id, l.title),
-            [
-              l.project && projectName(l.project),
-              something(measureOf(l))
-                ? `${tokens ? `${valueShort(l.tokens)} tokens · ${otherText(l)}` : `≈ ${money(l.cost)}${l.partial ? '+' : ''} · ${otherText(l)}`} today`
-                : '',
+        <ul aria-label="Sessions today" className="flex flex-col">
+          {lanes.map((l) => {
+            const status = agents.find((a) => a.id === l.id);
+            const waitMs = total(l.waits);
+            const worked = `Agents worked ${duration(l.busyMs)}${waitMs ? `, waited ${duration(waitMs)} for you` : ''} · ${plural(l.messages.length, 'message')} from you`;
+            const tip = [
+              titleFor(l.id, l.title),
+              [
+                l.project && projectName(l.project),
+                something(measureOf(l))
+                  ? `${tokens ? `${valueShort(l.tokens)} tokens · ${otherText(l)}` : `≈ ${money(l.cost)}${l.partial ? '+' : ''} · ${otherText(l)}`} today`
+                  : '',
+              ]
+                .filter(Boolean)
+                .join(' · '),
+              worked,
+              'Click for details',
             ]
               .filter(Boolean)
-              .join(' · '),
-            `Agents worked ${duration(l.busyMs)}${waitMs ? `, waited ${duration(waitMs)} for you` : ''} · ${plural(l.messages.length, 'message')} from you`,
-            'Click for details',
-          ]
-            .filter(Boolean)
-            .join('\n');
-          return (
-            <div
-              key={l.id}
-              role="listitem"
-              tabIndex={0}
-              data-row=""
-              data-session={l.id}
-              data-tip={tip}
-              onClick={() => openSession(l.id)}
-              onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), openSession(l.id))}
-              className={cx(
-                'grid cursor-pointer rounded-sm outline-offset-[-2px] hover:bg-[color-mix(in_srgb,var(--ink)_3%,transparent)]',
-                stacked ? 'gap-1.5 py-1.5' : 'h-10 items-center gap-4',
-              )}
-              style={grid}
-            >
-              <span className="flex min-w-0 items-center gap-2.5">
-                <Avatar source={l.source} status={status ? liveStateOf(status) : null} size={18} />
-                <span className="flex min-w-0 flex-col">
-                  <span className="truncate text-detail font-semibold">{clip(titleFor(l.id, l.title), 60)}</span>
-                  <span className="truncate text-label text-muted">
-                    {[l.project && projectName(l.project), figure(l)].filter(Boolean).join(' · ')}
+              .join('\n');
+            return (
+              <li key={l.id}>
+                <SessionLink
+                  id={l.id}
+                  data-row=""
+                  data-session={l.id}
+                  data-tip={tip}
+                  className={cx(
+                    'grid rounded-sm outline-offset-[-2px] hover:bg-[color-mix(in_srgb,var(--ink)_3%,transparent)]',
+                    stacked ? 'gap-1.5 py-1.5' : 'h-10 items-center gap-4',
+                  )}
+                  style={grid}
+                >
+                  <span className="sr-only">{worked}</span>
+                  <span className="flex min-w-0 items-center gap-2.5">
+                    <Avatar source={l.source} status={status ? liveStateOf(status) : null} size={18} />
+                    <span className="flex min-w-0 flex-col">
+                      <span className="truncate text-detail font-semibold">{clip(titleFor(l.id, l.title), 60)}</span>
+                      <span className="truncate text-label text-muted">
+                        {[l.project && projectName(l.project), figure(l)].filter(Boolean).join(' · ')}
+                      </span>
+                    </span>
                   </span>
-                </span>
-              </span>
-              <span className="relative block h-3 rounded-[6px] bg-sunken">
-                {l.waits.map(([a, b], i) => (
-                  <span
-                    key={`w${i}`}
-                    data-tip={`Waited for you ${m.spanText(a, b)} (${duration(b - a)})`}
-                    className="absolute inset-y-0 box-border rounded-[4px] border border-warn-line bg-warn-soft"
-                    style={{ left: pos(a), width: wid(a, b) }}
-                  />
-                ))}
-                {l.work.map(([a, b], i) => (
-                  <span
-                    key={`k${i}`}
-                    data-tip={`Working ${m.spanText(a, b)} (${duration(b - a)})`}
-                    className={cx('absolute inset-y-0 min-w-[3px] rounded-[4px]', sourceInfo(l.source).bg)}
-                    style={{ left: pos(a), width: wid(a, b) }}
-                  />
-                ))}
-                {l.sub.map(([a, b], i) => (
-                  <span
-                    key={`s${i}`}
-                    data-tip={`Subagents working ${m.spanText(a, b)} (${duration(b - a)})`}
-                    className={cx(
-                      'absolute -bottom-1 h-[3px] min-w-[3px] rounded-full opacity-60',
-                      sourceInfo(l.source).bg,
-                    )}
-                    style={{ left: pos(a), width: wid(a, b) }}
-                  />
-                ))}
-                <span
-                  className="absolute -inset-y-1 w-0.5 -translate-x-1/2 rounded-full bg-ink/70"
-                  style={{ left: pos(now) }}
-                  aria-hidden
-                />
-                {l.messages.map((t) => (
-                  <span
-                    key={`m${t}`}
-                    data-tip={`You sent a message at ${clock(t)}`}
-                    className="absolute -inset-y-0.5 w-0.5 -translate-x-1/2 rounded-full bg-ink"
-                    style={{ left: pos(t) }}
-                  />
-                ))}
-              </span>
-            </div>
-          );
-        })}
+                  <span className="relative block h-3 rounded-[6px] bg-sunken">
+                    {l.waits.map(([a, b], i) => (
+                      <span
+                        key={`w${i}`}
+                        data-tip={`Waited for you ${m.spanText(a, b)} (${duration(b - a)})`}
+                        className="absolute inset-y-0 box-border rounded-[4px] border border-warn-line bg-warn-soft"
+                        style={{ left: pos(a), width: wid(a, b) }}
+                      />
+                    ))}
+                    {l.work.map(([a, b], i) => (
+                      <span
+                        key={`k${i}`}
+                        data-tip={`Working ${m.spanText(a, b)} (${duration(b - a)})`}
+                        className={cx('absolute inset-y-0 min-w-[3px] rounded-[4px]', sourceInfo(l.source).bg)}
+                        style={{ left: pos(a), width: wid(a, b) }}
+                      />
+                    ))}
+                    {l.sub.map(([a, b], i) => (
+                      <span
+                        key={`s${i}`}
+                        data-tip={`Subagents working ${m.spanText(a, b)} (${duration(b - a)})`}
+                        className={cx(
+                          'absolute -bottom-1 h-[3px] min-w-[3px] rounded-full opacity-60',
+                          sourceInfo(l.source).bg,
+                        )}
+                        style={{ left: pos(a), width: wid(a, b) }}
+                      />
+                    ))}
+                    <span
+                      className="absolute -inset-y-1 w-0.5 -translate-x-1/2 rounded-full bg-ink/70"
+                      style={{ left: pos(now) }}
+                      aria-hidden
+                    />
+                    {l.messages.map((t) => (
+                      <span
+                        key={`m${t}`}
+                        data-tip={`You sent a message at ${clock(t)}`}
+                        className="absolute -inset-y-0.5 w-0.5 -translate-x-1/2 rounded-full bg-ink"
+                        style={{ left: pos(t) }}
+                      />
+                    ))}
+                  </span>
+                </SessionLink>
+              </li>
+            );
+          })}
+        </ul>
         <div
           className={cx('mt-1 grid border-t border-line', stacked ? 'gap-1.5 pt-2' : 'h-11 items-center gap-4')}
           style={grid}

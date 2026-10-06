@@ -136,6 +136,7 @@ export function AgentHoursCard({ expanded = false }: { expanded?: boolean }) {
         sub={`a day on average, over the ${plural(worked.length, 'day')} agents worked${today.wallMs ? ` · ${duration(today.wallMs)} today` : ''}`}
       />
       <Plot
+        label="Agent hours by day"
         kind={kind}
         values={days.map((d) => ({ value: d.wallMs, current: d === today, d }))}
         color="var(--claude)"
@@ -252,6 +253,7 @@ export function TotalAgentTimeCard({ expanded = false }: { expanded?: boolean })
         sub={`of agent time this week${weekOverlap >= MINUTE ? `, ${hoursText(weekOverlap)} of it from agents running at the same time` : ''}`}
       />
       <Plot
+        label="Total agent time by day"
         kind={kind}
         values={days.map((d) => ({ value: d.agentMs || 0, current: d === today, d }))}
         color="var(--claude)"
@@ -391,7 +393,7 @@ export function AgentWorkCard() {
         value={typical ? `${atOffset(a.typicalStart!)} – ${atOffset(a.typicalStop!)}` : '—'}
         sub={`${typical ? 'a typical day, first to last agent activity' : 'Not enough days yet for a typical day'}${hasWork(today) ? ` · today since ${clock(today.first)}` : ''}`}
       />
-      <Calendar columns={columns} height={170} now={now} />
+      <Calendar label="When your agents worked, last 14 days" columns={columns} height={170} now={now} />
       <p className="flex flex-wrap gap-x-4 gap-y-1 text-label text-muted" aria-hidden>
         <span className="inline-flex items-center gap-1.5">
           <i className="size-2 rounded-[2px] bg-claude" />
@@ -499,6 +501,7 @@ export function ParallelCard() {
         <h3 className="text-detail font-semibold text-muted">Today, by hour</h3>
         {top ? (
           <Plot
+            label="Agents at once, by hour of the day"
             kind={kind}
             values={p.hours.map((h, i) => ({ value: h.max, current: i === hourNow, h, i }))}
             color="var(--claude)"
@@ -741,6 +744,7 @@ export function SkillsCard() {
           <Empty>No skills used in the last 30 days{k.offered ? `, of the ${k.offered} on offer` : ''}.</Empty>
         ) : kind === 'table' ? (
           <Plot
+            label="Skills"
             kind="table"
             values={k.used.map((s) => ({ value: s.uses, s }))}
             tip={(v) => skillTip(v.s)}

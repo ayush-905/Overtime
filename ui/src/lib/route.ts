@@ -1,6 +1,7 @@
 // Where you are, in the address: `#sessions?project=shop&range=7` opens the
-// Sessions page with those filters, so a view can be bookmarked, shared with
-// another tab, or opened straight from a card or the Mac app.
+// Sessions page with those filters, and `&session=<id>` a session's panel over
+// it, so a view can be bookmarked, shared with another tab, or opened straight
+// from a card or the Mac app.
 
 export type Params = Record<string, string>;
 
@@ -15,16 +16,20 @@ export function pageLink(page: string, params: Record<string, string | number | 
   return `#${page}${text ? `?${text}` : ''}`;
 }
 
+/** A link to a session: its panel, over the section you're on. */
+export const sessionLink = (id: string) => `#session=${encodeURIComponent(id)}`;
+
 /** `#sessions?range=7` → { page: 'sessions', params: { range: '7' } }. */
 export function parseHash(hash = location.hash): { page: string; params: Params } {
   const [page, query = ''] = hash.replace(/^#/, '').split('?');
   return { page, params: Object.fromEntries(new URLSearchParams(query)) };
 }
 
-/** Keep the address in step with a page's filters, without a new history entry. */
+/** Keep the address in step with a page's filters, without a new history entry. A session open over it stays. */
 export function replaceParams(page: string, params: Record<string, string | number | null | undefined>) {
-  if (parseHash().page !== page) return;
-  const next = pageLink(page, params);
+  const here = parseHash();
+  if (here.page !== page) return;
+  const next = pageLink(page, { ...params, session: here.params.session });
   if (next !== location.hash) history.replaceState(history.state, '', next);
 }
 

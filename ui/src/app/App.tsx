@@ -10,11 +10,28 @@ import { startLimits } from '@/data/limits';
 import { Overview } from '@/pages/Overview';
 import { Skeleton } from '@/components/Bits';
 import { Card } from '@/components/Card';
+import { useAlerts } from './alerts';
+import { useGlance } from './glance';
+import { useArrange, useCommand, useCompare, useExpand, useProjectDialog, useReset } from './dialogs';
+import { MAIN, startRouter, useRoute, type RoutePage } from './router';
+import { restoreScroll, startBack } from './back';
+import { panelBeside, useUi, usePanelDocked } from './ui';
+import { Sidebar } from './Sidebar';
+import { CompactHeader, TabBar } from './Compact';
+import { useShortcuts } from './keys';
+import { TooltipLayer } from './Tooltip';
+import { Toasts } from './toasts';
+import { useCompact } from './layout';
+import { later, loadInQuiet, loadLater } from './later';
+import { PageHeader } from './PageHeader';
 
-// The Overview comes with the page; the other sections load the first time they're opened,
-// so the window and the popover start sooner.
-const section = <K extends string>(load: () => Promise<Record<K, ComponentType>>, name: K) =>
-  lazy(() => load().then((m) => ({ default: m[name] })));
+// The Overview comes with the page; the other sections load in the first quiet
+// moment after startup (later.tsx), or the moment they're opened if that's sooner,
+// so the window and the popover start sooner and a section opens at once.
+const section = <K extends string>(load: () => Promise<Record<K, ComponentType>>, name: K) => {
+  loadInQuiet(load);
+  return lazy(() => load().then((m) => ({ default: m[name] })));
+};
 const Sessions = section(() => import('@/pages/Sessions'), 'Sessions');
 const Projects = section(() => import('@/pages/Projects'), 'Projects');
 const Usage = section(() => import('@/pages/Usage'), 'Usage');
@@ -24,27 +41,22 @@ const You = section(() => import('@/pages/You'), 'You');
 const Settings = section(() => import('@/pages/Settings'), 'Settings');
 const Parts = section(() => import('@/pages/Parts'), 'Parts');
 
-function Loading() {
+/** A section still on its way: its title, and its cards' outlines. */
+function Loading({ page }: { page: RoutePage }) {
   return (
-    <Card aria-busy="true">
-      <Skeleton lines={5} />
-    </Card>
+    <>
+      <PageHeader title={page === 'parts' ? 'Parts' : TITLES[page]} />
+      <div className="grid gap-[var(--page-gap)] @min-[900px]:grid-cols-2">
+        <Card>
+          <Skeleton lines={5} />
+        </Card>
+        <Card>
+          <Skeleton lines={5} />
+        </Card>
+      </div>
+    </>
   );
 }
-import { useAlerts } from './alerts';
-import { useGlance } from './glance';
-import { useArrange, useCommand, useCompare, useExpand, useProjectDialog, useReset } from './dialogs';
-import { MAIN, startRouter, useRoute, type RoutePage } from './router';
-import { restoreScroll, startBack } from './back';
-import { useUi, usePanelDocked } from './ui';
-import { Sidebar } from './Sidebar';
-import { CompactHeader, TabBar } from './Compact';
-import { useShortcuts } from './keys';
-import { TooltipLayer } from './Tooltip';
-import { Toasts } from './toasts';
-import { useCompact } from './layout';
-import { later, loadLater } from './later';
-import { inPopover } from '@/data/desktop';
 
 // What opens only now and then loads later (later.tsx), and is only there while it's open.
 const SessionPanel = later(() => import('./SessionPanel').then((m) => m.SessionPanel));
@@ -98,7 +110,7 @@ function closeOver() {
   else if (useCommand.getState().group) useCommand.getState().close();
   else if (useReset.getState().mode) useReset.getState().close();
   else if (expand.card) expand.set(null);
-  else if (ui.session && !(ui.docked && matchMedia('(min-width: 1100px)').matches && !inPopover)) ui.closeSession();
+  else if (ui.session && !panelBeside()) ui.closeSession();
   else return false;
   return true;
 }
@@ -156,10 +168,11 @@ export function App() {
   useAlerts(MAIN);
   useGlance();
   const page = useRoute((s) => s.page);
-  const session = useRoute((s) => s.session);
   const compact = useCompact();
   const beside = usePanelDocked();
   const open = useUi((s) => !!s.session);
+  // A floating panel is the only thing to use: the page behind it is out of reach (and the focus with it).
+  const covered = open && !beside;
 
   useEffect(() => {
     document.documentElement.classList.toggle('compact', compact);
@@ -170,18 +183,11 @@ export function App() {
     restoreScroll();
   }, [page]);
 
-  // #session=<id> in the address opens its panel over the page you were on.
-  useEffect(() => {
-    if (!session) return;
-    useRoute.getState().sessionHandled();
-    useUi.getState().openSession(session);
-  }, [session]);
-
   // The page is a container: its cards lay out by the room they have, which a docked panel takes some of.
   const content = (
     <div className="@container min-w-0 flex flex-col gap-[var(--page-gap)]">
       <Offline />
-      <Suspense fallback={<Loading />}>
+      <Suspense fallback={<Loading page={page} />}>
         <PageFor page={page} />
       </Suspense>
     </div>
@@ -191,19 +197,19 @@ export function App() {
     <>
       <Title page={page} />
       {compact ? (
-        <div className="compact-shell min-h-dvh min-w-0 pb-[var(--tabbar-h)]">
+        <div className="compact-shell min-h-dvh min-w-0 pb-[var(--tabbar-h)]" inert={covered}>
           <CompactHeader />
           <main className="min-w-0 px-3.5 pb-6 pt-2">{content}</main>
           <TabBar />
         </div>
       ) : (
-        <div className="flex min-h-dvh">
+        <div className="flex min-h-dvh" inert={covered}>
           <Sidebar />
           <main className="min-w-0 grow px-10 pb-10 pt-7 max-[1100px]:px-6">{content}</main>
           {beside && <SessionPanel />}
         </div>
       )}
-      {open && !beside && <SessionPanel />}
+      {covered && <SessionPanel />}
       <Dialogs />
       <Toasts />
       <TooltipLayer />

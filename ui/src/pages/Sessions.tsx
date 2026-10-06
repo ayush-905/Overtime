@@ -329,7 +329,7 @@ const ViewsBar = memo(function ViewsBar() {
     offerUndo(`Saved the view “${clip(name, 40)}”`, () => put(before.filter((x) => x.id !== v.id)));
   };
   return (
-    <div role="group" aria-label="Saved views" className="flex flex-wrap items-center gap-2">
+    <fieldset aria-label="Saved views" className="min-w-0 flex flex-wrap items-center gap-2">
       {views.length > 0 && (
         <span className="text-group font-semibold uppercase tracking-[0.06em] text-muted">Views</span>
       )}
@@ -404,7 +404,7 @@ const ViewsBar = memo(function ViewsBar() {
           </button>
         )
       )}
-    </div>
+    </fieldset>
   );
 });
 
@@ -548,21 +548,24 @@ const GroupHead = memo(function GroupHead({
     <div
       className={cx('flex items-center gap-3 border-b border-line pb-1.5 pt-4 text-detail', pinned && 'text-accent')}
     >
-      <button
-        type="button"
-        aria-expanded={open}
-        onClick={onToggle}
-        className="flex min-w-0 grow items-center gap-2 text-left font-semibold text-ink hover:text-accent"
-      >
-        <ChevronDown
-          size={15}
-          strokeWidth={2}
-          className={cx('w-5 shrink-0 text-muted transition-transform', !open && '-rotate-90')}
-          aria-hidden
-        />
-        <span className="truncate">{name}</span>
-        <small className="shrink-0 font-normal text-muted">{plural(items.length, 'session')}</small>
-      </button>
+      {/* A heading per day, so a screen reader can step from one to the next. */}
+      <h3 className="flex min-w-0 grow">
+        <button
+          type="button"
+          aria-expanded={open}
+          onClick={onToggle}
+          className="flex min-w-0 grow items-center gap-2 text-left font-semibold text-ink hover:text-accent"
+        >
+          <ChevronDown
+            size={15}
+            strokeWidth={2}
+            className={cx('w-5 shrink-0 text-muted transition-transform', !open && '-rotate-90')}
+            aria-hidden
+          />
+          <span className="truncate">{name}</span>
+          <small className="shrink-0 font-normal text-muted">{plural(items.length, 'session')}</small>
+        </button>
+      </h3>
       <span className={cx(COLS, W.messages, 'text-muted')}>{sum('messages') ? compact(sum('messages')) : ''}</span>
       <span className={cx(COLS, W.agentMs, 'text-muted')}>{sum('agentMs') ? duration(sum('agentMs')) : ''}</span>
       <span className={cx(COLS, W.lines, 'text-muted')}>
@@ -772,7 +775,7 @@ function List({
     const { groups, left: l } = groupedRows;
     left = l;
     body = groups.map((g) => (
-      <div key={g.key} role="group" aria-label={g.key === PINNED ? 'Pinned' : dayName(g.key)}>
+      <div key={g.key}>
         <GroupHead
           name={g.key === PINNED ? 'Pinned' : dayName(g.key)}
           items={g.items}
@@ -851,13 +854,9 @@ export function Sessions() {
         id="h-sessions"
         sub="Every session from the last 30 days · costs at API list prices"
       />
-      <div
-        role="group"
-        aria-label="Filters"
-        className="session-filters -mt-1 flex min-w-0 flex-wrap items-center gap-2"
-      >
+      <fieldset aria-label="Filters" className="session-filters -mt-1 flex min-w-0 flex-wrap items-center gap-2">
         <Tools projects={projects} />
-      </div>
+      </fieldset>
       <ViewsBar />
       {!data ? (
         isError ? (

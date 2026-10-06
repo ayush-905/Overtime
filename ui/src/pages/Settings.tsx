@@ -6,6 +6,7 @@
 
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { AreaChart, BarChart3, Check, ExternalLink, LineChart } from 'lucide-react';
+import { RadioGroup } from 'radix-ui';
 import { useQuery } from '@tanstack/react-query';
 import { useChanged, MOD } from '@/data/hooks';
 import { useLive, setServerPrefs } from '@/data/live';
@@ -185,7 +186,12 @@ function Appearance() {
         note="The accent and the sidebar's tint, each with a version for the dark theme. Claude Code, Codex and Pi keep their own colours, and red, green and amber always mean the same things."
         stack
       >
-        <div role="radiogroup" aria-label="Colour theme" className="flex flex-wrap gap-1.5">
+        <RadioGroup.Root
+          aria-label="Colour theme"
+          value={String(current)}
+          onValueChange={setPaletteTheme}
+          className="flex flex-wrap gap-1.5"
+        >
           {[
             ...THEMES,
             {
@@ -195,12 +201,9 @@ function Appearance() {
               light: { accent: custom?.accent || THEMES[0].light.accent },
             },
           ].map((t) => (
-            <button
+            <RadioGroup.Item
               key={t.id}
-              type="button"
-              role="radio"
-              aria-checked={current === t.id}
-              onClick={() => setPaletteTheme(t.id)}
+              value={t.id}
               data-tip={('note' in t && t.note) || t.name}
               className={cx(
                 'flex h-8 items-center gap-2 rounded-control border px-2.5 text-detail',
@@ -219,24 +222,26 @@ function Appearance() {
               />
               {t.name}
               {current === t.id && <Check size={13} strokeWidth={2.2} aria-hidden />}
-            </button>
+            </RadioGroup.Item>
           ))}
-        </div>
+        </RadioGroup.Root>
         {custom && (
           <div className="flex flex-col gap-1.5">
             <span className="text-detail text-muted">
               Your accent. The dark theme gets a lighter version of it, worked out for you.
             </span>
-            <div role="radiogroup" aria-label="Accent" className="flex flex-wrap gap-1.5">
+            <RadioGroup.Root
+              aria-label="Accent"
+              value={custom.accent}
+              onValueChange={(c) => setCustomColor('accent', c)}
+              className="flex flex-wrap gap-1.5"
+            >
               {SWATCHES.map(([c, name]) => (
-                <button
+                <RadioGroup.Item
                   key={c}
-                  type="button"
-                  role="radio"
-                  aria-checked={custom.accent === c}
+                  value={c}
                   aria-label={name}
                   data-tip={name}
-                  onClick={() => setCustomColor('accent', c)}
                   className={cx(
                     'grid size-7 place-items-center rounded-full border-2',
                     custom.accent === c ? 'border-ink' : 'border-transparent',
@@ -244,9 +249,9 @@ function Appearance() {
                   style={{ background: c }}
                 >
                   {custom.accent === c && <Check size={13} strokeWidth={3} className="text-white" aria-hidden />}
-                </button>
+                </RadioGroup.Item>
               ))}
-            </div>
+            </RadioGroup.Root>
           </div>
         )}
       </Row>
@@ -271,7 +276,7 @@ function Appearance() {
         note="How charts are drawn, unless you pick another style on a card with the small switch in its corner. Heatmaps and a donut are on the cards they suit."
       >
         <div className="flex flex-wrap items-center gap-3">
-          <div role="group" aria-label="Charts" className="inline-flex gap-0.5 rounded-[9px] bg-sunken p-[3px]">
+          <fieldset aria-label="Charts" className="inline-flex gap-0.5 rounded-[9px] bg-sunken p-[3px]">
             {(['bars', 'line', 'area'] as ChartKind[]).map((k) => {
               const Icon = icons[k]!;
               return (
@@ -290,7 +295,7 @@ function Appearance() {
                 </button>
               );
             })}
-          </div>
+          </fieldset>
           {customized > 0 && (
             <button
               type="button"

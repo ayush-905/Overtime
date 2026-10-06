@@ -280,7 +280,7 @@ const Detail = memo(function Detail({
     tip = `One session, “${clip(titleFor(biggest.id, biggest.title), 50)}”, is ${Math.round((measureOf(biggest) / measureOf(p)) * 100)}% of this project's ${tokens ? 'tokens' : 'cost'}.`;
 
   return (
-    <Card aria-live="polite" aria-label={projectName(p.name)} className="flex flex-col gap-5">
+    <Card data-project-detail="" aria-label={projectName(p.name)} className="flex flex-col gap-5">
       <header className="flex flex-wrap items-start gap-x-4 gap-y-2">
         <div className="flex min-w-0 flex-col gap-0.5">
           <h2 className="flex items-center gap-2 text-title font-semibold">
@@ -348,6 +348,7 @@ const Detail = memo(function Detail({
           <ChartSwitch id="project-daily" />
         </div>
         <Plot
+          label={`${tokens ? 'Daily tokens' : 'Daily cost'} for ${projectName(p.name)}, last ${days} days`}
           kind={kind}
           values={bars}
           color={projectColor(p.name)}
@@ -456,7 +457,7 @@ export function Projects() {
     // On a narrow screen the project opens below the list.
     if (!wide)
       requestAnimationFrame(() =>
-        document.querySelector('[aria-live=polite]')?.scrollIntoView({ behavior: 'smooth', block: 'start' }),
+        document.querySelector('[data-project-detail]')?.scrollIntoView({ behavior: 'smooth', block: 'start' }),
       );
   };
 
@@ -467,7 +468,7 @@ export function Projects() {
         id="h-projects"
         sub="Where your time and money go, by project · costs at API list prices"
       />
-      <div role="group" aria-label="Filters" className="-mt-1 flex flex-wrap items-center gap-2">
+      <fieldset aria-label="Filters" className="min-w-0 -mt-1 flex flex-wrap items-center gap-2">
         <label className="flex h-8 min-w-[160px] grow basis-[240px] @max-[640px]:basis-[160px] items-center gap-2 rounded-control border border-line bg-card px-2.5 text-detail focus-within:border-accent @min-[900px]:max-w-[360px]">
           <Search size={15} strokeWidth={1.8} className="shrink-0 text-muted" aria-hidden />
           <input
@@ -507,7 +508,7 @@ export function Projects() {
             options={MEASURES}
           />
         </span>
-      </div>
+      </fieldset>
       {!data ? (
         <Card>
           {isError ? (

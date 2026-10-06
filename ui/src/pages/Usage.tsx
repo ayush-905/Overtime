@@ -383,7 +383,7 @@ function WindowsCard({ inp }: { inp: LimitsInput }) {
           </dl>
         </div>
         <div className="min-w-0">
-          <Calendar columns={m.columns} height={180} now={inp.now} dayHour={0} />
+          <Calendar label="Your 5-hour windows by day" columns={m.columns} height={180} now={inp.now} dayHour={0} />
           <p className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-label text-muted" aria-hidden>
             <span className="inline-flex items-center gap-1.5">
               <i
@@ -460,7 +460,7 @@ function ClaudeSection() {
           {notice.text}
         </p>
       )}
-      <Card band flush className="grid @min-[760px]:grid-cols-2" aria-label="Claude Code limits" aria-live="polite">
+      <Card band flush className="grid @min-[760px]:grid-cols-2" aria-label="Claude Code limits">
         <div className="border-line px-[var(--card-px)] py-[var(--card-py)] @max-[759px]:border-b @min-[760px]:border-r">
           <LimitHalf kind="session" inp={inp} />
         </div>

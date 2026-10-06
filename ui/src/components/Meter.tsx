@@ -30,6 +30,7 @@ export function Meter({
   const keep = value == null || projectedLeft == null ? null : Math.max(0, Math.min(value, projectedLeft));
   const tone = value == null ? 'ok' : toneFor(keep ?? value);
   return (
+    // biome-ignore lint/a11y/useSemanticElements: drawn by hand, with the stretch your pace will use hatched, which a <meter> can't show
     <div
       role="meter"
       aria-label={label}
