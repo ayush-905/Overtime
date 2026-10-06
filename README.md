@@ -14,7 +14,7 @@ browser.
 ## Install
 
 **The Mac app** (Apple Silicon, macOS 13 or later):
-**[download Overtime 0.6.1](https://github.com/ayush-905/Overtime/releases/download/v0.6.1/overtime-0.6.1-arm64.dmg)**
+**[download Overtime 0.6.2](https://github.com/ayush-905/Overtime/releases/download/v0.6.2/overtime-0.6.2-arm64.dmg)**
 (or see [all releases](https://github.com/ayush-905/Overtime/releases)), open the DMG and
 drag Overtime to Applications.
 
