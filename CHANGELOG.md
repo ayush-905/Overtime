@@ -3,7 +3,7 @@
 What changed in each release of Overtime. The newest is first, and each one has its download on
 [GitHub Releases](https://github.com/ayush-905/Overtime/releases).
 
-## Unreleased
+## 0.6.3 (6 October 2026)
 
 - **The forecast reads like the figure above it.** Under each plan limit, on the Overview and the
   Usage page alike, it says what's left: "At this pace, ~34% left at the reset" ("~34% left at
