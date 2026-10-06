@@ -29,6 +29,13 @@ export function Meter({
   const value = left == null ? null : Math.max(0, Math.min(100, left));
   const keep = value == null || projectedLeft == null ? null : Math.max(0, Math.min(value, projectedLeft));
   const tone = value == null ? 'ok' : toneFor(keep ?? value);
+  // Read out after the figure: where it's heading, when that's lower than now.
+  const heading =
+    value == null || keep == null || keep >= value
+      ? ''
+      : keep < 0.5
+        ? '; at this pace, it runs out before the reset'
+        : `; at this pace, about ${Math.round(keep)}% left at the reset`;
   return (
     // biome-ignore lint/a11y/useSemanticElements: drawn by hand, with the stretch your pace will use hatched, which a <meter> can't show
     <div
@@ -37,11 +44,7 @@ export function Meter({
       aria-valuemin={0}
       aria-valuemax={100}
       aria-valuenow={value ?? undefined}
-      aria-valuetext={
-        value == null
-          ? 'No reading'
-          : `${Math.round(value)}% left${keep != null && keep < value ? `, on pace to use about ${Math.round(100 - keep)}% by the reset` : ''}`
-      }
+      aria-valuetext={value == null ? 'No reading' : `${Math.round(value)}% left${heading}`}
       className={cx('relative overflow-hidden rounded-full bg-sunken', size === 'sm' ? 'h-1.5' : 'h-2', className)}
     >
       {value != null && keep != null && keep < value && (

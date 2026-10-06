@@ -5,8 +5,9 @@ What changed in each release of Overtime. The newest is first, and each one has 
 
 ## Unreleased
 
-- **The forecast says what you'll use.** Under each plan limit, on the Overview and the Usage page
-  alike: "On pace to use ~66% by the reset", rather than how much you'd keep.
+- **The forecast reads like the figure above it.** Under each plan limit, on the Overview and the
+  Usage page alike, it says what's left: "At this pace, ~34% left at the reset" ("~34% left at
+  reset" on the Overview).
 
 ## 0.6.2 (6 October 2026)
 
