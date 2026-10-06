@@ -3,7 +3,7 @@
 What changed in each release of Overtime. The newest is first, and each one has its download on
 [GitHub Releases](https://github.com/ayush-905/Overtime/releases).
 
-## Unreleased
+## 0.6.2 (6 October 2026)
 
 - **Links to sessions.** The open session is in the address (`#sessions?range=7&session=…`),
   so a refresh keeps it open and Back closes it. **Copy link** in its panel gives a link to

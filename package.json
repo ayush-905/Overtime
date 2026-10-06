@@ -1,7 +1,7 @@
 {
   "name": "overtime",
   "productName": "Overtime",
-  "version": "0.6.1",
+  "version": "0.6.2",
   "description": "A dashboard for your Claude Code, Codex and Pi limits, spend and agents, plus a pixel-art office to watch them work",
   "author": "Ayush Tripathi",
   "license": "MIT",
