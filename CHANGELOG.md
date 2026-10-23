@@ -3,7 +3,7 @@
 What changed in each release of Overtime. The newest is first, and each one has its download on
 [GitHub Releases](https://github.com/ayush-905/Overtime/releases).
 
-## Unreleased
+## 0.6.4 (23 October 2026)
 
 - **Workflow subagents count.** Claude Code keeps the subagents a workflow starts a folder
   further down, and Overtime never read them, so a session window spent mostly on workflows
