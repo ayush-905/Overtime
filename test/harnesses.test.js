@@ -127,3 +127,48 @@ test('a new harness is one module: the index and the live view take it through t
   assert.deepEqual(await watcher.onThisMac(), { folders: [dir], sources: ['toy'] }); // its folder is there, so it's a view of its own
   assert.equal(openHarnesses({ dirs: { claude: root } }).length, 1);
 });
+
+test("Claude Code's workflow subagents count toward their session, like its other subagents", async (t) => {
+  const root = await mkdtemp(path.join(os.tmpdir(), 'overtime-workflow-'));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const session = '11111111-2222-4333-8444-555555555555';
+  const folder = path.join(root, '-work-kettle');
+  const subs = path.join(folder, session, 'subagents');
+  const run = path.join(subs, 'workflows', 'wf_1a2b3c4d-567');
+  await mkdir(run, { recursive: true });
+  const at = new Date(Date.now() - 60_000).toISOString();
+  const reply = (id, output) =>
+    `${JSON.stringify({
+      type: 'assistant',
+      timestamp: at,
+      cwd: '/work/kettle',
+      message: {
+        id,
+        model: 'claude-sonnet-4-5',
+        content: [{ type: 'text', text: 'Done.' }],
+        usage: {
+          input_tokens: 1000,
+          output_tokens: output,
+          cache_read_input_tokens: 0,
+          cache_creation_input_tokens: 0,
+        },
+      },
+    })}\n`;
+  await writeFile(path.join(folder, `${session}.jsonl`), reply('msg_main', 100));
+  await writeFile(path.join(subs, 'agent-a1.jsonl'), reply('msg_sub', 200));
+  await writeFile(path.join(run, 'agent-b2.jsonl'), reply('msg_workflow', 300));
+
+  const index = createUsageIndex({ claudeDir: root, keepText: false });
+  await index.scan();
+  const records = index.recordsOf(session);
+  assert.deepEqual(records.map((r) => [r.id, r.sub]).sort(), [
+    [session, false],
+    ['a1', true],
+    ['b2', true],
+  ]);
+  assert.equal(index.events().length, 3);
+  assert.equal(
+    index.events().reduce((n, e) => n + e[2], 0),
+    3600,
+  );
+});

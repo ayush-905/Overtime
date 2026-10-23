@@ -8,7 +8,7 @@
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { rm, writeFile } from 'node:fs/promises';
+import { readFile, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { exactLimits, forgetLogin } from '../lib/limits.js';
 import { scratch } from './helpers.js';
@@ -49,8 +49,9 @@ async function setup(t, { token = 'test-token-1', expiresIn = 3600 * SECOND, ans
 
   const requests = [];
   t.mock.method(globalThis, 'fetch', async (url, init) => {
-    requests.push({ url: String(url), headers: init.headers });
-    const answer = answers.shift();
+    requests.push({ url: String(url), headers: init.headers, body: init.body && JSON.parse(init.body) });
+    let answer = answers.shift();
+    if (typeof answer === 'function') answer = await answer();
     if (answer instanceof Error) throw answer;
     return answer;
   });
@@ -60,6 +61,7 @@ async function setup(t, { token = 'test-token-1', expiresIn = 3600 * SECOND, ans
     keychain.push([cmd, ...args]);
     return null;
   };
+  const readSaved = async () => JSON.parse(await readFile(credentials, 'utf8'));
   return {
     exact: (options = {}) => exactLimits({ run, ...options }),
     start,
@@ -67,6 +69,7 @@ async function setup(t, { token = 'test-token-1', expiresIn = 3600 * SECOND, ans
     keychain,
     credentials,
     saveLogin,
+    readSaved,
     later: (ms) => {
       clock += ms;
     },
@@ -83,16 +86,28 @@ const USAGE = {
   seven_day_oauth_apps: { utilization: 'none' },
 };
 
-test('a login past its expiry, or none at all, says so without asking Anthropic', async (t) => {
-  const s = await setup(t, { expiresIn: -SECOND });
+test("a login past its expiry that Anthropic won't renew says you were signed out; none at all says so without asking", async (t) => {
+  const s = await setup(t, { expiresIn: -SECOND, answers: [json({ error: 'invalid_grant' }, 400)] });
   const r = await s.exact();
   assert.equal(r.status, 'expired');
-  assert.match(r.message, /expired/);
+  assert.match(r.message, /signed out.*claude auth login/);
+  assert.deepEqual(
+    s.requests.map((q) => q.url),
+    ['https://platform.claude.com/v1/oauth/token'],
+  );
   await rm(s.credentials);
   const none = await s.exact();
   assert.equal(none.status, 'no-login');
   assert.match(none.message, /claude auth login/);
-  assert.equal(s.requests.length, 0);
+  assert.equal(s.requests.length, 1);
+});
+
+test("a login past its expiry that can't be renewed just now says it will try again", async (t) => {
+  const s = await setup(t, { expiresIn: -SECOND, answers: [new TypeError('fetch failed')] });
+  const r = await s.exact();
+  assert.equal(r.status, 'expired');
+  assert.match(r.message, /couldn't be renewed just now/);
+  assert.equal(s.requests.length, 1);
 });
 
 test('rate limited before any reading: it says when it will try again, five minutes on unless Anthropic says otherwise', async (t) => {
@@ -123,13 +138,19 @@ test('with no reading yet, a failure says what went wrong', async (t) => {
   ]);
 });
 
-test('a login Anthropic turns down (401 or 403) asks you to sign in again, and is read afresh the next time', async (t) => {
+test("a login Anthropic turns down (401 that won't renew, or 403) asks you to sign in again, and is read afresh the next time", async (t) => {
   const s = await setup(t, {
-    answers: [json({ error: 'invalid token' }, 401), json({ error: 'forbidden' }, 403), json(USAGE)],
+    answers: [
+      json({ error: 'invalid token' }, 401),
+      json({ error: 'invalid_grant' }, 400),
+      json({ error: 'forbidden' }, 403),
+      json(USAGE),
+    ],
   });
   let r = await s.exact();
   assert.equal(r.status, 'expired');
-  assert.match(r.message, /\(401\).*claude auth login/);
+  assert.match(r.message, /signed out.*claude auth login/);
+  // A 403 is the login lacking access, which renewing won't change.
   r = await s.exact();
   assert.equal(r.status, 'expired');
   assert.match(r.message, /\(403\)/);
@@ -234,4 +255,107 @@ test('switching exact numbers off forgets the login, so the next reading uses th
     s.requests.map((r) => r.headers.Authorization),
     ['Bearer test-token-1', 'Bearer test-token-2'],
   );
+});
+
+const RENEWED = { access_token: 'test-token-2', refresh_token: 'test-refresh-2', expires_in: 28_800 };
+
+test('a login about to run out is renewed as Claude Code would, and saved back changing only its tokens', async (t) => {
+  const s = await setup(t, { expiresIn: 2 * 60 * SECOND, answers: [json(RENEWED), json(USAGE), json(USAGE)] });
+  // Whatever else Claude Code keeps beside the login stays as it was.
+  const saved = await s.readSaved();
+  saved.claudeAiOauth.subscriptionType = 'max';
+  saved.mcpOAuth = { 'test-server': { accessToken: 'test-mcp' } };
+  await writeFile(s.credentials, JSON.stringify(saved));
+
+  const r = await s.exact();
+  assert.equal(r.status, 'ok');
+  const [renewal, usage] = s.requests;
+  assert.equal(renewal.url, 'https://platform.claude.com/v1/oauth/token');
+  assert.deepEqual(renewal.body, {
+    grant_type: 'refresh_token',
+    refresh_token: 'test-refresh',
+    client_id: '9d1c250a-e61b-44d9-88ed-5944d1962f5e',
+    scope: 'user:inference',
+  });
+  assert.equal(usage.headers.Authorization, 'Bearer test-token-2');
+  assert.deepEqual(await s.readSaved(), {
+    claudeAiOauth: {
+      accessToken: 'test-token-2',
+      refreshToken: 'test-refresh-2',
+      expiresAt: s.start + 28_800 * SECOND,
+      scopes: ['user:inference'],
+      subscriptionType: 'max',
+    },
+    mcpOAuth: { 'test-server': { accessToken: 'test-mcp' } },
+  });
+
+  // The renewed login lasts: the next reading doesn't renew again.
+  s.later(61 * SECOND);
+  await s.exact();
+  assert.equal(s.requests.length, 3);
+  assert.equal(s.requests[2].headers.Authorization, 'Bearer test-token-2');
+});
+
+test('turned down early, it takes the login Claude Code has renewed since, without renewing it again', async (t) => {
+  const s = await setup(t, {
+    answers: [
+      async () => {
+        await s.saveLogin('test-token-2'); // Claude Code renewed it meanwhile
+        return json({ error: 'invalid token' }, 401);
+      },
+      json(USAGE),
+    ],
+  });
+  const r = await s.exact();
+  assert.equal(r.status, 'ok');
+  assert.deepEqual(
+    s.requests.map((q) => [q.url, q.headers.Authorization]),
+    [
+      ['https://api.anthropic.com/api/oauth/usage', 'Bearer test-token-1'],
+      ['https://api.anthropic.com/api/oauth/usage', 'Bearer test-token-2'],
+    ],
+  );
+});
+
+test("a login that can't be renewed just now keeps the last good reading, marked stale", async (t) => {
+  const s = await setup(t, { expiresIn: -SECOND, answers: [json({ error: 'server_error' }, 500)] });
+  const r = await s.exact();
+  assert.equal(r.stale, true);
+  assert.equal(r.status, 'ok');
+  // Nothing renewed, so nothing written.
+  assert.equal((await s.readSaved()).claudeAiOauth.accessToken, 'test-token-1');
+});
+
+test('in the Keychain, the renewed login replaces the same item, handed to security on stdin', {
+  skip: process.platform !== 'darwin',
+}, async (t) => {
+  const s = await setup(t, { token: null, answers: [json(RENEWED), json(USAGE)] });
+  let item = JSON.stringify({
+    claudeAiOauth: { accessToken: 'test-token-1', refreshToken: 'test-refresh', expiresAt: s.start - SECOND },
+  });
+  const calls = [];
+  const run = async (_cmd, args, input) => {
+    calls.push({ args, input });
+    if (args[0] === 'find-generic-password')
+      return args.includes('-w') ? item : '    "acct"<blob>="test-user"\n    "svce"<blob>="Claude Code-credentials"';
+    if (args[0] === '-i') {
+      const hex = /-X ([0-9a-f]+)\n$/.exec(input)[1];
+      item = Buffer.from(hex, 'hex').toString('utf8');
+      return '';
+    }
+    return null;
+  };
+  const r = await s.exact({ run });
+  assert.equal(r.status, 'ok');
+  const write = calls.find((c) => c.args[0] === '-i');
+  assert.deepEqual(write.args, ['-i']);
+  assert.match(write.input, /^add-generic-password -U -a test-user -s "Claude Code-credentials" -X [0-9a-f]+\n$/);
+  assert.ok(calls.every((c) => !c.args.join(' ').includes('test-token-2')));
+  assert.deepEqual(JSON.parse(item).claudeAiOauth, {
+    accessToken: 'test-token-2',
+    refreshToken: 'test-refresh-2',
+    expiresAt: s.start + 28_800 * SECOND,
+  });
+  // No scopes saved with the login: it asks for Claude Code's usual ones.
+  assert.match(s.requests[0].body.scope, /^user:profile user:inference/);
 });

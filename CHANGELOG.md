@@ -3,6 +3,19 @@
 What changed in each release of Overtime. The newest is first, and each one has its download on
 [GitHub Releases](https://github.com/ayush-905/Overtime/releases).
 
+## Unreleased
+
+- **Workflow subagents count.** Claude Code keeps the subagents a workflow starts a folder
+  further down, and Overtime never read them, so a session window spent mostly on workflows
+  looked nearly empty: one that hit the limit showed $3.76 of about $228. Their usage now
+  counts toward their session, its window, the week and the spend totals, and toward the
+  estimate of how much a window holds.
+- **Exact limits keep working away from the terminal.** The Claude Code login lasts a few
+  hours and only `claude` renewed it, so on days spent in the Claude app the exact limits
+  said it had expired. Overtime now renews it as Claude Code does and saves it back where
+  Claude Code keeps it, so the two go on sharing one login. It asks you to sign in again
+  only when Anthropic says the login was signed out.
+
 ## 0.6.3 (6 October 2026)
 
 - **The forecast reads like the figure above it.** Under each plan limit, on the Overview and the
